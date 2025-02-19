@@ -1,3 +1,4 @@
+import sys
 import os
 import tempfile
 import subprocess
@@ -8,20 +9,69 @@ import json
 from typing import Optional, Tuple, Dict, Set, List
 from contextlib import contextmanager
 
+class Git:
+    def __init__(self, path: str):
+        self.path = path
+
+    def run(self, *args, **kwargs):
+        result = subprocess.run(
+            ['git', '-C', self.path, *args],
+            capture_output=True,
+            text=True,
+            check=True,
+            **kwargs
+        )
+        return result.stdout.strip()
+
+    class Config:
+        def __init__(self, git: 'Git'):
+            self.git = git
+            
+        def __getitem__(self, key: str) -> str:
+            return self.git.run('config', key)
+    
+        def __setitem__(self, key: str, value: str):
+            self.git.run('config', key, value)
+        
+        def __delitem__(self, key: str):
+            self.git.run('config', '--unset', key)
+
+    @property
+    def config(self):
+        return self.Config(self)
+
+class Logger:
+    def __init__(self, log: callable):
+        self.log = log
+
+    @contextmanager
+    def section(self, name):
+        self.log(f"Starting {name}...")
+        yield
+        self.log(f"Finished {name}")
+
+    def method(self, method):
+        def wrapper(*args, **kwargs):
+            with self.section(method.__name__):
+                return method(*args, **kwargs)
+        return wrapper
+    
+null_logger = Logger(lambda *args, **kwargs: None)
+logger = Logger(print)
+
 class GitAnnexDownloader:
-    def __init__(self, db_host: str, db_user: str, db_password: str, db_name: str, 
-                 git_annex_path: str, local_uuid: str, batch_size: int = 10):
+    def __init__(self, 
+                 git: Git, local_uuid: str, batch_size: int = 10,
+                 db_batch_size: int = 1000):
         self.db_config = {
-            'host': db_host,
-            'user': db_user,
-            'password': db_password,
-            'db': db_name,
-            'charset': 'utf8mb4',
-            'cursorclass': pymysql.cursors.DictCursor
+            "unix_socket": "/tmp/mysql.sock",
+            "user": "root",
+            "database": "dolt"
         }
-        self.git_annex_path = git_annex_path
+        self.git = git
         self.local_uuid = local_uuid
         self.batch_size = batch_size
+        self.db_batch_size = db_batch_size
 
     @contextmanager
     def db_connection(self):
@@ -32,46 +82,31 @@ class GitAnnexDownloader:
         finally:
             connection.close()
 
-    def fetch_unprocessed_urls(self) -> list[dict]:
+    def fetch_unprocessed_urls(self) -> list[str]:
         """Fetch a batch of URLs that haven't been processed yet"""
         with self.db_connection() as connection:
             with connection.cursor() as cursor:
                 sql = """
                     SELECT url 
                     FROM `annex-keys` 
-                    WHERE annex_key IS NULL 
+                    WHERE `annex-key` IS NULL 
                     LIMIT %s
                 """
                 cursor.execute(sql, (self.batch_size,))
-                return cursor.fetchall()
+                return (row[0] for row in cursor.fetchall())
 
     def compute_annex_key(self, file_path: str) -> str:
         """Compute the git-annex key for a file without adding it to the repository"""
-        result = subprocess.run(
-            ['git', '-C', self.git_annex_path, 'annex', 'calckey', file_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
+        return self.git.run('annex', 'calckey', file_path)
 
     def register_url(self, key: str, url: str):
         """Register a URL for a key in git-annex"""
-        subprocess.run(
-            ['git', '-C', self.git_annex_path, 'annex', 'registerurl', key, url],
-            check=True
-        )
+        return self.git.run('annex', 'registerurl', key, url)
 
-    def reinject_file(self, file_path: str) -> str:
+    def reinject_file(self, key: str, file_path: str) -> str:
         """Reinject a file into git-annex and return its key"""
-        result = subprocess.run(
-            ['git', '-C', self.git_annex_path, 'annex', 'reinject', file_path],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        # Extract key from reinject output
-        return result.stdout.strip().split()[0]
+        print(key, file_path)
+        return self.git.run('annex', 'setkey', key, file_path)
 
     def update_database(self, url: str, key: str):
         """Update the database with the new key for a URL and initialize sources"""
@@ -84,31 +119,21 @@ class GitAnnexDownloader:
                     # Update annex-keys table
                     sql = """
                         UPDATE `annex-keys` 
-                        SET annex_key = %s 
+                        SET `annex-key` = %s 
                         WHERE url = %s
                     """
                     cursor.execute(sql, (key, url))
                     
                     # Insert or update sources table with the local UUID
                     sql = """
-                        INSERT INTO sources (annex_key, sources, numSources)
-                        VALUES (%s, %s, 1)
+                        INSERT INTO sources (`annex-key`, sources)
+                        VALUES (%s, %s) as new(new_key, new_sources)
                         ON DUPLICATE KEY UPDATE
-                        sources = JSON_SET(
-                            COALESCE(sources, '{}'),
-                            %s,
-                            'true'
-                        ),
-                        numSources = JSON_LENGTH(
-                            JSON_SET(
-                                COALESCE(sources, '{}'),
-                                %s,
-                                'true'
-                            )
-                        )
+                        sources = JSON_MERGE_PATCH(
+                            sources, new_sources);
                     """
                     path = f'$."{self.local_uuid}"'
-                    cursor.execute(sql, (key, f'{{{self.local_uuid}:true}}', path, path))
+                    cursor.execute(sql, (key, f'{{"{self.local_uuid}":1}}'))
                     
                     # Commit transaction
                     connection.commit()
@@ -137,35 +162,30 @@ class GitAnnexDownloader:
                 self.register_url(key, url)
                 
                 # Reinject the file
-                actual_key = self.reinject_file(temp_file.name)
-                
-                # Verify keys match
-                if key != actual_key:
-                    raise ValueError(f"Computed key {key} doesn't match actual key {actual_key}")
+                self.reinject_file(key, temp_file.name)
                 
                 return key
                 
             except (requests.RequestException, subprocess.CalledProcessError, ValueError) as e:
                 print(f"Error processing URL {url}: {str(e)}")
                 return None
-            finally:
-                # Clean up temporary file
-                os.unlink(temp_file.name)
 
+    @logger.method
     def process_batch(self):
         """Process a batch of unprocessed URLs"""
-        urls = self.fetch_unprocessed_urls()
+        urls = list(self.fetch_unprocessed_urls())
+        logger.log(f"Discovered {len(urls)} unprocessed URLs: {urls}")
         
-        for url_data in urls:
-            url = url_data['url']
-            key = self.process_url(url)
-            
-            if key:
-                try:
-                    self.update_database(url, key)
-                    print(f"Successfully processed {url} with key {key}")
-                except pymysql.Error as e:
-                    print(f"Database error for URL {url}: {str(e)}")
+        for url in urls:
+            with logger.section(f"processing {url}"):
+                key = self.process_url(url)
+                
+                if key:
+                    try:
+                        self.update_database(url, key)
+                        print(f"Successfully processed {url} with key {key}")
+                    except pymysql.Error as e:
+                        print(f"Database error for URL {url}: {str(e)}")
 
     def parse_log_file(self, content: str) -> Set[str]:
         """Parse a .log file and return a set of UUIDs that have the file"""
@@ -198,13 +218,7 @@ class GitAnnexDownloader:
     def get_file_from_git(self, ref: str, path: str) -> Optional[str]:
         """Get file content from git"""
         try:
-            result = subprocess.run(
-                ['git', '-C', self.git_annex_path, 'show', f'{ref}:{path}'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            return result.stdout
+            return self.git.run('annex', 'show', f'{ref}:{path}')
         except subprocess.CalledProcessError:
             return None
 
@@ -217,11 +231,10 @@ class GitAnnexDownloader:
         with self.db_connection() as connection:
             with connection.cursor() as cursor:
                 sql = """
-                    INSERT INTO sources (annex_key, sources, numSources)
+                    INSERT INTO sources (`annex-key`, sources)
                     VALUES (%s, %s, %s)
                     ON DUPLICATE KEY UPDATE
-                    sources = %s,
-                    numSources = %s
+                    sources = %s
                 """
                 sources_str = json.dumps(sources_json)
                 num_sources = len(uuids)
@@ -237,13 +250,50 @@ class GitAnnexDownloader:
             with connection.cursor() as cursor:
                 # Insert all URLs for this key
                 sql = """
-                    INSERT INTO `annex-keys` (url, annex_key)
+                    INSERT INTO `annex-keys` (url, `annex-key`)
                     VALUES (%s, %s)
                     ON DUPLICATE KEY UPDATE
-                    annex_key = VALUES(annex_key)
+                    `annex-key` = VALUES(`annex-key`)
                 """
                 cursor.executemany(sql, [(url, key) for url in urls])
                 connection.commit()
+
+    def flush_sources_batch(self, cursor, sources_batch):
+        """Execute a batch of source updates"""
+        if not sources_batch:
+            return
+
+        
+        sql = f"""
+            INSERT INTO sources (`annex-key`, sources)
+            VALUES (%s, %s) AS new(new_key, new_sources)
+            ON DUPLICATE KEY UPDATE
+            sources = JSON_MERGE_PATCH(sources, new_sources);
+        """
+        
+        # Prepare all parameters
+        params = []
+        for entry in sources_batch:
+            # Parameters for INSERT
+            print(entry)
+            initial_json = json.dumps({uuid: 1 for uuid in entry['uuid_dict']})
+            params.append([entry['key'], initial_json])
+            
+        print(sql, params)
+        cursor.executemany(sql, params)
+
+    def flush_urls_batch(self, cursor, urls_batch):
+        """Execute a batch of URL updates"""
+        if not urls_batch:
+            return
+            
+        sql = """
+            INSERT INTO `annex-keys` (url, `annex-key`)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE
+            `annex-key` = VALUES(`annex-key`)
+        """
+        cursor.executemany(sql, urls_batch)
 
     def discover_and_populate(self):
         """Walk the git-annex branch and populate the database"""
@@ -256,25 +306,53 @@ class GitAnnexDownloader:
             text=True
         )
 
-        # Process files as they come in
-        for line in process.stdout:
-            filename = line.strip()
-            if filename.endswith('.log'):
-                key = os.path.splitext(os.path.basename(filename))[0]
-                print(f"Processing key: {key}")
+        sources_batch = []
+        urls_batch = []
+        
+        with self.db_connection() as connection:
+            with connection.cursor() as cursor:
+                # Process files as they come in
+                for line in process.stdout:
+                    filename = line.strip()
+                    if '/' not in filename:
+                        continue
+                    if filename.endswith('.log'):
+                        key = os.path.splitext(os.path.basename(filename))[0]
+                        print(f"Processing key: {key}")
+                        
+                        # Get location log
+                        log_content = self.get_file_from_git('git-annex', filename)
+                        if log_content:
+                            uuid_dict = self.parse_log_file(log_content)
+                            if uuid_dict:
+                                sources_batch.append({
+                                    'key': key,
+                                    'uuid_dict': uuid_dict
+                                })
+                            
+                            if len(sources_batch) >= self.db_batch_size:
+                                self.flush_sources_batch(cursor, sources_batch)
+                                connection.commit()
+                                sources_batch = []
+                        
+                        # Check for web URLs
+                        web_log = f"{os.path.splitext(filename)[0]}.log.web"
+                        web_content = self.get_file_from_git('git-annex', web_log)
+                        if web_content:
+                            urls = self.parse_web_log(web_content)
+                            urls_batch.extend((url, key) for url in urls)
+                            
+                            if len(urls_batch) >= self.db_batch_size:
+                                self.flush_urls_batch(cursor, urls_batch)
+                                connection.commit()
+                                urls_batch = []
                 
-                # Get location log
-                log_content = self.get_file_from_git('git-annex', filename)
-                if log_content:
-                    uuid_dict = self.parse_log_file(log_content)
-                    self.update_sources_table(key, uuid_dict)
-                
-                # Check for web URLs
-                web_log = f"{os.path.splitext(filename)[0]}.log.web"
-                web_content = self.get_file_from_git('git-annex', web_log)
-                if web_content:
-                    urls = self.parse_web_log(web_content)
-                    self.update_annex_keys_table(key, urls)
+                # Flush any remaining batches
+                if sources_batch:
+                    self.flush_sources_batch(cursor, sources_batch)
+                if urls_batch:
+                    self.flush_urls_batch(cursor, urls_batch)
+                connection.commit()
 
         # Make sure the process completed successfully
         retcode = process.wait()
@@ -282,14 +360,14 @@ class GitAnnexDownloader:
             raise subprocess.CalledProcessError(retcode, 'git ls-tree')
 
 def main():
+    _, git_path = sys.argv
     # Configuration
+    git = Git(git_path)
+    local_uuid = git.config['annex.uuid']
+    logger.log(f"Local UUID: {local_uuid}")
     downloader = GitAnnexDownloader(
-        db_host="localhost",
-        db_user="your_user",
-        db_password="your_password",
-        db_name="your_database",
-        git_annex_path="/path/to/git/annex/repo",
-        local_uuid="00000000-0000-0000-0000-000000000000",  # Replace with your local repo's UUID
+        git = git,
+        local_uuid = local_uuid,  # Replace with your local repo's UUID
         batch_size=10
     )
     
