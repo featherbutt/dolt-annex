@@ -9,7 +9,7 @@ from contextlib import contextmanager
 
 class GitAnnexDownloader:
     def __init__(self, db_host: str, db_user: str, db_password: str, db_name: str, 
-                 git_annex_path: str, batch_size: int = 10):
+                 git_annex_path: str, local_uuid: str, batch_size: int = 10):
         self.db_config = {
             'host': db_host,
             'user': db_user,
@@ -19,6 +19,7 @@ class GitAnnexDownloader:
             'cursorclass': pymysql.cursors.DictCursor
         }
         self.git_annex_path = git_annex_path
+        self.local_uuid = local_uuid
         self.batch_size = batch_size
 
     @contextmanager
@@ -72,16 +73,48 @@ class GitAnnexDownloader:
         return result.stdout.strip().split()[0]
 
     def update_database(self, url: str, key: str):
-        """Update the database with the new key for a URL"""
+        """Update the database with the new key for a URL and initialize sources"""
         with self.db_connection() as connection:
-            with connection.cursor() as cursor:
-                sql = """
-                    UPDATE `annex-keys` 
-                    SET annex_key = %s 
-                    WHERE url = %s
-                """
-                cursor.execute(sql, (key, url))
-                connection.commit()
+            try:
+                with connection.cursor() as cursor:
+                    # Begin transaction
+                    connection.begin()
+                    
+                    # Update annex-keys table
+                    sql = """
+                        UPDATE `annex-keys` 
+                        SET annex_key = %s 
+                        WHERE url = %s
+                    """
+                    cursor.execute(sql, (key, url))
+                    
+                    # Insert or update sources table with the local UUID
+                    sql = """
+                        INSERT INTO sources (annex_key, sources, numSources)
+                        VALUES (%s, %s, 1)
+                        ON DUPLICATE KEY UPDATE
+                        sources = JSON_SET(
+                            COALESCE(sources, '{}'),
+                            %s,
+                            'true'
+                        ),
+                        numSources = JSON_LENGTH(
+                            JSON_SET(
+                                COALESCE(sources, '{}'),
+                                %s,
+                                'true'
+                            )
+                        )
+                    """
+                    path = f'$."{self.local_uuid}"'
+                    cursor.execute(sql, (key, f'{{{self.local_uuid}:true}}', path, path))
+                    
+                    # Commit transaction
+                    connection.commit()
+                    
+            except pymysql.Error as e:
+                connection.rollback()
+                raise e
 
     def process_url(self, url: str) -> Optional[str]:
         """Process a single URL: download, compute key, register, and reinject"""
@@ -141,6 +174,7 @@ def main():
         db_password="your_password",
         db_name="your_database",
         git_annex_path="/path/to/git/annex/repo",
+        local_uuid="00000000-0000-0000-0000-000000000000",  # Replace with your local repo's UUID
         batch_size=10
     )
     
