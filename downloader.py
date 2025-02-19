@@ -189,9 +189,7 @@ class GitAnnexDownloader:
                 continue
             try:
                 timestamp, present, url = line.split(maxsplit=2)
-                if present != "1":
-                    print(f"Found unexpected present value in {content}")
-                else:
+                if present == "1":
                     urls.append(url)
             except ValueError:
                 print(f"Warning: malformed web log line: {line}")
@@ -251,33 +249,37 @@ class GitAnnexDownloader:
         """Walk the git-annex branch and populate the database"""
         print("Starting repository discovery...")
         
-        # Get list of all files in git-annex branch
-        result = subprocess.run(
+        # Stream the git ls-tree output
+        process = subprocess.Popen(
             ['git', '-C', self.git_annex_path, 'ls-tree', '-r', 'git-annex', '--name-only'],
-            capture_output=True,
-            text=True,
-            check=True
+            stdout=subprocess.PIPE,
+            text=True
         )
-        
-        all_files = result.stdout.splitlines()
-        log_files = [f for f in all_files if f.endswith('.log')]
-        
-        for log_file in log_files:
-            key = os.path.splitext(os.path.basename(log_file))[0]
-            print(f"Processing key: {key}")
-            
-            # Get location log
-            log_content = self.get_file_from_git('git-annex', log_file)
-            if log_content:
-                uuids = self.parse_log_file(log_content)
-                self.update_sources_table(key, uuids)
-            
-            # Check for web URLs
-            web_log = f"{os.path.splitext(log_file)[0]}.log.web"
-            web_content = self.get_file_from_git('git-annex', web_log)
-            if web_content:
-                urls = self.parse_web_log(web_content)
-                self.update_annex_keys_table(key, urls)
+
+        # Process files as they come in
+        for line in process.stdout:
+            filename = line.strip()
+            if filename.endswith('.log'):
+                key = os.path.splitext(os.path.basename(filename))[0]
+                print(f"Processing key: {key}")
+                
+                # Get location log
+                log_content = self.get_file_from_git('git-annex', filename)
+                if log_content:
+                    uuid_dict = self.parse_log_file(log_content)
+                    self.update_sources_table(key, uuid_dict)
+                
+                # Check for web URLs
+                web_log = f"{os.path.splitext(filename)[0]}.log.web"
+                web_content = self.get_file_from_git('git-annex', web_log)
+                if web_content:
+                    urls = self.parse_web_log(web_content)
+                    self.update_annex_keys_table(key, urls)
+
+        # Make sure the process completed successfully
+        retcode = process.wait()
+        if retcode != 0:
+            raise subprocess.CalledProcessError(retcode, 'git ls-tree')
 
 def main():
     # Configuration
