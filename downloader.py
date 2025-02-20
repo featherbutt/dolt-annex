@@ -36,10 +36,6 @@ class Git:
         def __delitem__(self, key: str):
             self.git.run('config', '--unset', key)
 
-    @property
-    def config(self):
-        return self.Config(self)
-
 class Logger:
     def __init__(self, log: callable):
         self.log = log
@@ -195,7 +191,7 @@ class GitAnnexDownloader:
                 continue
             try:
                 timestamp, present, uuid = line.split()
-                if present == "1":
+                if present == "1" and uuid != '00000000-0000-0000-0000-000000000001':
                     uuids.add(uuid)
             except ValueError:
                 print(f"Warning: malformed log line: {line}")
