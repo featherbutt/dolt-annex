@@ -1,0 +1,75 @@
+import os
+import random
+from contextlib import contextmanager
+from typing import Tuple
+
+from logger import logger
+
+import pymysql
+class BatchInserter:
+    def __init__(self, connection, cursor, sql, batch_size=5):
+        self.connection = connection
+        self.cursor = cursor
+        self.sql = sql
+        self.batch_size = batch_size
+        self.values = []
+        
+    def insert(self, *row):
+        self.values.append(row)
+        if len(self.values) >= self.batch_size:
+            self.flush()
+        
+    def flush(self):
+        self.cursor.executemany(self.sql, self.values)
+        self.cursor.execute("COMMIT;")
+        self.connection.commit()
+        self.values.clear()
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.flush()
+
+sources_sql = """
+    INSERT INTO sources (`annex-key`, sources)
+    VALUES (%s, %s) as new(new_key, new_sources)
+    ON DUPLICATE KEY UPDATE
+    sources = JSON_MERGE_PATCH(sources, new_sources);
+"""
+
+annex_keys_sql = """
+    INSERT INTO `annex-keys` (url, `annex-key`)
+    VALUES (%s, %s) as new(new_url, new_key)
+    ON DUPLICATE KEY UPDATE
+    `annex-key` = new_key
+"""
+
+def random_string_key(min_key, max_key: str) -> str:
+    prefix = os.path.commonprefix([min_key, max_key])
+    nextChoices = []
+    if len(prefix) == len(min_key):
+        nextChoices.append("")
+    lower = ord(min_key[len(prefix)])
+    if lower < ord('a'):
+        nextChoices.append(chr(lower))
+        lower = ord('a')
+    upper = ord(max_key[len(prefix)])
+    if upper > ord('z'):
+        nextChoices.append(chr(upper))
+        upper = ord('z')
+    nextChoices.extend(map(chr, range(lower, upper+1)))
+
+    print(nextChoices)
+    return prefix + random.choice(nextChoices)
+
+def random_batch(cursor, batch_size: int) -> Tuple[list[str], int]:
+    num_results = cursor.execute("SELECT MIN(`url`), MAX(`url`) FROM `annex-keys` WHERE `annex-key` IS NULL;")
+    min_key, max_key = cursor.fetchone()
+    logger.log(f"min_key: {min_key}, max_key: {max_key}")
+    pivot_key = random_string_key(min_key, max_key)
+    logger.log(f"pivot_key: {pivot_key}")
+    cursor.execute("DESCRIBE PLAN SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL AND url >= %s LIMIT %s", (pivot_key, batch_size))
+    print(cursor.fetchall())
+    cursor.execute("SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL AND url >= %s LIMIT %s", (pivot_key, batch_size))
+    return (row[0] for row in cursor.fetchall()), num_results
