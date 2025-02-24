@@ -13,8 +13,10 @@ def url_from_path_other_annex(other_annex_dir: str) -> Callable[[str], List[str]
         parts = path.split(os.path.sep)
         annex_object_path = '/'.join(parts[-4:-1])
         other_git = local.cmd.git["-C", "./git-annex-from"]
-        web_log = other_git('show', f'git-annex:{annex_object_path}.log.web')
-        return annex.parse_web_log(web_log)
+        web_log = other_git('show', f'git-annex:{annex_object_path}.log.web', retcode=None)
+        if web_log:
+            return annex.parse_web_log(web_log)
+        return []
     return inner
 
 def url_from_path_directory(url_prefix: str) -> Callable[[str], List[str]]:

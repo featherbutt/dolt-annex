@@ -4,7 +4,7 @@ import tempfile
 import subprocess
 import requests
 import json
-from typing import Optional
+from typing import List, Optional
 
 import annex
 import db
@@ -68,19 +68,19 @@ class GitAnnexDownloader:
                 print(f"Error processing URL {url}: {str(e)}")
                 return None
             
-    def import_file(self, path: str, url_from_path: Callable[[str], str] = None) -> str:
+    def import_file(self, path: str, url_from_path: Callable[[str], List[str]] = None) -> str:
         """Import a file into the annex"""
         key = self.add_file(path)
         self.add_source(key, self.local_uuid)
 
         if url_from_path:
-            url = url_from_path(path)
-            if url:
+            urls = url_from_path(path)
+            for url in urls:
                 self.annex_keys.insert(url, key)
 
         return key
 
-    def import_directory(self, path: str, url_from_path: Callable[[str], str] = None):
+    def import_directory(self, path: str, url_from_path: Callable[[str], List[str]] = None):
         """Import a directory into the annex"""
         for root, _, files in os.walk(path):
             for file in files:
