@@ -70,6 +70,9 @@ class GitAnnexDownloader:
             
     def import_file(self, path: str, url_from_path: Callable[[str], List[str]] = None) -> str:
         """Import a file into the annex"""
+        extension = os.path.splitext(path)[1]
+        if len(extension) > self.max_extension_length+1:
+            return
         key = self.add_file(path)
         self.add_source(key, self.local_uuid)
 
