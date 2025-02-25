@@ -42,6 +42,9 @@ class Git:
     
     def show(self, ref: str, path: str) -> str:
         return self.cmd('show', f'{ref}:{path}', retcode=None)
+    
+    def popen(self, *args, **kwargs):
+        return self.cmd.popen(*args, **kwargs)
 
 
     

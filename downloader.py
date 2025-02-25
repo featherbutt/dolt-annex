@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import os
+from sqlite3 import Cursor
 import tempfile
 import subprocess
 import requests
@@ -8,19 +9,29 @@ from typing import List, Optional
 
 import annex
 import db
+from dolt import DoltSqlServer
 from logger import logger
 from git import Git
 
 class GitAnnexDownloader:
         
+    git: Git
+    local_uuid: str
+    max_extension_length: int
+    dolt_server: DoltSqlServer
+    sources: db.BatchInserter
+    annex_keys: db.BatchInserter
+    batch_size: int
+    auto_push: bool
+
     def __init__(self, 
-                 git: Git, sources: db.BatchInserter, annex_keys: db.BatchInserter, cursor, auto_push: bool, batch_size: int = 10):
+                 git: Git, sources: db.BatchInserter, annex_keys: db.BatchInserter, dolt_server: DoltSqlServer, auto_push: bool, batch_size: int = 10):
         self.git = git
         self.local_uuid = git.config['annex.uuid']
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.log(f"Local UUID: {self.local_uuid}")
         self.sources = sources
-        self.cursor = cursor
+        self.dolt_server = dolt_server
         self.annex_keys = annex_keys
         self.batch_size = batch_size
         self.auto_push = auto_push
@@ -88,6 +99,31 @@ class GitAnnexDownloader:
         for root, _, files in os.walk(path):
             for file in files:
                 self.import_file(os.path.join(root, file), url_from_path)
+
+    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]] = None):
+        """Import a git branch into the annex"""
+        # Stream the git ls-tree output
+        git = Git(other_repo)
+        
+        process = git.popen('ls-tree', '-r', branch, stdout=subprocess.PIPE, text=True)
+        
+        # Process files as they come in
+        for line in process.stdout:
+            objectmode, objecttype, objecthash, filename = line.strip().split()
+            if objectmode != '120000':
+                continue
+            contents = git.show(branch, filename)
+            if contents:
+                symlink = contents.strip()
+                key = symlink.split('/')[-1]
+                urls = url_from_path(symlink)
+                for url in urls:
+                    self.annex_keys.insert(url, key)
+        # Make sure the process completed successfully
+        retcode = process.wait()
+        if retcode != 0:
+            raise subprocess.CalledProcessError(retcode, 'git ls-tree')
+        
             
 
     def discover_and_populate(self):

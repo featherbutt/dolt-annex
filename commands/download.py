@@ -16,10 +16,17 @@ class DownloadBatch(cli.Application):
         default = 1000,
     )
 
+    url_prefix = cli.SwitchAttr(
+        "--url-prefix",
+        str,
+        help="Only download files with URLs that start with this prefix",
+        default="",
+    )
+
     def main(self):
         with self.parent.Downloader(self.batch_size) as downloader:
             while True:
-                urls, num_urls = db.random_batch(downloader.cursor, self.batch_size)
+                urls, num_urls = db.random_batch(self.url_prefix, downloader.dolt_server.cursor, self.batch_size)
                 logger.log(f"Discovered {num_urls} unprocessed URLs.")
 
                 if num_urls == 0:
@@ -28,3 +35,4 @@ class DownloadBatch(cli.Application):
                 for url in urls:
                     with logger.section(f"processing {url}"):
                         downloader.download_file(url)
+                downloader.dolt_server.garbage_collect()
