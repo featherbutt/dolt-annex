@@ -32,6 +32,11 @@ def url_from_falr_directory(cursor, other_dolt_db: str) -> Callable[[str], List[
         return [row[0] for row in cursor.fetchall()]
     return inner
 
+def e621_url_from_path():
+    return lambda path: [f"https://static1.e621.net/data/{path[:2]}/{path[2:4]}/{path}.png"]
+
+def gelbooru_url_from_path():
+    return lambda path: [f"https://img3.gelbooru.com/images/{path[:2]}/{path[2:4]}/{path}.png"]
 
 def import_(downloader: GitAnnexDownloader, file_or_directory: str, url_from_path: Callable[[str], str]):
         if os.path.isfile(file_or_directory):
@@ -74,11 +79,27 @@ class Import(cli.Application):
         excludes = ["--from-other-annex", "--url-prefix"],
     )
 
+    from_e621 = cli.Flag(
+        "--from-e621",
+        help="Import from e621 scrape",
+        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git"],
+    )
+
+    from_gelbooru = cli.Flag(
+        "--from-gelbooru",
+        help="Import from gelbooru scrape",
+        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621"],
+    )
+
     def url_factory(self):
         if self.from_other_annex:
             return url_from_path_other_annex(self.from_other_annex)
         elif self.url_prefix:
             return url_from_path_directory(self.url_prefix)
+        elif self.from_e621:
+            return e621_url_from_path()
+        elif self.from_gelbooru:
+            return gelbooru_url_from_path()
         else:
             return None
 
