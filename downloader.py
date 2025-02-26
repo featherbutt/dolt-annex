@@ -29,7 +29,7 @@ class GitAnnexDownloader:
         self.git = git
         self.local_uuid = git.config['annex.uuid']
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
-        logger.log(f"Local UUID: {self.local_uuid}")
+        logger.info(f"Local UUID: {self.local_uuid}")
         self.sources = sources
         self.dolt_server = dolt_server
         self.annex_keys = annex_keys

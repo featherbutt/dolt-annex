@@ -5,6 +5,7 @@ from typing import Dict
 from plumbum import local
 import pymysql
 
+from dry_run import dry_run
 from logger import logger
 
 class DoltSqlServer:
@@ -39,9 +40,10 @@ class DoltSqlServer:
             try:
                 return dolt_server_process, pymysql.connect(**self.db_config)
             except Exception as e:
-                logger.log(f"Waiting for SQL server: {str(e)}")
+                logger.info(f"Waiting for SQL server: {str(e)}")
                 time.sleep(1)
 
+    @dry_run("Would run garbage collection")
     def garbage_collect(self):
         try:
             self.cursor.execute("call DOLT_GC();")
@@ -53,12 +55,16 @@ class DoltSqlServer:
         self.connection = pymysql.connect(**self.db_config)
         self.cursor = self.connection.cursor()
 
+    @dry_run("Would execute {sql} with values {values}")
     def executemany(self, sql: str, values):
+        logger.debug(f"Executing {sql} with values {values}")
         self.cursor.executemany(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
 
+    @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
+        logger.debug(f"Executing {sql} with values {values}")
         self.cursor.execute(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()

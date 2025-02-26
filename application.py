@@ -7,6 +7,7 @@ import db
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
+import dry_run
 
 @dataclass
 class Config:
@@ -42,6 +43,10 @@ class Application(cli.Application):
             email = None,
             name = None,
         )
+
+    @cli.switch("--dry-run", help="Report what would be imported without actually importing")
+    def set_dry_run(self):
+        dry_run.is_dry_run = True
 
     @cli.switch(['-c', '--config'], cli.ExistingFile)
     def set_config(self, path):

@@ -1,5 +1,8 @@
 from plumbum import local
 
+from dry_run import dry_run
+from logger import logger
+
 class GitConfig:
     def __init__(self, git_cmd):
         self.cmd = git_cmd["config", "--local"]
@@ -19,20 +22,24 @@ class GitConfig:
 class GitAnnex:
     def __init__(self, git_cmd):
         self.cmd = git_cmd["annex"]
+        self.dry_run = dry_run
     
     def calckey(self, key: str):
         return self.cmd("calckey", key).strip()
     
+    @dry_run("Would register {key} with url {url}")
     def registerurl(self, key: str, url: str):
         return self.cmd("registerurl", key, url)
     
+    @dry_run("Would add {file_path} to annex with key {key}")
     def setkey(self, key: str, file_path: str):
         return self.cmd("setkey", key, file_path)
     
+    @dry_run("Would transfer key {key} to remote {remote}")
     def push_content(self, key: str, remote: str = "origin"):
         return self.cmd("transferkey", key, "--to", remote)
  
-    
+
 class Git:
     def __init__(self, git_dir: str):
         self.git_dir = git_dir

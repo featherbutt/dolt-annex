@@ -27,7 +27,7 @@ class DownloadBatch(cli.Application):
         with self.parent.Downloader(self.batch_size) as downloader:
             while True:
                 urls, num_urls = db.random_batch(self.url_prefix, downloader.dolt_server.cursor, self.batch_size)
-                logger.log(f"Discovered {num_urls} unprocessed URLs.")
+                logger.info(f"Discovered {num_urls} unprocessed URLs.")
 
                 if num_urls == 0:
                     return
