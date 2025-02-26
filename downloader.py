@@ -10,6 +10,7 @@ from typing import List, Optional
 import annex
 import db
 from dolt import DoltSqlServer
+from dry_run import dry_run
 from logger import logger
 from git import Git
 
@@ -36,12 +37,15 @@ class GitAnnexDownloader:
         self.batch_size = batch_size
         self.auto_push = auto_push
 
+    @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: str, uuid: str):
         """Add a source to the database for a key"""
         self.sources.insert(key, json.dumps({uuid: 1}))
 
+    @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: str):
         """Update the database with the new key for a URL and initialize sources"""
+        self.git.annex.registerurl(key, url)
         self.add_source(key, self.local_uuid)
         self.annex_keys.insert(url, key)
 
@@ -69,8 +73,7 @@ class GitAnnexDownloader:
                 temp_file.flush()
                 
                 key = self.add_file(temp_file.name)
-                self.git.annex.registerurl(key, url)
-
+                
                 self.update_database(url, key)
                 
                 return key
@@ -90,9 +93,10 @@ class GitAnnexDownloader:
         if url_from_path:
             urls = url_from_path(path)
             for url in urls:
-                self.annex_keys.insert(url, key)
+                self.update_database(url, key)
 
         return key
+    
 
     def import_directory(self, path: str, url_from_path: Callable[[str], List[str]] = None):
         """Import a directory into the annex"""
