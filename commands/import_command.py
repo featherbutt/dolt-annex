@@ -33,10 +33,15 @@ def url_from_falr_directory(cursor, other_dolt_db: str) -> Callable[[str], List[
     return inner
 
 def e621_url_from_path():
-    return lambda path: [f"https://static1.e621.net/data/{path[:2]}/{path[2:4]}/{path}.png"]
+    def inner(path: str) -> List[str]:
+        basename = os.path.basename(path)
+        return [f"https://static1.e621.net/data/{basename[:2]}/{basename[2:4]}/{basename}.png"]
+    return inner
 
 def gelbooru_url_from_path():
-    return lambda path: [f"https://img3.gelbooru.com/images/{path[:2]}/{path[2:4]}/{path}.png"]
+    def inner(path: str) -> List[str]:
+        basename = os.path.basename(path)
+        return [f"https://img3.gelbooru.com/images/{basename[:2]}/{basename[2:4]}/{basename}.png"]
 
 def import_(downloader: GitAnnexDownloader, file_or_directory: str, url_from_path: Callable[[str], str]):
         if os.path.isfile(file_or_directory):
