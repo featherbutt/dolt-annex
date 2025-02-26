@@ -9,7 +9,7 @@ from logger import logger
 import pymysql
 
 class BatchInserter:
-    def __init__(self, dolt_server, sql, batch_size=5):
+    def __init__(self, dolt_server, sql, batch_size=1000):
         self.dolt_server = dolt_server
         self.sql = sql
         self.batch_size = batch_size
