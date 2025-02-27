@@ -11,6 +11,7 @@ import annex
 import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
+import importers
 from logger import logger
 from git import Git
 
@@ -22,11 +23,12 @@ class GitAnnexDownloader:
     dolt_server: DoltSqlServer
     sources: db.BatchInserter
     annex_keys: db.BatchInserter
+    hashes: db.BatchInserter
     batch_size: int
     auto_push: bool
 
     def __init__(self, 
-                 git: Git, sources: db.BatchInserter, annex_keys: db.BatchInserter, dolt_server: DoltSqlServer, auto_push: bool, batch_size: int = 10):
+                 git: Git, sources: db.BatchInserter, annex_keys: db.BatchInserter, hashes: db.BatchInserter, dolt_server: DoltSqlServer, auto_push: bool, batch_size: int = 10):
         self.git = git
         self.local_uuid = git.config['annex.uuid']
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
@@ -34,6 +36,7 @@ class GitAnnexDownloader:
         self.sources = sources
         self.dolt_server = dolt_server
         self.annex_keys = annex_keys
+        self.hashes = hashes
         self.batch_size = batch_size
         self.auto_push = auto_push
 
@@ -44,9 +47,7 @@ class GitAnnexDownloader:
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: str):
-        """Update the database with the new key for a URL and initialize sources"""
         self.git.annex.registerurl(key, url)
-        self.add_source(key, self.local_uuid)
         self.annex_keys.insert(url, key)
 
     def add_file(self, filename: str) -> str:
@@ -74,6 +75,7 @@ class GitAnnexDownloader:
                 
                 key = self.add_file(temp_file.name)
                 
+                self.add_source(key, self.local_uuid)
                 self.update_database(url, key)
                 
                 return key
@@ -82,27 +84,34 @@ class GitAnnexDownloader:
                 print(f"Error processing URL {url}: {str(e)}")
                 return None
             
-    def import_file(self, path: str, url_from_path: Callable[[str], List[str]] = None) -> str:
+    def import_file(self, path: str, importer: importers.Importer) -> str:
         """Import a file into the annex"""
         extension = os.path.splitext(path)[1]
         if len(extension) > self.max_extension_length+1:
             return
+        if extension == 'lnk':
+            return
         key = self.add_file(path)
         self.add_source(key, self.local_uuid)
 
-        if url_from_path:
-            urls = url_from_path(path)
+        if importer:
+            urls = importer.url(path)
             for url in urls:
                 self.update_database(url, key)
-
+            if (md5 := importer.md5(path)):
+                self.record_md5(md5, key)
         return key
     
+    @dry_run("Would record that key {key} has md5 {md5}")
+    def record_md5(self, md5: str, key: str):
+        md5bytes = bytes.fromhex(md5)
+        self.hashes.insert(md5bytes, "md5", key)
 
-    def import_directory(self, path: str, url_from_path: Callable[[str], List[str]] = None):
+    def import_directory(self, path: str, importer: importers.Importer):
         """Import a directory into the annex"""
         for root, _, files in os.walk(path):
             for file in files:
-                self.import_file(os.path.join(root, file), url_from_path)
+                self.import_file(os.path.join(root, file), importer)
 
     def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]] = None):
         """Import a git branch into the annex"""

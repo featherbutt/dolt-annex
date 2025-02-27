@@ -43,6 +43,7 @@ class Init(cli.Application):
             git_config("user.email", config.email)
             git("-c", "annex.tune.objecthashlower=true", "annex", "init")
             git_config("annex.commitmessage", config.annexcommitmessage)
+            git_config("annex.maxextensions", "1")
             if is_wsl():
                 git_config("annex.crippledfilesystem", "true")
             #git("remote", "add", "origin", git_remote)

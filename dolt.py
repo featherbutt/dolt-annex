@@ -57,14 +57,14 @@ class DoltSqlServer:
 
     @dry_run("Would execute {sql} with values {values}")
     def executemany(self, sql: str, values):
-        logger.debug(f"Executing {sql} with values {values}")
+        logger.debug(f"flushing {len(values)} rows")
         self.cursor.executemany(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
 
     @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
-        logger.debug(f"Executing {sql} with values {values}")
+        logger.debug(f"flushing {len(values)} rows")
         self.cursor.execute(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()

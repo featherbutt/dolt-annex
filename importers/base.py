@@ -1,0 +1,96 @@
+from abc import ABC as AbstractBaseClass, abstractmethod
+import os
+from typing import List
+
+from plumbum import local
+
+import annex
+
+class Importer(AbstractBaseClass):
+    @abstractmethod
+    def url(self, path: str) -> List[str]:
+        ...
+
+    def md5(self, path: str) -> str | None:
+        ...
+
+class E621Importer(Importer):
+    def url(self, path: str) -> List[str]:
+        basename = os.path.basename(path)
+        return [f"https://static1.e621.net/data/{basename[:2]}/{basename[2:4]}/{basename}.png"]
+    
+    def md5(self, path: str) -> str | None:
+        basename = os.path.basename(path)
+        return basename.split('.')[0]
+    
+class GelbooruImporter(Importer):
+    def url(self, path: str) -> List[str]:
+        basename = os.path.basename(path)
+        return [f"https://img3.gelbooru.com/images/{basename[:2]}/{basename[2:4]}/{basename}.png"]
+    
+    def md5(self, path: str) -> str | None:
+        basename = os.path.basename(path)
+        return basename.split('.')[0]
+    
+class OtherAnnexImporter(Importer):
+    def __init__(self, other_annex_path: str):
+        self.other_annex_path = other_annex_path
+
+    def url(self, path: str) -> List[str]:
+        parts = path.split(os.path.sep)
+        annex_object_path = '/'.join(parts[-4:-1])
+        other_git = local.cmd.git["-C", self.other_annex_path]
+        web_log = other_git('show', f'git-annex:{annex_object_path}.log.web', retcode=None)
+        if web_log:
+            return annex.parse_web_log(web_log)
+        return []
+    
+    def md5(self) -> str | None:
+        return None
+    
+class DirectoryImporter(Importer):
+    def __init__(self, prefix_url: str):
+        self.prefix_url = prefix_url
+
+    def url(path: str) -> List[str]:
+        return [f"{self.url_prefix}/{path}"]
+    
+    def md5(self, path: str) -> str | None:
+        return None
+
+class FALRImporter(Importer):
+    def __init__(self, cursor, other_dolt_db: str):
+        self.cursor = cursor
+        self.other_dolt_db = other_dolt_db
+
+    def url(self, path: str) -> List[str]:
+        parts = path.split(os.path.sep)
+        sid = int(''.join(parts[:-1]))
+        self.cursor.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/filenames` WHERE source = 'furaffinity.net' and id = ?;", (sid,))
+        return [row[0] for row in self.cursor.fetchall()]
+    
+    def md5(self, path: str) -> str | None:
+        return None
+
+class MD5Importer(Importer):
+
+    def url(self, path: str) -> List[str]:
+        basename = os.path.basename(path)
+        basename_parts = basename.split('.')
+        if len(basename_parts) < 3:
+            raise ValueError(f"Invalid filename: {basename}")
+        md5, source, *rest, ext = basename_parts
+        if len(md5) != 32:
+            raise ValueError(f"Invalid MD5: {md5}")
+        if source == "e621":
+            return [f"https://static1.e621.net/data/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
+        elif source == "Gelbooru":
+            return [f"https://img3.gelbooru.com/images/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
+        elif source == "rule34":
+            return [f"https://r34i.paheal-cdn.net/{md5[:2]}/{md5[2:4]}/{md5}"]
+        else:
+            raise ValueError(f"Unknown source: {source}")
+    
+    def md5(self, path: str) -> str | None:
+        basename = os.path.basename(path)
+        return basename.split('.')[0]

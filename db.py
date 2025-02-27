@@ -44,6 +44,10 @@ annex_keys_sql = """
     `annex-key` = new_key
 """
 
+hashes_sql = """
+    INSERT IGNORE INTO hashes (`hash`, `hashType`, `annex-key`) VALUES (%s, %s, %s);
+"""
+
 # What follows is a hack. Ideally we'd like to get a page of urls by simply executing a query like:
 #
 # SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL OFFSET X LIMIT 1000;
