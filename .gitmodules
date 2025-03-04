@@ -1,0 +1,3 @@
+[submodule "bup_submodule"]
+	path = bup_submodule
+	url = https://github.com/bup/bup
