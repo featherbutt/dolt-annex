@@ -122,15 +122,19 @@ class Application(cli.Application):
         git = Git(self.config.git_dir)
         with (
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            db.BatchInserter(dolt_server, db.sources_sql, db_batch_size) as sources,
-            db.BatchInserter(dolt_server, db.annex_keys_sql, db_batch_size) as annex_keys,
-            db.BatchInserter(dolt_server, db.hashes_sql, db_batch_size) as hashes
+            db.BatchInserter(dolt_server, db.sources_sql) as sources,
+            db.BatchInserter(dolt_server, db.annex_keys_sql) as annex_keys,
+            db.BatchInserter(dolt_server, db.hashes_sql) as hashes
         ):
-            yield GitAnnexDownloader(
+            downloader = GitAnnexDownloader(
                     git = git,
                     sources = sources,
                     annex_keys = annex_keys,
                     hashes = hashes,
                     dolt_server = dolt_server,
-                    auto_push = self.config.auto_push
+                    auto_push = self.config.auto_push,
+                    batch_size = db_batch_size,
             )
+            yield downloader
+            downloader.flush()
+

@@ -9,16 +9,13 @@ from logger import logger
 import pymysql
 
 class BatchInserter:
-    def __init__(self, dolt_server, sql, batch_size=1000):
+    def __init__(self, dolt_server, sql):
         self.dolt_server = dolt_server
         self.sql = sql
-        self.batch_size = batch_size
         self.values = []
         
     def insert(self, *row):
         self.values.append(row)
-        if len(self.values) >= self.batch_size:
-            self.flush()
         
     def flush(self):
         self.dolt_server.executemany(self.sql, self.values)
