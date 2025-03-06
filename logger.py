@@ -37,15 +37,15 @@ class Logger:
             return wrapper
         return decorator
     
-    def log(self, log_level, message):
+    def log(self, log_level, *message):
         if self.log_level >= log_level:
-            self.log_func(message)
+            self.log_func(*message)
     
-    def debug(self, message):
-        self.log(DEBUG, message)
+    def debug(self, *message):
+        self.log(DEBUG, *message)
 
-    def info(self, message):
-        self.log(INFO, message)
+    def info(self, *message):
+        self.log(INFO, *message)
 
     
 
