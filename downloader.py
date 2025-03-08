@@ -8,6 +8,7 @@ import json
 from typing import List, Optional, Tuple
 
 import annex
+from annex import WEB_UUID, AnnexCache
 import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
@@ -22,42 +23,29 @@ class GitAnnexDownloader:
     local_uuid: str
     max_extension_length: int
     dolt_server: DoltSqlServer
-    sources: db.BatchInserter
-    annex_keys: db.BatchInserter
-    hashes: db.BatchInserter
     batch_size: int
     auto_push: bool
-    annex_queue: List[Tuple[str,str]]
 
-    def __init__(self, 
-                 git: Git, sources: db.BatchInserter, annex_keys: db.BatchInserter, hashes: db.BatchInserter, dolt_server: DoltSqlServer, auto_push: bool, batch_size):
+    def __init__(self, cache: AnnexCache,
+                 git: Git, dolt_server: DoltSqlServer, auto_push: bool, batch_size):
         self.git = git
+        self.cache = cache
         self.local_uuid = git.config['annex.uuid']
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.info(f"Local UUID: {self.local_uuid}")
-        self.sources = sources
         self.dolt_server = dolt_server
-        self.annex_keys = annex_keys
-        self.hashes = hashes
         self.batch_size = batch_size
         self.auto_push = auto_push
-        self.annex_queue = []
 
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: str, uuid: str):
         """Add a source to the database for a key"""
-        self.sources.insert(key, json.dumps({uuid: 1}))
+        self.cache.insert_source(bytes(key, encoding="utf8"), bytes(uuid, encoding="utf8"))
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: str):
-        self.git.annex.registerurl(key, url)
-        self.annex_keys.insert(url, key)
-
-    def add_file(self, filename: str) -> str:
-        key = self.git.annex.calckey(filename)
-        self.annex_queue.append((key, filename))
-        return key
-                
+        self.cache.insert_url(bytes(key, encoding="utf8"), bytes(url, encoding="utf8"))
+        self.cache.insert_source(bytes(key, encoding="utf8"), WEB_UUID)
 
     def download_file(self, url: str) -> Optional[str]:
         """Download a file from a url, add it to the annex, and update the database"""
@@ -74,13 +62,12 @@ class GitAnnexDownloader:
                     temp_file.write(chunk)
                 temp_file.flush()
                 
-                key = self.add_file(temp_file.name)
+                abs_path = os.path.abspath(temp_file.name) 
+                key = self.git.annex.calckey(abs_path)
+                self.cache.insert_file(key, abs_path)
                 
                 self.add_source(key, self.local_uuid)
                 self.update_database(url, key)
-
-                if len(self.annex_queue) >= self.batch_size:
-                    self.flush()
                 
                 return key
                 
@@ -95,7 +82,8 @@ class GitAnnexDownloader:
             return
         if extension == 'lnk':
             return
-        key = self.add_file(path)
+        abs_path = os.path.abspath(path) 
+        key = self.git.annex.calckey(abs_path)
         self.add_source(key, self.local_uuid)
 
         if importer:
@@ -104,17 +92,16 @@ class GitAnnexDownloader:
                 self.update_database(url, key)
             if (md5 := importer.md5(path)):
                 self.record_md5(md5, key)
-        
-        if len(self.annex_queue) >= self.batch_size:
-            self.flush()
+
+        self.cache.insert_file(key, abs_path)
 
         return key
     
     @dry_run("Would record that key {key} has md5 {md5}")
     def record_md5(self, md5: str, key: str):
         md5bytes = bytes.fromhex(md5)
-        self.hashes.insert(md5bytes, "md5", key)
-
+        self.cache.insert_md5(key, md5bytes)
+        
     def import_directory(self, path: str, importer: importers.Importer):
         """Import a directory into the annex"""
         for root, _, files in os.walk(path):
@@ -185,14 +172,8 @@ class GitAnnexDownloader:
         if retcode != 0:
             raise subprocess.CalledProcessError(retcode, 'git ls-tree')
 
+    def register_url(self, url: str, key: str):
+        pass
+
     def flush(self):
-        """Flush the database caches, then update the annex"""
-        self.sources.flush()
-        self.annex_keys.flush()
-        self.hashes.flush()
-        for key, filename in self.annex_queue:
-            # TODO: Neither of these commands are batchable, but we could write our own packfile.
-            self.git.annex.setkey(key, filename)
-            if self.auto_push:
-                self.git.annex.push_content(key)
-        self.annex_queue = []
+        self.cache.flush()

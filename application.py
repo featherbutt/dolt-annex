@@ -1,9 +1,12 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
+from annex import AnnexCache, GitAnnexSettings
+from bup_ext.bup_ext import CommitMetadata
 from plumbum import cli
 
-import db
+from bup.repo import LocalRepo
+
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
@@ -120,17 +123,16 @@ class Application(cli.Application):
             "autocommit": True,
         }
         git = Git(self.config.git_dir)
+        commit_metadata = CommitMetadata()
+        git_annex_settings = GitAnnexSettings(commit_metadata, 'git-annex')
         with (
+            LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            db.BatchInserter(dolt_server, db.sources_sql) as sources,
-            db.BatchInserter(dolt_server, db.annex_keys_sql) as annex_keys,
-            db.BatchInserter(dolt_server, db.hashes_sql) as hashes
+            AnnexCache(repo, dolt_server, git, git_annex_settings, db_batch_size) as cache
         ):
             downloader = GitAnnexDownloader(
+                    cache = cache,
                     git = git,
-                    sources = sources,
-                    annex_keys = annex_keys,
-                    hashes = hashes,
                     dolt_server = dolt_server,
                     auto_push = self.config.auto_push,
                     batch_size = db_batch_size,

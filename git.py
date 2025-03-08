@@ -1,3 +1,5 @@
+import os
+
 from plumbum import local
 
 from dry_run import dry_run
@@ -20,12 +22,21 @@ class GitConfig:
         self.cmd('--unset', key)
         
 class GitAnnex:
-    def __init__(self, git_cmd):
+    def __init__(self, git_cmd, git_dir: str):
         self.cmd = git_cmd["annex"]
+        self.git_dir = git_dir
         self.dry_run = dry_run
     
+    # TODO: Replace these commands with continuous batch commands
     def calckey(self, key: str):
         return self.cmd("calckey", key).strip()
+    
+    def get_branch_key_path(self, key: bytes):
+        return self.cmd("examinekey", "--format=${hashdirlower}${key}", str(key, encoding="utf8")).strip()
+        
+    def get_annex_key_path(self, key: str):
+        rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
+        return os.path.abspath(os.path.join(self.git_dir, "annex", "objects", rel_path))
     
     @dry_run("Would register {key} with url {url}")
     def registerurl(self, key: str, url: str):
@@ -45,7 +56,7 @@ class Git:
         self.git_dir = git_dir
         self.cmd = local.cmd.git["-C", git_dir]
         self.config = GitConfig(self.cmd)
-        self.annex = GitAnnex(self.cmd)
+        self.annex = GitAnnex(self.cmd, git_dir)
     
     def show(self, ref: str, path: str) -> str:
         return self.cmd('show', f'{ref}:{path}', retcode=None)
