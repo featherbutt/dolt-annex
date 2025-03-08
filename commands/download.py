@@ -24,7 +24,7 @@ class DownloadBatch(cli.Application):
     )
 
     def main(self):
-        with self.parent.Downloader(self.batch_size) as downloader:
+        with self.parent.Downloader(None, self.batch_size) as downloader:
             while True:
                 urls, num_urls = db.random_batch(self.url_prefix, downloader.dolt_server.cursor, self.batch_size)
                 logger.info(f"Discovered {num_urls} unprocessed URLs.")

@@ -8,5 +8,5 @@ class ScanAnnex(cli.Application):
     parent: Application
     
     def main(self):
-        with self.parent.Downloader() as downloader:
+        with self.parent.Downloader(None, 1000) as downloader:
             downloader.discover_and_populate()

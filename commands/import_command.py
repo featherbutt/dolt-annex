@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import os
 from typing import List
+import shutil
 
 from plumbum import cli, local
 
@@ -63,6 +64,18 @@ class Import(cli.Application):
         excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-md5"],
     )
 
+    move = cli.Flag(
+        "--move",
+        help="Move imported files into the annex",
+        excludes = ["--copy"],
+    )
+
+    copy = cli.Flag(
+        "--copy",
+        help="Copy imported files into the annex",
+        excludes = ["--move"],
+    )
+
     def get_importer(self):
         if self.from_other_annex:
             return importers.OtherAnnexImporter(self.from_other_annex)
@@ -75,7 +88,13 @@ class Import(cli.Application):
 
     def main(self, *files_or_directories: str):
         importer = self.get_importer()
-        with self.parent.Downloader(self.batch_size) as downloader:
+        if not self.copy and not self.move:
+            raise ValueError("Must specify either --copy or --move")
+        if self.copy:
+            move_function = shutil.copy
+        else:
+            move_function = shutil.move
+        with self.parent.Downloader(move_function, self.batch_size) as downloader:
             for file_or_directory in files_or_directories:
                 if self.from_other_git:
                     downloader.import_git_branch(self.from_other_git, file_or_directory, importer)

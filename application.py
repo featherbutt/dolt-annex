@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from annex import AnnexCache, GitAnnexSettings
+from annex import AnnexCache, GitAnnexSettings, MoveFunction
 from bup_ext.bup_ext import CommitMetadata
 from plumbum import cli
 
@@ -115,7 +115,7 @@ class Application(cli.Application):
         self.config.validate()
 
     @contextmanager
-    def Downloader(self, db_batch_size):
+    def Downloader(self, move: MoveFunction, db_batch_size):
         db_config = {
             "unix_socket": self.config.dolt_server_socket,
             "user": "root",
@@ -128,7 +128,7 @@ class Application(cli.Application):
         with (
             LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            AnnexCache(repo, dolt_server, git, git_annex_settings, db_batch_size) as cache
+            AnnexCache(repo, dolt_server, git, git_annex_settings, move, db_batch_size) as cache
         ):
             downloader = GitAnnexDownloader(
                     cache = cache,

@@ -6,7 +6,7 @@ import json
 import os
 import pathlib
 import time
-from typing import Dict, List, Set
+from typing import Callable, Dict, List, Set
 
 from bup.repo.base import RepoProtocol as Repo
 
@@ -64,14 +64,17 @@ def parse_web_log(content: str) -> List[str]:
 class GitAnnexSettings:
     commit_metadata: CommitMetadata
     ref: bytes
+
+MoveFunction = Callable[[str, str], None]
     
 class AnnexCache:
     urls: Dict[bytes, List[bytes]]
     md5s: Dict[bytes, bytes]
     sources: Dict[bytes, List[bytes]]
     files: Dict[bytes, str]
+    move: MoveFunction
 
-    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, batch_size: int):
+    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, move: MoveFunction, batch_size: int):
         self.repo = repo
         self.dolt = dolt
         self.git = git
@@ -82,6 +85,7 @@ class AnnexCache:
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
+        self.move = move
 
     def increment_count(self):
         self.count += 1
@@ -146,7 +150,7 @@ class AnnexCache:
         for key, file_path in self.files.items():
             key_path = self.git.annex.get_annex_key_path(key)
             pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
-            os.rename(file_path, key_path)
+            self.move(file_path, key_path)
         
         self.urls.clear()
         self.md5s.clear()
