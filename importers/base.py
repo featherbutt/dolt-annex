@@ -13,24 +13,6 @@ class Importer(AbstractBaseClass):
 
     def md5(self, path: str) -> str | None:
         ...
-
-class E621Importer(Importer):
-    def url(self, path: str) -> List[str]:
-        basename = os.path.basename(path)
-        return [f"https://static1.e621.net/data/{basename[:2]}/{basename[2:4]}/{basename}.png"]
-    
-    def md5(self, path: str) -> str | None:
-        basename = os.path.basename(path)
-        return basename.split('.')[0]
-    
-class GelbooruImporter(Importer):
-    def url(self, path: str) -> List[str]:
-        basename = os.path.basename(path)
-        return [f"https://img3.gelbooru.com/images/{basename[:2]}/{basename[2:4]}/{basename}.png"]
-    
-    def md5(self, path: str) -> str | None:
-        basename = os.path.basename(path)
-        return basename.split('.')[0]
     
 class OtherAnnexImporter(Importer):
     def __init__(self, other_annex_path: str):

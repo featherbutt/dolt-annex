@@ -51,18 +51,6 @@ class Import(cli.Application):
         excludes = ["--from-other-annex", "--url-prefix"],
     )
 
-    from_e621 = cli.Flag(
-        "--from-e621",
-        help="Import from e621 scrape",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git"],
-    )
-
-    from_gelbooru = cli.Flag(
-        "--from-gelbooru",
-        help="Import from gelbooru scrape",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621"],
-    )
-
     from_md5 = cli.Flag(
         "--from-md5",
         help="Import, assuming the filename is the md5 hash",
@@ -74,10 +62,6 @@ class Import(cli.Application):
             return importers.OtherAnnexImporter(self.from_other_annex)
         elif self.url_prefix:
             return importers.DirectoryImporter(self.url_prefix)
-        elif self.from_e621:
-            return importers.E621Importer()
-        elif self.from_gelbooru:
-            return importers.GelbooruImporter()
         elif self.from_md5:
             return importers.MD5Importer()
         else:
