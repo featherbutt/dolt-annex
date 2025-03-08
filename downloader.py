@@ -82,7 +82,9 @@ class GitAnnexDownloader:
             return
         if extension == 'lnk':
             return
-        abs_path = os.path.abspath(path) 
+        if importer and importer.skip(path):
+            return
+        abs_path = os.path.abspath(path)
         key = self.git.annex.calckey(abs_path)
         self.add_source(key, self.local_uuid)
 

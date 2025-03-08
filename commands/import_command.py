@@ -57,6 +57,12 @@ class Import(cli.Application):
         excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621", "--from-gelbooru"],
     )
 
+    from_falr = cli.Flag(
+        "--from-falr",
+        help="Import, assuming the file path is a FALR id",
+        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621", "--from-gelbooru", "--from-md5"],
+    )
+
     def get_importer(self):
         if self.from_other_annex:
             return importers.OtherAnnexImporter(self.from_other_annex)

@@ -13,6 +13,9 @@ class Importer(AbstractBaseClass):
 
     def md5(self, path: str) -> str | None:
         ...
+
+    def skip(self, path: str) -> bool:
+        ...
     
 class OtherAnnexImporter(Importer):
     def __init__(self, other_annex_path: str):
@@ -30,6 +33,9 @@ class OtherAnnexImporter(Importer):
     def md5(self) -> str | None:
         return None
     
+    def skip(self, path: str) -> bool:
+        return False
+    
 class DirectoryImporter(Importer):
     def __init__(self, prefix_url: str):
         self.prefix_url = prefix_url
@@ -39,6 +45,9 @@ class DirectoryImporter(Importer):
     
     def md5(self, path: str) -> str | None:
         return None
+    
+    def skip(self, path: str) -> bool:
+        return False
 
 class FALRImporter(Importer):
     def __init__(self, cursor, other_dolt_db: str):
@@ -53,6 +62,9 @@ class FALRImporter(Importer):
     
     def md5(self, path: str) -> str | None:
         return None
+    
+    def skip(self, path: str) -> bool:
+        return 'thumbnail' in path.split('/')[0]
 
 class MD5Importer(Importer):
 
@@ -76,3 +88,6 @@ class MD5Importer(Importer):
     def md5(self, path: str) -> str | None:
         basename = os.path.basename(path)
         return basename.split('.')[0]
+    
+    def skip(self, path: str) -> bool:
+        return False
