@@ -2,3 +2,4 @@ dolt
 venv
 __pycache__
 config.json
+.vscode
