@@ -1,17 +1,16 @@
 from binascii import hexlify, unhexlify
+from dataclasses import dataclass
 import os
 import stat
 import time
 from typing import Literal, Optional
 
 from bup import metadata
-from bup import index
 from bup.cmd.save import save_tree
 from bup.hashsplit import GIT_MODE_FILE, GIT_MODE_SYMLINK, GIT_MODE_TREE
 from bup.helpers import path_components
-from bup.io import path_msg
 from bup.repo import LocalRepo
-from bup.repo.base import RepoProtocol
+from bup.repo.base import RepoProtocol as Repo
 from bup.git import tree_decode
 from bup.index import IX_HASHVALID, IX_EXISTS, IX_SHAMISSING, Entry as BupEntry
 from bup.options import Options
@@ -19,7 +18,7 @@ from bup.options import Options
 from bup.tree import Stack, _write_tree
 from logger import logger
 
-from .patch import Patch, new_file
+from .patch import DirectoryPatch, new_file
 
 log = logger.info
 
@@ -46,7 +45,7 @@ def pop(stack, repo, override_tree=None):
 
 class NewDirectoryEntry(BupEntry):
     """This entry describes a directory that is being inserted into the tree."""
-    def __init__(self, repo, basename: bytes, name: bytes, mode, patch: Patch):
+    def __init__(self, repo, basename: bytes, name: bytes, mode, patch: DirectoryPatch):
         BupEntry.__init__(self, basename, name, None, None)
         self.repo = repo
         self.patch = patch
@@ -70,21 +69,20 @@ class NewDirectoryEntry(BupEntry):
         if dname and not dname.endswith(b'/'):
             dname += b'/'
 
-        for name, dir in self.patch.dirs.items():
-            child = NewDirectoryEntry(self.repo, name, self.name + name + b'/', GIT_MODE_TREE, dir)
-            if child.contents:
-                yield from child.iter(name=name, wantrecurse=wantrecurse)
-            yield child
-
         for name, file in self.patch.files.items():
-            contents = file(None)
-            new_oid = self.repo.write_data(contents)
-            child = GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, hexlify(new_oid))
-            yield child
+            if not callable(file):
+                child = NewDirectoryEntry(self.repo, name, self.name + name + b'/', GIT_MODE_TREE, file)
+                yield from child.iter(name=name, wantrecurse=wantrecurse)
+                yield child
+            else:
+                contents = file(None)
+                new_oid = self.repo.write_data(contents)
+                child = GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, hexlify(new_oid))
+                yield child
 
 class GitEntry(BupEntry):
     """This entry describes a file or directory in a git repository."""
-    def __init__(self, repo: RepoProtocol, parent: Optional['GitEntry'], additional_files: Patch, basename, name, mode, ref: bytes):
+    def __init__(self, repo: Repo, parent: Optional['GitEntry'], additional_files: DirectoryPatch, basename, name, mode, ref: bytes):
         BupEntry.__init__(self, basename, name, None, None)
         self.repo = repo
         self.parent = parent
@@ -125,39 +123,35 @@ class GitEntry(BupEntry):
             self.invalidate()
         
         for mode, name, ent_id in tree_decode(data):
-            if self.additional_files and name in self.additional_files.files:
-                # get new value for file and recompute hash
-                # this requires loading the original contents now
-                assert mode == GIT_MODE_FILE
-                old_child = GitEntry(self.repo, self, None, name, self.name + dname, GIT_MODE_FILE, hexlify(ent_id))
-                item_it = self.repo.cat(old_child.ref)
-                get_oidx, typ, _ = next(item_it)
-                old_contents = ''.join(item_it)
-                new_contents = self.additional_files.files[name](old_contents)
-                new_oid = self.repo.write_data(new_contents)
-                yield GitEntry(self.repo, self, None, name, self.name + dname, GIT_MODE_FILE, new_oid)
-                del self.additional_files.files[name]
-                continue
-
             print("ent_id", hexlify(ent_id))
-            if mode == GIT_MODE_TREE:
-                dname = name + b'/'
+            if self.additional_files and (child_additional_files := self.additional_files.files.pop(name, None)):
+                if mode == GIT_MODE_TREE:
+                    child = GitEntry(self.repo, self, child_additional_files, name, self.name + name + b"/", GIT_MODE_FILE, hexlify(ent_id))
+                    yield from child.iter()
+                    yield child
+                else:
+                    old_child = GitEntry(self.repo, self, child_additional_files, name, self.name + name, GIT_MODE_FILE, hexlify(ent_id))
+                    item_it = self.repo.cat(old_child.ref)
+                    get_oidx, typ, _ = next(item_it)
+                    old_contents = ''.join(item_it)
+                    new_contents = self.additional_files.files[name](old_contents)
+                    new_oid = self.repo.write_data(new_contents)
+                    yield GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, new_oid)
+                    continue
             else:
-                dname = name
-            
-            child_additional_files = self.additional_files.dirs.pop(name, None) if self.additional_files else None
-            child = GitEntry(self.repo, self, child_additional_files, name, self.name + dname, mode, hexlify(ent_id))
-            if child.additional_files:
-                yield from child.iter()
-            yield child
-
+                # This entry (and its children) are unmodified, don't recurse.
+                yield GitEntry(self.repo, self, child_additional_files, name, self.name + name, mode, hexlify(ent_id))
+                                
         if self.additional_files:
+            # These are new files and directories that don't exist in the branch
             for name, contents in self.additional_files.files.items():
-                new_oid = self.repo.write_data(contents(None))
-                yield GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, hexlify(new_oid))
-            for name, child_dir in self.additional_files.dirs.items():
-                child = NewDirectoryEntry(self.repo, name, self.name + name + b'/', GIT_MODE_TREE, child_dir)
-                yield from child.iter()
+                if callable(contents):
+                    new_oid = self.repo.write_data(contents(None))
+                    yield GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, hexlify(new_oid))
+                else:
+                    child = NewDirectoryEntry(self.repo, name, self.name + name + b'/', GIT_MODE_TREE, contents)
+                    yield from child.iter()
+                    yield child
 
 def resolve_branch_or_ref(repo, branchname):
     ref = repo.read_ref(branchname)
@@ -165,7 +159,7 @@ def resolve_branch_or_ref(repo, branchname):
         return ref
     return unhexlify(branchname)
 
-def root_iter(repo: RepoProtocol, ref: bytes, additional_files: Patch):
+def root_iter(repo: Repo, ref: bytes, additional_files: DirectoryPatch):
     item_it = repo.cat(ref)
     get_oidx, typ, _ = next(item_it)
     assert typ == b'commit'
@@ -182,7 +176,7 @@ def root_iter(repo: RepoProtocol, ref: bytes, additional_files: Patch):
         
 
 class GitReader:
-    def __init__(self, repo: RepoProtocol, additional_files: Patch, branchname: bytes):
+    def __init__(self, repo: Repo, additional_files: DirectoryPatch, branchname: bytes):
         self.additional_files = additional_files
         self.branchname = branchname
         self.repo = repo
@@ -211,7 +205,7 @@ class GitReader:
                      if e.name == name),
                     None)
 
-    def filter(self, prefixes, wantrecurse=None):
+    def filter(self, wantrecurse=None):
         for e in self.iter(wantrecurse=wantrecurse):
             yield (e.name, e)
 
@@ -227,9 +221,9 @@ def save_tree(opt, reader, hlink_db, msr, repo, split_trees):
 
     fcount = 0
     lastdir = b''
-    for transname, ent in reader.filter(opt.sources):
+    for transname, ent in reader.filter():
         (dir, file) = os.path.split(ent.name)
-        exists = (ent.flags & index.IX_EXISTS)
+        exists = (ent.flags & IX_EXISTS)
         already_saved_oid = ent.sha #already_saved(ent)
 
         fcount += 1
@@ -301,29 +295,42 @@ def save_tree(opt, reader, hlink_db, msr, repo, split_trees):
 
     return tree
 
+def make_bup_options() -> Options:
+    opt = Options('bup save')
+    opt.commit = True
+    opt.verbose = True
+    opt.tree = True
+    opt.commit = True
+    opt.smaller = False
+    opt.strip = False
+    opt.strip_path = False
+    opt.grafts = False
+    opt.date = time.time()
+    opt.name = None #b"git-annex"
+    return opt
+
+@dataclass
+class CommitMetadata:
+    userfullname = b'Anonymous'
+    username = b'anon'
+    hostname = b'localhost'
+    commit_msg = b'commit'
+
+    def userline(self) -> bytes:
+        return b'%s <%s@%s>' % (self.userfullname, self.username, self.hostname)
+
 def main(argv):
     repo = LocalRepo(b'git-annex')
     with repo:
         refname = b'refs/heads/git-annex'
         parent = resolve_branch_or_ref(repo, refname)
-        opt = Options('bup save')
-        opt.commit = True
-        opt.verbose = True
-        opt.tree = True
-        opt.commit = True
-        opt.smaller = False
-        opt.strip = False
-        opt.strip_path = False
-        opt.grafts = False
-        opt.date = time.time()
-        opt.name = None #b"git-annex"
-        opt.sources = [bytes(x, encoding="utf8") for x in argv[1:]]
+        opt = make_bup_options()
         userfullname = b'Anonymous'
         username = b'anon'
         hostname = b'localhost'
         commit_msg = b'commit'
-        additional_files = Patch(
-            dirs = { b"ff7" : Patch({}, {b"ftest.txt": new_file(b"test3")}), b"test": Patch({}, {b"test.txt": new_file(b"test1")})},
+        additional_files = DirectoryPatch(
+            dirs = { b"ff7" : DirectoryPatch({}, {b"ftest.txt": new_file(b"test3")}), b"test": DirectoryPatch({}, {b"test.txt": new_file(b"test1")})},
             files = {b"test.txt": new_file(b"test2")})
         with GitReader(repo, additional_files, refname) as reader:
             tree = save_tree(opt, reader, None, None, repo, False)
@@ -340,3 +347,22 @@ def main(argv):
 
         if opt.name:
             repo.update_ref(b'refs/heads/%s' % opt.name, commit, parent)
+
+def apply_patch(repo: Repo, ref: bytes, patch: DirectoryPatch, commit_metadata: CommitMetadata):
+    opts = make_bup_options()
+    parent = resolve_branch_or_ref(repo, ref)
+    with GitReader(repo, patch, ref) as reader:
+        tree = save_tree(opts, reader, None, None, repo, False)
+    if opts.tree:
+        log("saved tree", hexlify(tree))
+        log(b'\n')
+    if opts.commit or opts.name:
+        userline = commit_metadata.userline()
+        commit = repo.write_commit(tree, parent, userline, opts.date, None,
+                            userline, opts.date, None, commit_metadata.commit_msg)
+        if opts.commit:
+            log("commit:", hexlify(commit))
+            log(b'\n')
+
+    if opts.name:
+        repo.update_ref(b'refs/heads/%s' % opts.name, commit, parent)
