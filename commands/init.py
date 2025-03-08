@@ -21,6 +21,12 @@ class Init(cli.Application):
         help = "Don't initialize the Git repository",
     )
 
+    remote_name = cli.SwitchAttr(
+        "--name",
+        envname = "DA_REMOTE_NAME",
+        mandatory = True,
+    )
+
     def main(self):
         config = self.parent.config
 
