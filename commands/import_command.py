@@ -54,13 +54,13 @@ class Import(cli.Application):
     from_md5 = cli.Flag(
         "--from-md5",
         help="Import, assuming the filename is the md5 hash",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621", "--from-gelbooru"],
+        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git"],
     )
 
     from_falr = cli.Flag(
         "--from-falr",
         help="Import, assuming the file path is a FALR id",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-e621", "--from-gelbooru", "--from-md5"],
+        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-md5"],
     )
 
     def get_importer(self):
