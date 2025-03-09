@@ -133,10 +133,10 @@ class GitEntry(BupEntry):
                     old_child = GitEntry(self.repo, self, child_additional_files, name, self.name + name, GIT_MODE_FILE, hexlify(ent_id))
                     item_it = self.repo.cat(old_child.ref)
                     get_oidx, typ, _ = next(item_it)
-                    old_contents = ''.join(item_it)
-                    new_contents = self.additional_files.files[name](old_contents)
+                    old_contents = b''.join(item_it)
+                    new_contents = child_additional_files(old_contents)
                     new_oid = self.repo.write_data(new_contents)
-                    yield GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, new_oid)
+                    yield GitEntry(self.repo, self, None, name, self.name + name, GIT_MODE_FILE, hexlify(new_oid))
                     continue
             else:
                 # This entry (and its children) are unmodified, don't recurse.

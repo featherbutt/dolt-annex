@@ -50,21 +50,22 @@ class DirectoryImporter(Importer):
         return False
 
 class FALRImporter(Importer):
-    def __init__(self, cursor, other_dolt_db: str):
+    def __init__(self, cursor, other_dolt_db: str, other_dolt_branch: str):
         self.cursor = cursor
         self.other_dolt_db = other_dolt_db
+        self.other_dolt_branch = other_dolt_branch
 
     def url(self, path: str) -> List[str]:
         parts = path.split(os.path.sep)
-        sid = int(''.join(parts[:-1]))
-        self.cursor.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/filenames` WHERE source = 'furaffinity.net' and id = ?;", (sid,))
+        sid = int(''.join(parts[-6:-1]))
+        self.cursor.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;", (sid,))
         return [row[0] for row in self.cursor.fetchall()]
     
     def md5(self, path: str) -> str | None:
         return None
     
     def skip(self, path: str) -> bool:
-        return 'thumbnail' in path.split('/')[0]
+        return 'thumbnail' in path.split('/')[-1]
 
 class MD5Importer(Importer):
 

@@ -76,18 +76,19 @@ class Import(cli.Application):
         excludes = ["--move"],
     )
 
-    def get_importer(self):
+    def get_importer(self, downloader: GitAnnexDownloader) -> importers.base.Importer:
         if self.from_other_annex:
             return importers.OtherAnnexImporter(self.from_other_annex)
         elif self.url_prefix:
             return importers.DirectoryImporter(self.url_prefix)
         elif self.from_md5:
             return importers.MD5Importer()
+        elif self.from_falr:
+            return importers.FALRImporter(downloader.dolt_server.cursor, "gallery-archive", "fa")
         else:
             return None
 
     def main(self, *files_or_directories: str):
-        importer = self.get_importer()
         if not self.copy and not self.move:
             raise ValueError("Must specify either --copy or --move")
         if self.copy:
@@ -95,6 +96,7 @@ class Import(cli.Application):
         else:
             move_function = shutil.move
         with self.parent.Downloader(move_function, self.batch_size) as downloader:
+            importer = self.get_importer(downloader)
             for file_or_directory in files_or_directories:
                 if self.from_other_git:
                     downloader.import_git_branch(self.from_other_git, file_or_directory, importer)
