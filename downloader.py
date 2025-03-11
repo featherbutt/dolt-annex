@@ -126,7 +126,6 @@ class GitAnnexDownloader:
         for line in process.stdout:
             objectmode, objecttype, objecthash, filename = line.strip().split()
             # TODO: Handle symlinks.
-            if objectmode
             contents = git.show(branch, filename)
             if contents:
                 symlink = contents.strip()

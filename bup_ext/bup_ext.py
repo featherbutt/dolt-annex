@@ -306,7 +306,7 @@ def make_bup_options() -> Options:
     opt.strip_path = False
     opt.grafts = False
     opt.date = time.time()
-    opt.name = None #b"git-annex"
+    opt.name = b"git-annex"
     return opt
 
 @dataclass
