@@ -11,13 +11,13 @@ from application import Application
 from downloader import GitAnnexDownloader
 import importers.base
 
-def import_(downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.Importer):
-        if os.path.isfile(file_or_directory):
-            downloader.import_file(file_or_directory, importer)
-        elif os.path.isdir(file_or_directory):
-            downloader.import_directory(file_or_directory, importer)
-        else:
-            raise ValueError(f"Path {file_or_directory} is not a file or directory")
+def import_(downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.Importer, follow_symlinks: bool):
+    if os.path.isfile(file_or_directory):
+        downloader.import_file(file_or_directory, importer, follow_symlinks)
+    elif os.path.isdir(file_or_directory):
+        downloader.import_directory(file_or_directory, importer, follow_symlinks)
+    else:
+        raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
 class Import(cli.Application):
     """Import a file or directory into the annex and database"""
@@ -45,35 +45,41 @@ class Import(cli.Application):
         excludes = ["--from-other-annex"],
     )
 
-    from_other_git = cli.SwitchAttr(
-        "--from-other-git",
-        cli.ExistingDirectory,
-        help="The path of another git repository to import from",
-        excludes = ["--from-other-annex", "--url-prefix"],
-    )
-
     from_md5 = cli.Flag(
         "--from-md5",
         help="Import, assuming the filename is the md5 hash",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git"],
+        excludes = ["--from-other-annex", "--url-prefix"],
     )
 
     from_falr = cli.Flag(
         "--from-falr",
         help="Import, assuming the file path is a FALR id",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-other-git", "--from-md5"],
+        excludes = ["--from-other-annex", "--url-prefix", "--from-md5"],
     )
 
     move = cli.Flag(
         "--move",
         help="Move imported files into the annex",
-        excludes = ["--copy"],
+        excludes = ["--copy", "--symlink"],
     )
 
     copy = cli.Flag(
         "--copy",
         help="Copy imported files into the annex",
-        excludes = ["--move"],
+        excludes = ["--move", "--symlink"],
+    )
+
+    symlink = cli.Flag(
+        "--symlink",
+        help="Copy imported files into the annex",
+        excludes = ["--move", "--copy"],
+    )
+
+    symlinks = cli.SwitchAttr(
+        "--symlinks",
+        cli.Set("follow", "skip"),
+        help="Whether to follow or skip symlinks",
+        default = "skip",
     )
 
     def get_importer(self, downloader: GitAnnexDownloader) -> importers.base.Importer:
@@ -89,16 +95,22 @@ class Import(cli.Application):
             return None
 
     def main(self, *files_or_directories: str):
-        if not self.copy and not self.move:
-            raise ValueError("Must specify either --copy or --move")
+        if not self.copy and not self.move and not self.symlink:
+            raise ValueError("Must specify --copy, --move, or --symlink")
         if self.copy:
             move_function = shutil.copy
+        elif self.symlink:
+            def move_and_symlink(src: str, dst: str):
+                shutil.move(src, dst)
+                os.symlink(dst, src)
+            move_function = move_and_symlink
         else:
             move_function = shutil.move
+        if self.symlinks == "follow":
+            follow_symlinks = True
+        else:
+            follow_symlinks = False
         with self.parent.Downloader(move_function, self.batch_size) as downloader:
             importer = self.get_importer(downloader)
             for file_or_directory in files_or_directories:
-                if self.from_other_git:
-                    downloader.import_git_branch(self.from_other_git, file_or_directory, importer)
-                else:
-                    import_(downloader, file_or_directory, importer)
+                import_(downloader, file_or_directory, importer, follow_symlinks)

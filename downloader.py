@@ -75,13 +75,18 @@ class GitAnnexDownloader:
                 print(f"Error processing URL {url}: {str(e)}")
                 return None
             
-    def import_file(self, path: str, importer: importers.Importer) -> str:
+    def import_file(self, path: str, importer: importers.Importer, follow_symlinks: bool) -> str:
         """Import a file into the annex"""
         extension = os.path.splitext(path)[1]
         if len(extension) > self.max_extension_length+1:
             return
-        if extension == 'lnk':
-            return
+        # catch both regular symlinks and windows shortcuts
+        is_symlink = os.path.islink(path) or extension == 'lnk'
+        if is_symlink:
+            if not follow_symlinks:
+                return
+            else:
+                raise ValueError("Following symlinks is not currently supported")
         if importer and importer.skip(path):
             return
         abs_path = os.path.abspath(path)
@@ -104,14 +109,14 @@ class GitAnnexDownloader:
         md5bytes = bytes.fromhex(md5)
         self.cache.insert_md5(key, md5bytes)
         
-    def import_directory(self, path: str, importer: importers.Importer):
+    def import_directory(self, path: str, importer: importers.Importer, follow_symlinks: bool):
         """Import a directory into the annex"""
         for root, _, files in os.walk(path):
             for file in files:
-                self.import_file(os.path.join(root, file), importer)
+                self.import_file(os.path.join(root, file), importer, follow_symlinks)
 
-    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]] = None):
-        """Import a git branch into the annex"""
+    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]] = None, follow_symlinks: bool = False):
+        """Import a git branch into the annex. Currently unused."""
         # Stream the git ls-tree output
         git = Git(other_repo)
         
@@ -120,8 +125,8 @@ class GitAnnexDownloader:
         # Process files as they come in
         for line in process.stdout:
             objectmode, objecttype, objecthash, filename = line.strip().split()
-            if objectmode != '120000':
-                continue
+            # TODO: Handle symlinks.
+            if objectmode
             contents = git.show(branch, filename)
             if contents:
                 symlink = contents.strip()
