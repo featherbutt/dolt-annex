@@ -47,7 +47,7 @@ class Init(cli.Application):
             
             git_config("user.name", config.name)
             git_config("user.email", config.email)
-            git("-c", "annex.tune.objecthashlower=true", "annex", "init")
+            git("-c", "annex.tune.objecthashlower=true", "annex", "init", self.remote_name)
             git_config("annex.commitmessage", config.annexcommitmessage)
             git_config("annex.maxextensions", "1")
             if is_wsl():

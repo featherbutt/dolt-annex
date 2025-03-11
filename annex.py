@@ -157,6 +157,8 @@ class AnnexCache:
         self.sources.clear()
         self.files.clear()
 
+        raise ValueError("Done with first batch")
+
         # TODO: Only auto-push content to server if we can do it efficiently.
         # ie. git-annex won't make a commit per-file.
         # if self.auto_push:
