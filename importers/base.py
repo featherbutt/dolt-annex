@@ -40,7 +40,7 @@ class DirectoryImporter(Importer):
     def __init__(self, prefix_url: str):
         self.prefix_url = prefix_url
 
-    def url(path: str) -> List[str]:
+    def url(self, path: str) -> List[str]:
         return [f"{self.url_prefix}/{path}"]
     
     def md5(self, path: str) -> str | None:
