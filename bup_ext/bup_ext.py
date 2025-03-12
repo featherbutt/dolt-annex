@@ -228,9 +228,6 @@ def save_tree(opt, reader, hlink_db, msr, repo, split_trees):
 
         fcount += 1
 
-        if not exists:
-            continue
-
         dirp = path_components(dir)
 
         # At this point, dirp contains a representation of the archive
