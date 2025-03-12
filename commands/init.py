@@ -52,7 +52,7 @@ class Init(cli.Application):
             git_config("annex.maxextensions", "1")
             if is_wsl():
                 git_config("annex.crippledfilesystem", "true")
-            #git("remote", "add", "origin", git_remote)
+            git("remote", "add", "origin", config.git_remote)
             #git("fetch", "origin", "git-annex")
             
             git_annex("mincopies", "3")
