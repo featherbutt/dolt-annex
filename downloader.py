@@ -86,7 +86,7 @@ class GitAnnexDownloader:
             if not follow_symlinks:
                 return
             else:
-                raise ValueError("Following symlinks is not currently supported")
+                path = os.path.realpath(path)
         if importer and importer.skip(path):
             return
         abs_path = os.path.abspath(path)
