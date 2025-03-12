@@ -65,11 +65,17 @@ class DoltSqlServer:
     @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
         self.cursor.execute(sql, values)
+        res = self.cursor.fetchall()
         self.cursor.execute("COMMIT;")
         self.connection.commit()
+        return res
 
     def push(self):
         self.cursor.execute("call DOLT_ADD('.');")
-        self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
+        try:
+            self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
+        except pymysql.err.OperationalError as e:
+            if "nothing to commit" in str(e):
+                pass
         self.cursor.execute("call DOLT_PUSH();")
         self.garbage_collect()

@@ -58,8 +58,8 @@ class FALRImporter(Importer):
     def url(self, path: str) -> List[str]:
         parts = path.split(os.path.sep)
         sid = int(''.join(parts[-6:-1]))
-        self.dolt_sql_server.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;", (sid,))
-        return [row[0] for row in self.cursor.fetchall()]
+        res = self.dolt_sql_server.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;", (sid,))
+        return [row[0] for row in res]
     
     def md5(self, path: str) -> str | None:
         return None
