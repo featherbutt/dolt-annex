@@ -90,7 +90,7 @@ class Import(cli.Application):
         elif self.from_md5:
             return importers.MD5Importer()
         elif self.from_falr:
-            return importers.FALRImporter(downloader.dolt_server.cursor, "gallery-archive", "fa")
+            return importers.FALRImporter(downloader.dolt_server, "gallery-archive", "fa")
         else:
             return None
 
