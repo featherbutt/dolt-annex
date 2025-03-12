@@ -82,6 +82,7 @@ class GitAnnexDownloader:
             return
         # catch both regular symlinks and windows shortcuts
         is_symlink = os.path.islink(path) or extension == 'lnk'
+        original_path = os.path.abspath(path)
         if is_symlink:
             if not follow_symlinks:
                 return
@@ -94,10 +95,10 @@ class GitAnnexDownloader:
         self.add_source(key, self.local_uuid)
 
         if importer:
-            urls = importer.url(path)
+            urls = importer.url(original_path)
             for url in urls:
                 self.update_database(url, key)
-            if (md5 := importer.md5(path)):
+            if (md5 := importer.md5(original_path)):
                 self.record_md5(md5, key)
 
         self.cache.insert_file(key, abs_path)
