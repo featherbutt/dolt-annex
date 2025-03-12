@@ -64,7 +64,12 @@ class DoltSqlServer:
 
     @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
-        logger.debug(f"flushing {len(values)} rows")
         self.cursor.execute(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
+
+    def push(self):
+        self.cursor.execute("call DOLT_ADD('.');")
+        self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
+        self.cursor.execute("call DOLT_PUSH();")
+        self.garbage_collect()
