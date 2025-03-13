@@ -15,6 +15,7 @@ from bup_ext.bup_ext import CommitMetadata, apply_patch
 import db
 from dolt import DoltSqlServer
 from git import Git
+from logger import logger
 
 # reserved git-annex UUID for the web special remote
 WEB_UUID = b'00000000-0000-0000-0000-000000000001'
@@ -123,6 +124,7 @@ class AnnexCache:
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
+        logger.debug(f"flushing cache")
         if not self.urls and not self.md5s and not self.sources and not self.files:
             return
         
@@ -135,18 +137,22 @@ class AnnexCache:
                 rows = [[now, b"1", value] for value in values]
                 patch.insert(file_path, update_file(rows, 2))
             
+        logger.debug(f"creating git-annex patch")
         insert(self.sources, b".log")
         insert(self.urls, b".log.web")
+        logger.debug(f"applying git-annex patch")
         apply_patch(self.repo, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
 
         # 2. Update the Dolt database to match the git-annex branch.
 
+        logger.debug(f"flushing dolt database")
         self.dolt.executemany(db.sources_sql, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
         self.dolt.executemany(db.annex_keys_sql, [(url, key) for key, urls in self.urls.items() for url in urls])
         self.dolt.executemany(db.hashes_sql, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
 
         # 3. Move the annex files to the annex directory.
 
+        logger.debug(f"moving annex files")
         for key, file_path in self.files.items():
             key_path = self.git.annex.get_annex_key_path(key)
             pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
@@ -157,6 +163,7 @@ class AnnexCache:
         self.sources.clear()
         self.files.clear()
 
+        logger.debug(f"pushing dolt database")
         self.dolt.push()
 
         # TODO: Only auto-push content to server if we can do it efficiently.

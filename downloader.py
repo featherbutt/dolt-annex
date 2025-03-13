@@ -90,6 +90,7 @@ class GitAnnexDownloader:
                 path = os.path.realpath(path)
         if importer and importer.skip(path):
             return
+        logger.debug(f"Importing file {path}")
         abs_path = os.path.abspath(path)
         key = self.git.annex.calckey(abs_path)
         self.add_source(key, self.local_uuid)
@@ -112,6 +113,7 @@ class GitAnnexDownloader:
         
     def import_directory(self, path: str, importer: importers.Importer, follow_symlinks: bool):
         """Import a directory into the annex"""
+        logger.debug(f"Importing directory {path}")
         for root, _, files in os.walk(path):
             for file in files:
                 self.import_file(os.path.join(root, file), importer, follow_symlinks)

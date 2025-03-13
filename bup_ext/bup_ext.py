@@ -105,9 +105,6 @@ class GitEntry(BupEntry):
 
     def iter(self):
         ref = self.ref
-        print("GitEntry.ref:", ref)
-        print("GitEntry.basename:", self.basename)
-        print("GitEntry.name:", self.name)
 
         item_it = self.repo.cat(ref)
         get_oidx, typ, _ = next(item_it)
@@ -123,7 +120,6 @@ class GitEntry(BupEntry):
             self.invalidate()
         
         for mode, name, ent_id in tree_decode(data):
-            print("ent_id", hexlify(ent_id))
             if self.additional_files and (child_additional_files := self.additional_files.files.pop(name, None)):
                 if mode == GIT_MODE_TREE:
                     child = GitEntry(self.repo, self, child_additional_files, name, self.name + name + b"/", GIT_MODE_FILE, hexlify(ent_id))
@@ -333,14 +329,14 @@ def main(argv):
             tree = save_tree(opt, reader, None, None, repo, False)
         if opt.tree:
             log("saved tree", hexlify(tree))
-            log(b'\n')
+            log('\n')
         if opt.commit or opt.name:
             userline = (b'%s <%s@%s>' % (userfullname, username, hostname))
             commit = repo.write_commit(tree, parent, userline, opt.date, None,
                              userline, opt.date, None, commit_msg)
             if opt.commit:
                 log("commit:", hexlify(commit))
-                log(b'\n')
+                log('\n')
 
         if opt.name:
             repo.update_ref(b'refs/heads/%s' % opt.name, commit, parent)
@@ -352,7 +348,7 @@ def apply_patch(repo: Repo, ref: bytes, patch: DirectoryPatch, commit_metadata: 
         tree = save_tree(opts, reader, None, None, repo, False)
     if opts.tree:
         log("saved tree", hexlify(tree))
-        log(b'\n')
+        log('\n')
     if opts.commit or opts.name:
         userline = commit_metadata.userline()
         commit = repo.write_commit(tree, parent, userline, opts.date, None,
