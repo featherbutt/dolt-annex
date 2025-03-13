@@ -87,6 +87,7 @@ class AnnexCache:
         self.batch_size = batch_size
         self.count = 0
         self.move = move
+        self.time = time.time()
 
     def increment_count(self):
         self.count += 1
@@ -158,6 +159,7 @@ class AnnexCache:
             pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
             self.move(file_path, key_path)
         
+        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.files))
         self.urls.clear()
         self.md5s.clear()
         self.sources.clear()
@@ -165,6 +167,11 @@ class AnnexCache:
 
         logger.debug(f"pushing dolt database")
         self.dolt.push()
+
+        new_now = time.time()
+        elapsed_time = new_now - self.time
+        logger.debug(f"added {num_keys} keys in {elapsed_time:.2f} seconds")
+        self.time = new_now
 
         # TODO: Only auto-push content to server if we can do it efficiently.
         # ie. git-annex won't make a commit per-file.
