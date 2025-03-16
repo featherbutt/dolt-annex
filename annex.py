@@ -72,7 +72,10 @@ class AnnexCache:
     urls: Dict[bytes, List[bytes]]
     md5s: Dict[bytes, bytes]
     sources: Dict[bytes, List[bytes]]
+    local_keys: Set[bytes]
     files: Dict[bytes, str]
+    git: Git
+    dolt: DoltSqlServer
     move: MoveFunction
 
     def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, move: MoveFunction, batch_size: int):
@@ -83,11 +86,13 @@ class AnnexCache:
         self.md5s = {}
         self.sources = {}
         self.files = {}
+        self.local_keys = set()
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
         self.move = move
         self.time = time.time()
+        self.local_uuid = git.config['annex.uuid']
 
     def increment_count(self):
         self.count += 1
@@ -116,6 +121,10 @@ class AnnexCache:
         self.files[key] = filename
         self.increment_count()
 
+    def mark_present(self, key: bytes):
+        self.local_keys.add(key)
+        self.increment_count()
+
     def flush(self):
         # Flushing the cache must be done in the following order:
         # 1. Update the git-annex branch to contain the new ownership records and registered urls.
@@ -126,7 +135,7 @@ class AnnexCache:
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
         logger.debug(f"flushing cache")
-        if not self.urls and not self.md5s and not self.sources and not self.files:
+        if not self.urls and not self.md5s and not self.sources and not self.files and not self.local_keys:
             return
         
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
@@ -137,19 +146,27 @@ class AnnexCache:
                 file_path = key_path + suffix
                 rows = [[now, b"1", value] for value in values]
                 patch.insert(file_path, update_file(rows, 2))
-            
-        logger.debug(f"creating git-annex patch")
-        insert(self.sources, b".log")
-        insert(self.urls, b".log.web")
-        logger.debug(f"applying git-annex patch")
-        apply_patch(self.repo, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
+        
+        if self.sources or self.urls:
+            logger.debug(f"creating git-annex patch")
+            insert(self.sources, b".log")
+            insert(self.urls, b".log.web")
+            logger.debug(f"applying git-annex patch")
+            apply_patch(self.repo, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
 
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug(f"flushing dolt database")
-        self.dolt.executemany(db.sources_sql, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
-        self.dolt.executemany(db.annex_keys_sql, [(url, key) for key, urls in self.urls.items() for url in urls])
-        self.dolt.executemany(db.hashes_sql, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
+        if self.sources:
+            self.dolt.executemany(db.sources_sql, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
+        if self.urls:
+            self.dolt.executemany(db.annex_keys_sql, [(url, key) for key, urls in self.urls.items() for url in urls])
+        if self.md5s:
+            self.dolt.executemany(db.hashes_sql, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
+        if self.local_keys:
+            with self.dolt.set_branch(self.local_uuid):
+                self.dolt.executemany(db.local_keys_sql, [(key,) for key in self.local_keys])
+                self.dolt.commit()
 
         # 3. Move the annex files to the annex directory.
 
@@ -159,11 +176,12 @@ class AnnexCache:
             pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
             self.move(file_path, key_path)
         
-        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.files))
+        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.files), len(self.local_keys))
         self.urls.clear()
         self.md5s.clear()
         self.sources.clear()
         self.files.clear()
+        self.local_keys.clear()
 
         logger.debug(f"pushing dolt database")
         self.dolt.push()

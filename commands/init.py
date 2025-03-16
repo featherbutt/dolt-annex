@@ -30,18 +30,12 @@ class Init(cli.Application):
     def main(self):
         config = self.parent.config
 
-        if not self.no_dolt:
-            dolt = local.cmd.dolt.with_cwd(config.dolt_dir)
-            dolt("clone", config.dolt_remote, config.dolt_dir)
-            #dolt("init")
-            #dolt("remote", "add", "origin", config.dolt_remote)
-            #dolt("pull", "origin", "main")
+        git = local.cmd.git["-C", config.git_dir]
+
+        git_config = git["config", "--local"]
+        git_annex = git["annex"]
 
         if not self.no_git:
-            git = local.cmd.git["-C", config.git_dir]
-
-            git_config = git["config", "--local"]
-            git_annex = git["annex"]
 
             git("init", "--bare")
             
@@ -70,3 +64,12 @@ class Init(cli.Application):
             git_annex("untrust", "web")
             git_annex("untrust", "tor")
             git_annex("untrust", "nontor")
+
+        if not self.no_dolt:
+            local_uuid = git_config("annex.uuid")
+            dolt = local.cmd.dolt.with_cwd(config.dolt_dir)
+            dolt("clone", config.dolt_remote, config.dolt_dir)
+            dolt("branch", local_uuid)
+            #dolt("init")
+            #dolt("remote", "add", "origin", config.dolt_remote)
+            #dolt("pull", "origin", "main")

@@ -37,6 +37,12 @@ class GitAnnexDownloader:
         self.batch_size = batch_size
         self.auto_push = auto_push
 
+    @dry_run("Would record that uuid {uuid} is a source for this remote")
+    def add_local_source(self, key: str):
+        """Add a source to the database for a key"""
+        self.cache.mark_present(key)
+        self.cache.insert_source(key, self.local_uuid)
+
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: str, uuid: str):
         """Add a source to the database for a key"""
@@ -66,6 +72,7 @@ class GitAnnexDownloader:
                 key = self.git.annex.calckey(abs_path)
                 self.cache.insert_file(key, abs_path)
                 
+                self.add_local_source(key)
                 self.add_source(key, self.local_uuid)
                 self.update_database(url, key)
                 
@@ -93,7 +100,7 @@ class GitAnnexDownloader:
         logger.debug(f"Importing file {path}")
         abs_path = os.path.abspath(path)
         key = self.git.annex.calckey(abs_path)
-        self.add_source(key, self.local_uuid)
+        self.add_local_source(key)
 
         if importer:
             urls = importer.url(original_path)
@@ -141,9 +148,15 @@ class GitAnnexDownloader:
         if retcode != 0:
             raise subprocess.CalledProcessError(retcode, 'git ls-tree')
         
-            
+    def mark_present_keys(self):
+        """Record the keys that are present in the annex"""
+        # TODO: Account for non-bare repos
+        for root, _, files in os.walk(os.path.join(self.git.git_dir, 'annex', 'objects')):
+            for file in files:
+                logger.debug(f"marking {file} as present")
+                self.cache.mark_present(file)
 
-    def discover_and_populate(self):
+    def discover_and_populate(self, record_urls: bool, record_sources: bool):
         """Walk the git-annex branch and populate the database"""
         
         # Stream the git ls-tree output
@@ -162,19 +175,21 @@ class GitAnnexDownloader:
                 key = os.path.splitext(os.path.basename(filename))[0]
                 logger.log(f"Processing key: {key}")
                 
-                log_content = self.git.show('git-annex', filename)
-                if log_content:
-                    uuid_dict = annex.parse_log_file(log_content)
-                    if uuid_dict:
-                        self.sources.insert(key, json.dumps({key: 1 for key in uuid_dict}))
+                if record_sources:
+                    log_content = self.git.show('git-annex', filename)
+                    if log_content:
+                        uuid_dict = annex.parse_log_file(log_content)
+                        for source in uuid_dict or []:
+                            self.cache.insert_source(key, source)
                 
-                # Check for web URLs
-                web_log = f"{os.path.splitext(filename)[0]}.log.web"
-                web_content = self.git.show('git-annex', web_log)
-                if web_content:
-                    urls = annex.parse_web_log(web_content)
-                    for url in urls:
-                        self.annex_keys.insert(url, key)
+                if record_urls:
+                    # Check for web URLs
+                    web_log = f"{os.path.splitext(filename)[0]}.log.web"
+                    web_content = self.git.show('git-annex', web_log)
+                    if web_content:
+                        urls = annex.parse_web_log(web_content)
+                        for url in urls:
+                            self.cache.insert_url(key, url)
 
         # Make sure the process completed successfully
         retcode = process.wait()

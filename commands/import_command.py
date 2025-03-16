@@ -27,7 +27,7 @@ class Import(cli.Application):
     batch_size = cli.SwitchAttr(
         "--batch_size",
         int,
-        help="The path of files to process at once",
+        help="The number of files to process at once",
         default = 1000,
     )
 

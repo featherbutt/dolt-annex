@@ -13,6 +13,7 @@ class DoltSqlServer:
     db_config: Dict[str, str]
     connection: pymysql.connections.Connection
     cursor: pymysql.cursors.Cursor
+    active_branch: str
 
     def __init__(self, dolt_dir: str, db_config: Dict[str, str], spawn_dolt_server: bool):
         self.db_config = db_config
@@ -25,6 +26,9 @@ class DoltSqlServer:
 
         self.cursor = self.connection.cursor()
         self.garbage_collect()
+
+        self.cursor.execute("SELECT ACTIVE_BRANCH()")
+        self.active_branch = self.cursor.fetchone()[0]
 
     def __enter__(self):
         return self
@@ -70,7 +74,7 @@ class DoltSqlServer:
         self.connection.commit()
         return res
 
-    def push(self):
+    def commit(self):
         logger.debug(f"dolt add")
         self.cursor.execute("call DOLT_ADD('.');")
         logger.debug(f"dolt commit")
@@ -79,6 +83,18 @@ class DoltSqlServer:
         except pymysql.err.OperationalError as e:
             if "nothing to commit" in str(e):
                 pass
+        self.garbage_collect()
+
+    def push(self):
+        self.commit()
         logger.debug(f"dolt push")
         self.cursor.execute("call DOLT_PUSH();")
-        self.garbage_collect()
+        
+
+    @contextmanager
+    def set_branch(self, branch: str):
+        previous_branch = self.active_branch
+        self.cursor.execute("call DOLT_CHECKOUT(%s)", branch)
+        self.active_branch = branch
+        yield
+        self.cursor.execute("call DOLT_CHECKOUT(%s)", previous_branch)
