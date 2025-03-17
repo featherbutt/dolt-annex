@@ -41,7 +41,7 @@ class GitAnnexDownloader:
     def add_local_source(self, key: str):
         """Add a source to the database for a key"""
         self.cache.mark_present(key)
-        self.cache.insert_source(key, self.local_uuid)
+        self.cache.insert_source(bytes(key, encoding="utf8"), bytes(self.local_uuid, encoding="utf8"))
 
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: str, uuid: str):
