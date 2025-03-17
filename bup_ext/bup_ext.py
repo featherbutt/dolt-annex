@@ -1,24 +1,31 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""This module applies a patch to an existing git branch,
+and writes any new git objects to a packfile.
+
+This is a modified version of the `bup save` command.
+
+It uses bup's bloom filter in order to avoid writing objects that already exist in the branch.
+"""
+
 from binascii import hexlify, unhexlify
 from dataclasses import dataclass
 import os
 import stat
 import time
-from typing import Literal, Optional
+from typing import Generator, Optional
 
 from bup import metadata
-from bup.cmd.save import save_tree
 from bup.hashsplit import GIT_MODE_FILE, GIT_MODE_SYMLINK, GIT_MODE_TREE
 from bup.helpers import path_components
-from bup.repo import LocalRepo
 from bup.repo.base import RepoProtocol as Repo
 from bup.git import tree_decode
 from bup.index import IX_HASHVALID, IX_EXISTS, IX_SHAMISSING, Entry as BupEntry
-from bup.options import Options
-
 from bup.tree import Stack, _write_tree
+
 from logger import logger
 
-from .patch import DirectoryPatch, new_file
+from bup_ext.patch import DirectoryPatch
 
 log = logger.info
 
@@ -26,7 +33,7 @@ GIT_MODE_FILE = 0o100644
 GIT_MODE_TREE = 0o40000
 GIT_MODE_SYMLINK = 0o120000
 
-def pop(stack, repo, override_tree=None):
+def pop(stack: Stack, repo: Repo, override_tree = None):
     """
     Pop the current directory from the stack and write it to the repo.
     
@@ -55,16 +62,8 @@ class NewDirectoryEntry(BupEntry):
         self.ref = None
         self.sha = None
 
-    def invalidate(self):
-        self.flags &= ~IX_HASHVALID
-        self.sha = None
-        if self.parent:
-            self.parent.invalidate()
-
-    def repack(self):
-        pass
-
     def iter(self, name=None, wantrecurse=None):
+        """Walk the directory structure, yielding a BupEntry for each child."""
         dname = name
         if dname and not dname.endswith(b'/'):
             dname += b'/'
@@ -149,35 +148,54 @@ class GitEntry(BupEntry):
                     yield from child.iter()
                     yield child
 
-def resolve_branch_or_ref(repo, branchname):
-    ref = repo.read_ref(branchname)
-    if ref is not None:
-        return ref
-    return unhexlify(branchname)
+@dataclass
+class CommitHash:
+    """A git commit hash, with both human readable and binary representations."""
+    binary: bytes
+    hex: bytes
 
-def root_iter(repo: Repo, ref: bytes, additional_files: DirectoryPatch):
+    @staticmethod
+    def from_hex(hex: bytes) -> 'CommitHash':
+        """Create a CommitHash from a hex string."""
+        return CommitHash(unhexlify(hex), hex)
+
+    @staticmethod
+    def from_binary(binary: bytes) -> 'CommitHash':
+        """Create a CommitHash from a byte sequence."""
+        return CommitHash(binary, hexlify(binary))
+
+    @staticmethod
+    def from_ref(repo: Repo, ref: bytes) -> 'CommitHash':
+        """Create a CommitHash from a ref (branchname, tag, or hex string)."""
+        commit = repo.read_ref(ref)
+        if commit is not None:
+            return CommitHash.from_binary(commit)
+        return CommitHash.from_hex(ref)
+
+
+def root_iter(repo: Repo, ref: bytes, additional_files: DirectoryPatch) -> Generator[BupEntry]:
+    """Generate every new entry created by from applying the patch to the given ref."""
     item_it = repo.cat(ref)
     get_oidx, typ, _ = next(item_it)
     assert typ == b'commit'
     assert get_oidx == ref
     data = b''.join(item_it)
     print("commit data", data)
-    tree = data.split(b'\n')[0].split(b' ')[1]
+    tree = data.split(b'\n', maxsplit=1)[0].split(b' ')[1]
     print("tree", tree)
     child = GitEntry(repo, None, additional_files, b"/", b"/", GIT_MODE_TREE, tree)
     if child.additional_files:
         yield from child.iter()
     yield child
 
-        
-
 class GitReader:
+    """Modeled after bup's IndexReader, this class reads a git tree with a patch applied to it."""
+
     def __init__(self, repo: Repo, additional_files: DirectoryPatch, branchname: bytes):
         self.additional_files = additional_files
         self.branchname = branchname
         self.repo = repo
-        oid = resolve_branch_or_ref(repo, branchname)
-        print(f"repo ref {branchname}", hexlify(oid))
+        self.hash = CommitHash.from_ref(repo, branchname)
 
     def __enter__(self):
         return self
@@ -185,46 +203,26 @@ class GitReader:
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    def iter(self, name=None, wantrecurse=None):
-        dname = name
-        if dname and not dname.endswith(b'/'):
-            dname += b'/'
-        ref_bytes = resolve_branch_or_ref(self.repo, self.branchname)
-        ref = hexlify(ref_bytes)
-        # TODO: Don't treat the commit like a tree.
-        root = GitEntry(self.repo, None, self.additional_files, b'/', b'/', GIT_MODE_TREE, ref)
-        yield from root_iter(self.repo, ref, self.additional_files)
+    def __iter__(self, name=None):
+        return root_iter(self.repo, self.hash.hex, self.additional_files)
 
-
-    def find(self, name):
-        return next((e for e in self.iter(name, wantrecurse=lambda x : True)
-                     if e.name == name),
-                    None)
-
-    def filter(self, wantrecurse=None):
-        for e in self.iter(wantrecurse=wantrecurse):
-            yield (e.name, e)
-
-def save_tree(opt, reader, hlink_db, msr, repo, split_trees):
+def save_tree(reader: GitReader, repo: Repo):
     # Maintain a stack of information representing the current location in
     # the tree.
 
-    stack = Stack(split_trees=split_trees)
+    stack = Stack(split_trees=False)
     stack.push(b'', metadata.Metadata())
-
-    def already_saved(ent) -> Literal[False] | bytes:
-        return ent.is_valid() and repo.exists(ent.sha) and ent.sha
 
     fcount = 0
     lastdir = b''
-    for transname, ent in reader.filter():
-        (dir, file) = os.path.split(ent.name)
+    for ent in reader:
+        (dir_path, file) = os.path.split(ent.name)
         exists = (ent.flags & IX_EXISTS)
-        already_saved_oid = ent.sha #already_saved(ent)
+        already_saved_oid = ent.sha
 
         fcount += 1
 
-        dirp = path_components(dir)
+        dirp = path_components(dir_path)
 
         # At this point, dirp contains a representation of the archive
         # path that looks like [(archive_dir_name, real_fs_path), ...].
@@ -288,20 +286,6 @@ def save_tree(opt, reader, hlink_db, msr, repo, split_trees):
 
     return tree
 
-def make_bup_options() -> Options:
-    opt = Options('bup save')
-    opt.commit = True
-    opt.verbose = True
-    opt.tree = True
-    opt.commit = True
-    opt.smaller = False
-    opt.strip = False
-    opt.strip_path = False
-    opt.grafts = False
-    opt.date = time.time()
-    opt.name = b"git-annex"
-    return opt
-
 @dataclass
 class CommitMetadata:
     userfullname = b'Anonymous'
@@ -312,50 +296,20 @@ class CommitMetadata:
     def userline(self) -> bytes:
         return b'%s <%s@%s>' % (self.userfullname, self.username, self.hostname)
 
-def main(argv):
-    repo = LocalRepo(b'git-annex')
-    with repo:
-        refname = b'refs/heads/git-annex'
-        parent = resolve_branch_or_ref(repo, refname)
-        opt = make_bup_options()
-        userfullname = b'Anonymous'
-        username = b'anon'
-        hostname = b'localhost'
-        commit_msg = b'commit'
-        additional_files = DirectoryPatch(
-            dirs = { b"ff7" : DirectoryPatch({}, {b"ftest.txt": new_file(b"test3")}), b"test": DirectoryPatch({}, {b"test.txt": new_file(b"test1")})},
-            files = {b"test.txt": new_file(b"test2")})
-        with GitReader(repo, additional_files, refname) as reader:
-            tree = save_tree(opt, reader, None, None, repo, False)
-        if opt.tree:
-            log("saved tree", hexlify(tree))
-            log('\n')
-        if opt.commit or opt.name:
-            userline = (b'%s <%s@%s>' % (userfullname, username, hostname))
-            commit = repo.write_commit(tree, parent, userline, opt.date, None,
-                             userline, opt.date, None, commit_msg)
-            if opt.commit:
-                log("commit:", hexlify(commit))
-                log('\n')
-
-        if opt.name:
-            repo.update_ref(b'refs/heads/%s' % opt.name, commit, parent)
-
-def apply_patch(repo: Repo, ref: bytes, patch: DirectoryPatch, commit_metadata: CommitMetadata):
-    opts = make_bup_options()
-    parent = resolve_branch_or_ref(repo, ref)
-    with GitReader(repo, patch, ref) as reader:
-        tree = save_tree(opts, reader, None, None, repo, False)
-    if opts.tree:
-        log("saved tree", hexlify(tree))
-        log('\n')
-    if opts.commit or opts.name:
+def apply_patch(repo: Repo, read_ref: bytes, write_branch: bytes, patch: DirectoryPatch, commit_metadata: CommitMetadata):
+    """Produces a new commit with the given patch applied to the given ref."""
+    make_commit = True
+    now = time.time()
+    parent = CommitHash.from_ref(repo, read_ref)
+    with GitReader(repo, patch, read_ref) as reader:
+        tree = save_tree(reader, repo)
+    if make_commit or write_branch:
         userline = commit_metadata.userline()
-        commit = repo.write_commit(tree, parent, userline, opts.date, None,
-                            userline, opts.date, None, commit_metadata.commit_msg)
-        if opts.commit:
+        commit = repo.write_commit(tree, parent.binary, userline, now, None,
+                            userline, now, None, commit_metadata.commit_msg)
+        if make_commit:
             log("commit:", hexlify(commit))
             log(b'\n')
 
-    if opts.name:
-        repo.update_ref(b'refs/heads/%s' % opts.name, commit, parent)
+    if write_branch:
+        repo.update_ref(b'refs/heads/%s' % write_branch, commit, parent.binary)

@@ -1,6 +1,5 @@
 # Description: This file contains functions for interacting with git-annex
 
-from collections import namedtuple
 from dataclasses import dataclass
 import json
 import os
@@ -134,7 +133,7 @@ class AnnexCache:
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
-        logger.debug(f"flushing cache")
+        logger.debug("flushing cache")
         if not self.urls and not self.md5s and not self.sources and not self.files and not self.local_keys:
             return
         
@@ -148,29 +147,29 @@ class AnnexCache:
                 patch.insert(file_path, update_file(rows, 2))
         
         if self.sources or self.urls:
-            logger.debug(f"creating git-annex patch")
+            logger.debug("creating git-annex patch")
             insert(self.sources, b".log")
             insert(self.urls, b".log.web")
-            logger.debug(f"applying git-annex patch")
-            apply_patch(self.repo, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
+            logger.debug("applying git-annex patch")
+            apply_patch(self.repo, self.git_annex_settings.ref, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
 
         # 2. Update the Dolt database to match the git-annex branch.
 
-        logger.debug(f"flushing dolt database")
+        logger.debug("flushing dolt database")
         if self.sources:
-            self.dolt.executemany(db.sources_sql, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
+            self.dolt.executemany(db.SOURCES_SQL, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
         if self.urls:
-            self.dolt.executemany(db.annex_keys_sql, [(url, key) for key, urls in self.urls.items() for url in urls])
+            self.dolt.executemany(db.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
         if self.md5s:
-            self.dolt.executemany(db.hashes_sql, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
+            self.dolt.executemany(db.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
         if self.local_keys:
             with self.dolt.set_branch(self.local_uuid):
-                self.dolt.executemany(db.local_keys_sql, [(key,) for key in self.local_keys])
+                self.dolt.executemany(db.LOCAL_KEYS_SQL, [(key,) for key in self.local_keys])
                 self.dolt.commit()
 
         # 3. Move the annex files to the annex directory.
 
-        logger.debug(f"moving annex files")
+        logger.debug("moving annex files")
         for key, file_path in self.files.items():
             key_path = self.git.annex.get_annex_key_path(key)
             pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
@@ -183,7 +182,7 @@ class AnnexCache:
         self.files.clear()
         self.local_keys.clear()
 
-        logger.debug(f"pushing dolt database")
+        logger.debug("pushing dolt database")
         self.dolt.push()
 
         new_now = time.time()

@@ -1,5 +1,5 @@
 import os
-from plumbum import cli, local
+from plumbum import cli, local # type: ignore
 
 from application import Application
 

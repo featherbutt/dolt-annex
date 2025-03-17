@@ -1,4 +1,4 @@
-from plumbum import cli
+from plumbum import cli # type: ignore
 
 from application import Application
 

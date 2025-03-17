@@ -1,16 +1,16 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
-from annex import AnnexCache, GitAnnexSettings, MoveFunction
-from bup_ext.bup_ext import CommitMetadata
-from plumbum import cli
+
+from plumbum import cli # type: ignore
 
 from bup.repo import LocalRepo
-
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
 import dry_run
+from annex import AnnexCache, GitAnnexSettings, MoveFunction
+from bup_ext.bup_ext import CommitMetadata
 
 @dataclass
 class Config:
@@ -124,7 +124,7 @@ class Application(cli.Application):
         }
         git = Git(self.config.git_dir)
         commit_metadata = CommitMetadata()
-        git_annex_settings = GitAnnexSettings(commit_metadata, 'git-annex')
+        git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
         with (
             LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,

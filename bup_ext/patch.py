@@ -1,12 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""A module for describing a patche to apply to a file system."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Literal, Optional
+from typing import Callable, Dict, List, Optional
 
-from bup.repo.base import RepoProtocol as Repo
-
-"""A FilePatch is a function that describes how to modify a file."""
 FilePatch = Callable[[Optional[bytes]], bytes]
+"""A FilePatch is a function that describes how to modify a file."""
 
 def new_file(contents: bytes):
     """Return a FilePatch that creates a new file with the given contents."""
@@ -37,9 +39,10 @@ def update_file(contents: List[List[bytes]], key_index: int, delimieter: bytes =
         out_lines.extend(delimieter.join(line) for line in contents)
         return b'\n'.join(out_lines)
     return inner
+
 @dataclass
 class DirectoryPatch:
-    """An object describing a patch to be applied to a git branch."""
+    """An object describing a patch to be applied to a directory."""
     files: Dict[bytes, DirectoryPatch | FilePatch]
 
     def __init__(self):
@@ -48,18 +51,18 @@ class DirectoryPatch:
     def __bool__(self):
         return bool(self.files)
     
-    def apply(self, repo: Repo, path: bytes):
-        """Apply the patch to the given repository at the given path."""
-
     def insert(self, path: bytes, patch: DirectoryPatch | FilePatch):
         """Insert a patch at the given path."""
         head, *tail = path.split(b'/', 1)
         if not tail:
             self.files[head] = patch
         else:
-            if head not in self.files:
-                self.files[head] = DirectoryPatch()
-            self.files[head].insert(tail[0], patch)
+            child_patch = self.files.get(head)
+            if child_patch is None:
+                child_patch = DirectoryPatch()
+                self.files[head] = child_patch
+            assert isinstance(child_patch, DirectoryPatch)
+            child_patch.insert(tail[0], patch)
 
 
     

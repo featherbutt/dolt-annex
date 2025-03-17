@@ -1,8 +1,11 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from contextlib import contextmanager
 import time
-from typing import Dict
+from typing import Any, Dict, Tuple
 
-from plumbum import local
+from plumbum import local # type: ignore
 import pymysql
 
 from dry_run import dry_run
@@ -10,12 +13,12 @@ from logger import logger
 
 class DoltSqlServer:
 
-    db_config: Dict[str, str]
+    db_config: Dict[str, Any]
     connection: pymysql.connections.Connection
     cursor: pymysql.cursors.Cursor
     active_branch: str
 
-    def __init__(self, dolt_dir: str, db_config: Dict[str, str], spawn_dolt_server: bool):
+    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
         self.db_config = db_config
 
         if spawn_dolt_server:
@@ -28,7 +31,9 @@ class DoltSqlServer:
         self.garbage_collect()
 
         self.cursor.execute("SELECT ACTIVE_BRANCH()")
-        self.active_branch = self.cursor.fetchone()[0]
+        res = self.cursor.fetchone()
+        assert res is not None
+        self.active_branch = res[0]
 
     def __enter__(self):
         return self
@@ -37,7 +42,7 @@ class DoltSqlServer:
         if self.dolt_server_process:
             self.dolt_server_process.terminate()
 
-    def spawn_dolt_server(self, dolt_dir: str) -> pymysql.connections.Connection:
+    def spawn_dolt_server(self, dolt_dir: str) -> Tuple[Any, pymysql.connections.Connection]:
         dolt = local.cmd.dolt.with_cwd(dolt_dir)
         dolt_server_process = dolt.popen("sql-server")
         while True:
@@ -98,3 +103,4 @@ class DoltSqlServer:
         self.active_branch = branch
         yield
         self.cursor.execute("call DOLT_CHECKOUT(%s)", previous_branch)
+        self.active_branch = previous_branch

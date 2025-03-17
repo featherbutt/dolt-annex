@@ -1,12 +1,10 @@
-from collections.abc import Callable
 import os
-from typing import List
 import shutil
+from typing import Callable
 
-from plumbum import cli, local
+from plumbum import cli # type: ignore
 
 import importers
-import annex
 from application import Application
 from downloader import GitAnnexDownloader
 import importers.base
@@ -92,9 +90,10 @@ class Import(cli.Application):
         elif self.from_falr:
             return importers.FALRImporter(downloader.dolt_server, "filenames", "filenames")
         else:
-            return None
+            return importers.NullImporter()
 
     def main(self, *files_or_directories: str):
+        move_function: Callable[[str, str], None]
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         if self.copy:

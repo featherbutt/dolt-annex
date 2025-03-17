@@ -1,51 +1,29 @@
-from dataclasses import dataclass
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import os
 import random
-from contextlib import contextmanager
-from typing import Tuple
+from typing import Iterable, Tuple
 
-from logger import logger
-
-import pymysql
-
-class BatchInserter:
-    def __init__(self, dolt_server, sql):
-        self.dolt_server = dolt_server
-        self.sql = sql
-        self.values = []
-        
-    def insert(self, *row):
-        self.values.append(row)
-        
-    def flush(self):
-        self.dolt_server.executemany(self.sql, self.values)
-        self.values.clear()
-
-    def __enter__(self):
-        return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.flush()
-
-sources_sql = """
+SOURCES_SQL = """
     INSERT INTO sources (`annex-key`, sources)
     VALUES (%s, %s) as new(new_key, new_sources)
     ON DUPLICATE KEY UPDATE
     sources = JSON_MERGE_PATCH(sources, new_sources);
 """
 
-annex_keys_sql = """
+ANNEX_KEYS_SQL = """
     INSERT INTO `annex-keys` (url, `annex-key`)
     VALUES (%s, %s) as new(new_url, new_key)
     ON DUPLICATE KEY UPDATE
     `annex-key` = new_key
 """
 
-hashes_sql = """
+HASHES_SQL = """
     INSERT IGNORE INTO hashes (`hash`, `hashType`, `annex-key`) VALUES (%s, %s, %s);
 """
 
-local_keys_sql = """
+LOCAL_KEYS_SQL = """
     INSERT IGNORE INTO local_keys (`annex-key`) values (%s);
 """
 
@@ -59,24 +37,24 @@ local_keys_sql = """
 def random_string_key(min_key, max_key: str) -> str:
     '''Generate a random string key between min_key and max_key'''
     prefix = os.path.commonprefix([min_key, max_key])
-    nextChoices = []
+    next_choices = []
     if len(prefix) == len(min_key):
-        nextChoices.append("")
+        next_choices.append("")
     lower = ord(min_key[len(prefix)])
     if lower < ord('a'):
-        nextChoices.append(chr(lower))
+        next_choices.append(chr(lower))
         lower = ord('a')
     upper = ord(max_key[len(prefix)])
     if upper > ord('z'):
-        nextChoices.append(chr(upper))
+        next_choices.append(chr(upper))
         upper = ord('z')
-    nextChoices.extend(map(chr, range(lower, upper+1)))
+    next_choices.extend(map(chr, range(lower, upper+1)))
 
-    print(nextChoices)
-    return prefix + random.choice(nextChoices)
+    print(next_choices)
+    return prefix + random.choice(next_choices)
 
 
-def random_batch(url_prefix: str, cursor, batch_size: int) -> Tuple[list[str], int]:
+def random_batch(url_prefix: str, cursor, batch_size: int) -> Tuple[Iterable[str], int]:
     '''Get a random batch of urls with a given prefix'''
 
     cursor.execute("SELECT MIN(`url`), MAX(`url`) FROM `annex-keys` WHERE `annex-key` IS NULL and url LIKE %s;", (url_prefix+"%",))

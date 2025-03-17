@@ -1,6 +1,6 @@
 import os
 
-from plumbum import local
+from plumbum import local # type: ignore
 
 from dry_run import dry_run
 from logger import logger

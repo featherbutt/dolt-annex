@@ -2,7 +2,7 @@ from abc import ABC as AbstractBaseClass, abstractmethod
 import os
 from typing import List
 
-from plumbum import local
+from plumbum import local # type: ignore
 
 import annex
 
@@ -11,9 +11,11 @@ class Importer(AbstractBaseClass):
     def url(self, path: str) -> List[str]:
         ...
 
+    @abstractmethod
     def md5(self, path: str) -> str | None:
         ...
 
+    @abstractmethod
     def skip(self, path: str) -> bool:
         ...
     
@@ -30,7 +32,7 @@ class OtherAnnexImporter(Importer):
             return annex.parse_web_log(web_log)
         return []
     
-    def md5(self) -> str | None:
+    def md5(self, path: str) -> str | None:
         return None
     
     def skip(self, path: str) -> bool:
@@ -89,6 +91,17 @@ class MD5Importer(Importer):
     def md5(self, path: str) -> str | None:
         basename = os.path.basename(path)
         return basename.split('.')[0]
+    
+    def skip(self, path: str) -> bool:
+        return False
+    
+class NullImporter(Importer):
+    """An importer that does nothing."""
+    def url(self, path: str) -> List[str]:
+        return []
+    
+    def md5(self, path: str) -> str | None:
+        return None
     
     def skip(self, path: str) -> bool:
         return False

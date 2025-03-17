@@ -1,15 +1,15 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from collections.abc import Callable
 import os
-from sqlite3 import Cursor
 import tempfile
 import subprocess
 import requests
-import json
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import annex
 from annex import WEB_UUID, AnnexCache
-import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
 import importers
@@ -82,7 +82,7 @@ class GitAnnexDownloader:
                 print(f"Error processing URL {url}: {str(e)}")
                 return None
             
-    def import_file(self, path: str, importer: importers.Importer, follow_symlinks: bool) -> str:
+    def import_file(self, path: str, importer: importers.Importer, follow_symlinks: bool):
         """Import a file into the annex"""
         extension = os.path.splitext(path)[1]
         if len(extension) > self.max_extension_length+1:
@@ -110,8 +110,6 @@ class GitAnnexDownloader:
                 self.record_md5(md5, key)
 
         self.cache.insert_file(key, abs_path)
-
-        return key
     
     @dry_run("Would record that key {key} has md5 {md5}")
     def record_md5(self, md5: str, key: str):
@@ -142,7 +140,7 @@ class GitAnnexDownloader:
                 key = symlink.split('/')[-1]
                 urls = url_from_path(symlink)
                 for url in urls:
-                    self.annex_keys.insert(url, key)
+                    self.cache.insert_url(key, url)
         # Make sure the process completed successfully
         retcode = process.wait()
         if retcode != 0:
@@ -167,6 +165,7 @@ class GitAnnexDownloader:
         )
         
         # Process files as they come in
+        assert process.stdout is not None
         for line in process.stdout:
             filename = line.strip()
             if '/' not in filename:
