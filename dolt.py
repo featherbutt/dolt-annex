@@ -83,12 +83,12 @@ class DoltSqlServer:
         except pymysql.err.OperationalError as e:
             if "nothing to commit" in str(e):
                 pass
-        self.garbage_collect()
-
+        
     def push(self):
         self.commit()
         logger.debug(f"dolt push")
         self.cursor.execute("call DOLT_PUSH();")
+        self.garbage_collect()
         
 
     @contextmanager
