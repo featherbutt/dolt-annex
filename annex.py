@@ -72,7 +72,7 @@ class AnnexCache:
     md5s: Dict[str, bytes]
     sources: Dict[str, List[str]]
     local_keys: Set[str]
-    files: Dict[bytes, str]
+    files: Dict[str, str]
     git: Git
     dolt: DoltSqlServer
     move: MoveFunction
@@ -116,7 +116,7 @@ class AnnexCache:
         self.sources[key].append(source)
         self.increment_count()
 
-    def insert_file(self, key: bytes, filename: str):
+    def insert_file(self, key: str, filename: str):
         self.files[key] = filename
         self.increment_count()
 
@@ -139,11 +139,11 @@ class AnnexCache:
         
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
         patch = DirectoryPatch()
-        def insert(key_values: Dict[bytes, List[bytes]], suffix: bytes):
+        def insert(key_values: Dict[str, List[str]], suffix: bytes):
             for key, values in key_values.items():
                 key_path = bytes(self.git.annex.get_branch_key_path(key), encoding="utf8")
                 file_path = key_path + suffix
-                rows = [[now, b"1", value] for value in values]
+                rows = [[now, b"1", bytes(value, encoding = "utf8")] for value in values]
                 patch.insert(file_path, update_file(rows, 2))
         
         if self.sources or self.urls:
@@ -157,7 +157,7 @@ class AnnexCache:
 
         logger.debug("flushing dolt database")
         if self.sources:
-            self.dolt.executemany(db.SOURCES_SQL, [(str(key, encoding="utf8"), json.dumps({str(source, encoding="utf8"): 1 for source in sources})) for key, sources in self.sources.items()])
+            self.dolt.executemany(db.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
         if self.urls:
             self.dolt.executemany(db.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
         if self.md5s:

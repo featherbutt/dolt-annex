@@ -103,7 +103,7 @@ class GitAnnexDownloader:
         self.add_local_source(key)
 
         if importer:
-            urls = importer.url(original_path)
+            urls = importer.url(original_path, path)
             for url in urls:
                 self.update_database(url, key)
             if (md5 := importer.md5(original_path)):

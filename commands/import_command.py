@@ -38,8 +38,8 @@ class Import(cli.Application):
 
     url_prefix = cli.SwitchAttr(
         "--url-prefix",
-        cli.ExistingDirectory,
-        help="The path of a directory to import from",
+        str,
+        help="Prepend this to the relative path of each imported file to get the url",
         excludes = ["--from-other-annex"],
     )
 

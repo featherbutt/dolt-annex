@@ -8,7 +8,7 @@ import annex
 
 class Importer(AbstractBaseClass):
     @abstractmethod
-    def url(self, path: str) -> List[str]:
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
         ...
 
     @abstractmethod
@@ -23,8 +23,8 @@ class OtherAnnexImporter(Importer):
     def __init__(self, other_annex_path: str):
         self.other_annex_path = other_annex_path
 
-    def url(self, path: str) -> List[str]:
-        parts = path.split(os.path.sep)
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
+        parts = abs_path.split(os.path.sep)
         annex_object_path = '/'.join(parts[-4:-1])
         other_git = local.cmd.git["-C", self.other_annex_path]
         web_log = other_git('show', f'git-annex:{annex_object_path}.log.web', retcode=None)
@@ -42,8 +42,8 @@ class DirectoryImporter(Importer):
     def __init__(self, prefix_url: str):
         self.prefix_url = prefix_url
 
-    def url(self, path: str) -> List[str]:
-        return [f"{self.prefix_url}/{path}"]
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
+        return [f"{self.prefix_url}/{rel_path}"]
     
     def md5(self, path: str) -> str | None:
         return None
@@ -57,8 +57,8 @@ class FALRImporter(Importer):
         self.other_dolt_db = other_dolt_db
         self.other_dolt_branch = other_dolt_branch
 
-    def url(self, path: str) -> List[str]:
-        parts = path.split(os.path.sep)
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
+        parts = abs_path.split(os.path.sep)
         sid = int(''.join(parts[-6:-1]))
         res = self.dolt_sql_server.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;", (sid,))
         return [row[0] for row in res]
@@ -71,8 +71,8 @@ class FALRImporter(Importer):
 
 class MD5Importer(Importer):
 
-    def url(self, path: str) -> List[str]:
-        basename = os.path.basename(path)
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
+        basename = os.path.basename(abs_path)
         basename_parts = basename.split('.')
         if len(basename_parts) < 3:
             raise ValueError(f"Invalid filename: {basename}")
@@ -97,7 +97,7 @@ class MD5Importer(Importer):
     
 class NullImporter(Importer):
     """An importer that does nothing."""
-    def url(self, path: str) -> List[str]:
+    def url(self, abs_path: str, rel_path: str) -> List[str]:
         return []
     
     def md5(self, path: str) -> str | None:

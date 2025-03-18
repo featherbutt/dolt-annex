@@ -31,8 +31,8 @@ class GitAnnex:
     def calckey(self, key: str) -> str:
         return self.cmd("calckey", key).strip()
     
-    def get_branch_key_path(self, key: bytes) -> str:
-        return self.cmd("examinekey", "--format=${hashdirlower}${key}", str(key, encoding="utf8")).strip()
+    def get_branch_key_path(self, key: str) -> str:
+        return self.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
         
     def get_annex_key_path(self, key: str):
         rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
