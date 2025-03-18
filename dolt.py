@@ -80,9 +80,9 @@ class DoltSqlServer:
         return res
 
     def commit(self):
-        logger.debug(f"dolt add")
+        logger.debug("dolt add")
         self.cursor.execute("call DOLT_ADD('.');")
-        logger.debug(f"dolt commit")
+        logger.debug("dolt commit")
         try:
             self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
         except pymysql.err.OperationalError as e:
@@ -91,7 +91,7 @@ class DoltSqlServer:
         
     def push(self):
         self.commit()
-        logger.debug(f"dolt push")
+        logger.debug("dolt push")
         self.cursor.execute("call DOLT_PUSH();")
         self.garbage_collect()
         

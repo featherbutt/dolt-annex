@@ -17,7 +17,7 @@ from git import Git
 from logger import logger
 
 # reserved git-annex UUID for the web special remote
-WEB_UUID = b'00000000-0000-0000-0000-000000000001'
+WEB_UUID = '00000000-0000-0000-0000-000000000001'
 
 def parse_log_file(content: str) -> Set[str]:
     """Parse a .log file and return a set of UUIDs that have the file"""
@@ -68,10 +68,10 @@ class GitAnnexSettings:
 MoveFunction = Callable[[str, str], None]
     
 class AnnexCache:
-    urls: Dict[bytes, List[bytes]]
-    md5s: Dict[bytes, bytes]
-    sources: Dict[bytes, List[bytes]]
-    local_keys: Set[bytes]
+    urls: Dict[str, List[str]]
+    md5s: Dict[str, bytes]
+    sources: Dict[str, List[str]]
+    local_keys: Set[str]
     files: Dict[bytes, str]
     git: Git
     dolt: DoltSqlServer
@@ -99,18 +99,18 @@ class AnnexCache:
             self.flush()
             self.count = 0
 
-    def insert_url(self, key: bytes, url: bytes):
+    def insert_url(self, key: str, url: str):
         if key not in self.urls:
             self.urls[key] = []
         self.urls[key].append(url)
         self.increment_count()
         
 
-    def insert_md5(self, key: bytes, md5: bytes):
+    def insert_md5(self, key: str, md5: bytes):
         self.md5s[key] = md5
         self.increment_count()
 
-    def insert_source(self, key: bytes, source: bytes):
+    def insert_source(self, key: str, source: str):
         if key not in self.sources:
             self.sources[key] = []
         self.sources[key].append(source)
@@ -120,7 +120,7 @@ class AnnexCache:
         self.files[key] = filename
         self.increment_count()
 
-    def mark_present(self, key: bytes):
+    def mark_present(self, key: str):
         self.local_keys.add(key)
         self.increment_count()
 

@@ -41,17 +41,17 @@ class GitAnnexDownloader:
     def add_local_source(self, key: str):
         """Add a source to the database for a key"""
         self.cache.mark_present(key)
-        self.cache.insert_source(bytes(key, encoding="utf8"), bytes(self.local_uuid, encoding="utf8"))
+        self.cache.insert_source(key, self.local_uuid)
 
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: str, uuid: str):
         """Add a source to the database for a key"""
-        self.cache.insert_source(bytes(key, encoding="utf8"), bytes(uuid, encoding="utf8"))
+        self.cache.insert_source(key, uuid)
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: str):
-        self.cache.insert_url(bytes(key, encoding="utf8"), bytes(url, encoding="utf8"))
-        self.cache.insert_source(bytes(key, encoding="utf8"), WEB_UUID)
+        self.cache.insert_url(key, url)
+        self.cache.insert_source(key, WEB_UUID)
 
     def download_file(self, url: str) -> Optional[str]:
         """Download a file from a url, add it to the annex, and update the database"""
@@ -123,7 +123,7 @@ class GitAnnexDownloader:
             for file in files:
                 self.import_file(os.path.join(root, file), importer, follow_symlinks)
 
-    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]] = None, follow_symlinks: bool = False):
+    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]], follow_symlinks: bool = False):
         """Import a git branch into the annex. Currently unused."""
         # Stream the git ls-tree output
         git = Git(other_repo)

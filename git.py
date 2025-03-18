@@ -28,10 +28,10 @@ class GitAnnex:
         self.dry_run = dry_run
     
     # TODO: Replace these commands with continuous batch commands
-    def calckey(self, key: str):
+    def calckey(self, key: str) -> str:
         return self.cmd("calckey", key).strip()
     
-    def get_branch_key_path(self, key: bytes):
+    def get_branch_key_path(self, key: bytes) -> str:
         return self.cmd("examinekey", "--format=${hashdirlower}${key}", str(key, encoding="utf8")).strip()
         
     def get_annex_key_path(self, key: str):
