@@ -1,1 +1,78 @@
-Download submission files and add them to the annex
+# git-annex, at scale
+
+git-annex-archive is a tool for replicating large datasets between multiple repositories, without requiring each repository to contain a copy of every file. Instead, git-annex-archive maintains tracking information about which repositories contain copies of which files, allowing files to be retrieved on demand.
+
+## How is this different from git-annex?
+
+git-annex has scaling issues that make them unsuitable for extremely large datasets:
+
+- git-annex stores metadata about annexed files but this metadata is not indexed. [There's an experiment to store metadata in a sqlite database](https://git-annex.branchable.com/design/caching_database/), but the database needs to be generated locally.
+- git-annex syncing operations (get, push, pull, sync) scale with the number of annexed files in the branches being synced. It's not possible to efficiently identify only the set of the annexed files that need to be transferred. These commands also rely on normal git branches containing symlinks to annexed files as a measure of liveness/reachability.
+- These normal git branches also add additional overhead, especially in the case where the dataset doesn't have an obvious file system representation.
+
+Ideally, we want to be able to store all tracking information in a database that is itself decentralized, version-controlled and can be merged during sync operations.
+
+[Dolt](https://www.dolthub.com/) does exactly what we need.
+
+git-annex-archive attempts to tackle these scaling issues by pairing a git-annex repo with a Dolt repo. Each combined git-annex + Dolt tracks the known locations of annexed files, and updates this information whenever it syncs with its remotes.
+
+An unrelated scaling issue is the standard git client is not optimized for large-scale data imports because it initially creates a new file for every git object. To work around this, git-annex-archive writes git packfiles directly, using [bup](https://bup.github.io/)
+
+## Requirements
+
+git-annex-archive depends on git-annex and bup. Both of these have only partial Windows support. If you need to use Windows, I recommend using WSL.
+
+git-annex-archive needs to connect to a locally running Dolt server in order to work, but the code itself does not depend on Dolt.
+
+Python 3.7+ is required. I've tested on both 3.10 and 3.13 and haven't encountered any obvious issues.
+
+## Installation
+
+git-annex-archive is written mostly in Python, but it includes bup as a submodule, which contains both Python and C code. Before using git-annex-archive, the bup submodule must be initialized and built using `make`:
+
+```bash
+git submodule init   # Instead of running these commands, you can use the
+git submodule update # --recurse-submodules flag when running `git clone`
+cd bup_submodule
+make
+```
+
+In addition to building bup, this will produce a file `bup_submodule/config/config.vars`, which contains a variable `bup_python_config` indicating which version of Python was used to build bup. Make sure that you use the same version when running git-annex-archive, otherwise you might get confusing errors.
+
+## Running
+
+git-annex-archive requires a configuration, which can be specified via command line flags, environment variables, or a JSON config file. I reccomend the JSON config file, which can be supplied to every command with the `-c` flag. An example config file is included for reference.
+
+Currently, you need to run `main.py` with your command line flags.
+
+The curent sent of useful subcommands are:
+
+- `init` - attempts to initialize your Dolt and git-annex repos. This isn't necessary if you're going to set up your environment yourself, but looking at its implementation (in `commands/init.py`) is helpful for seeing what needs to be done to configure your repo.
+- `import` - adds local files to your annex, optionally recording the URL that they were originally downloaded from. You must supply exactly one of `--move`, `--copy`, or `--symlink`, which determines what happens to the original files.
+  - `--move` moves the files into the annex, whicih is the fastest but destroys the directory structure you're importing from. The original file name and path will be lost. Be careful with this.
+  - `--copy` preserves the original file and makes a copy in the annex. This is the safest option, but slowest and doubles your disk usage.
+  - `--symlink` replaces the original file with a symlink to the file in its new location. Less destructive than `--move` but avoids copies. A happy medium.
+
+## Importing 
+
+Many of the other flags for `main.py --import` are for specific kinds of local archives that I had lying around that I wanted to import. Most likely the one you want is `--url-prefix`, which takes a string prefix and generates the URL by concatenating this prefix with the relative path of the imported file from the current working directory.
+
+So for example, if you have a mirror of `https://example.com/coolstuff` stored at `/home/me/coolstuff`, and the directory layout of your mirror matches the layout of the website, you could import the files by running:
+
+```bash
+cd /home/me/
+python $PATH_TO_GAA/main.py -c config.json import --symlink --url-prefix "https://example.com/" coolstuff
+```
+
+Don't use `./coolstuff`. Don't cd into the `coolstuff` directory and import `.`. Neither of those will produce the correct url. Yes, this is annoying. Yes, this will get fixed.
+
+## Pushing content
+
+Being able to push content to remotes is a very important feature. Unfortunately it doesn't exist yet. I'm working on it.
+
+In the meantime, you can push things by using the underlying Dolt, and  git-annex commands:
+
+```bash
+dolt push
+git annex push --all
+```
