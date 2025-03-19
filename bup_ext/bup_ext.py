@@ -173,7 +173,7 @@ class CommitHash:
         return CommitHash.from_hex(ref)
 
 
-def root_iter(repo: Repo, ref: bytes, additional_files: DirectoryPatch) -> Generator[BupEntry]:
+def root_iter(repo: Repo, ref: bytes, additional_files: DirectoryPatch):
     """Generate every new entry created by from applying the patch to the given ref."""
     item_it = repo.cat(ref)
     get_oidx, typ, _ = next(item_it)
