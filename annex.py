@@ -11,7 +11,7 @@ from bup.repo.base import RepoProtocol as Repo
 
 from bup_ext.patch import DirectoryPatch, update_file
 from bup_ext.bup_ext import CommitMetadata, apply_patch
-import db
+import sql
 from dolt import DoltSqlServer
 from git import Git
 from logger import logger
@@ -157,14 +157,14 @@ class AnnexCache:
 
         logger.debug("flushing dolt database")
         if self.sources:
-            self.dolt.executemany(db.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
+            self.dolt.executemany(sql.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
         if self.urls:
-            self.dolt.executemany(db.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
+            self.dolt.executemany(sql.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
         if self.md5s:
-            self.dolt.executemany(db.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
+            self.dolt.executemany(sql.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
         if self.local_keys:
             with self.dolt.set_branch(self.local_uuid):
-                self.dolt.executemany(db.LOCAL_KEYS_SQL, [(key,) for key in self.local_keys])
+                self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in self.local_keys])
                 self.dolt.commit()
 
         # 3. Move the annex files to the annex directory.

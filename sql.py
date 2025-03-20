@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""Code for interacting directly with SQL"""
+
 import os
 import random
 from typing import Iterable, Tuple
