@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import functools
 import inspect
+from typing import Callable
 
 def format_args(func, message, *args, **kwargs):
     signature = inspect.signature(func)
@@ -11,18 +12,20 @@ def format_args(func, message, *args, **kwargs):
 INFO = 0
 DEBUG = 1
 class Logger:
-    def __init__(self, log_func: callable, log_level=INFO):
+    """A simple configurable logger"""
+    def __init__(self, log_func: Callable, log_level=INFO):
         self.log_func = log_func
         self.log_level = log_level
 
     @contextmanager
     def section(self, name):
+        """A context manager for logging the beginning and end of a code block"""
         self.debug(f"Starting {name}...")
         yield
         self.debug(f"Finished {name}")
 
-    # A decorator for legging when a method begins and ends
     def method(self, name=None):
+        """A decorator for logging when a method begins and ends"""
         if callable(name):
             return self.method()(name)
         def decorator(method):
@@ -38,16 +41,20 @@ class Logger:
         return decorator
     
     def log(self, log_level, *message):
+        """Conditionally log a message based on the configured log level"""
         if self.log_level >= log_level:
             self.log_func(*message)
     
     def debug(self, *message):
+        """Log a message with DEBUG severity"""
         self.log(DEBUG, *message)
 
     def info(self, *message):
+        """Log a message with INFO severity"""
         self.log(INFO, *message)
 
-    
-
 null_logger = Logger(lambda *args, **kwargs: None)
+"""null_logger is a logger that swallows all messages"""
+
 logger = Logger(print, DEBUG)
+"""logger is a logger that prints all messages with maximum verbosity"""
