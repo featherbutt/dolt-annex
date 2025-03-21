@@ -4,6 +4,7 @@ from plumbum import cli, local # type: ignore
 from application import Application
 
 def is_wsl():
+    """Check if running in Windows Subsystem for Linux"""
     return os.path.exists("/proc/sys/fs/binfmt_misc/WSLInterop")
 
 class Init(cli.Application):
@@ -27,7 +28,12 @@ class Init(cli.Application):
         mandatory = True,
     )
 
-    def main(self):
+    def main(self, *args):
+        if args:
+            print("Unexpected positional arguments: ", args)
+            self.help()
+            return 1
+
         config = self.parent.config
 
         git = local.cmd.git["-C", config.git_dir]

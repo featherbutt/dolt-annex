@@ -14,6 +14,7 @@ from bup_ext.bup_ext import CommitMetadata
 
 @dataclass
 class Config:
+    """Global configuration settings"""
     dolt_dir: str
     dolt_db: str
     dolt_remote: str
@@ -27,11 +28,13 @@ class Config:
     auto_push: bool = False
 
     def validate(self):
+        """Ensure that all required fields are set"""
         for field in ["dolt_dir", "dolt_db", "dolt_remote", "git_dir", "git_remote", "email", "name", "annexcommitmessage"]:
             if getattr(self, field) is None:
                 raise ValueError(f"Missing configuration: {field}")
 
 class Application(cli.Application):
+    """The top level CLI command"""
     PROGNAME = "dolt-annex"
     VERSION = "0.1"
 
@@ -54,8 +57,8 @@ class Application(cli.Application):
     @cli.switch(['-c', '--config'], cli.ExistingFile)
     def set_config(self, path):
         with open(path) as f:
-            configJson = json.load(f)
-            for key, value in configJson.items():
+            config_json = json.load(f)
+            for key, value in config_json.items():
                 setattr(self.config, key, value)
 
     dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname="DA_DOLT_DIR")

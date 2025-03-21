@@ -1,4 +1,7 @@
-# Description: This file contains functions for interacting with git-annex
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""This file contains functions for interacting with git-annex"""
 
 from dataclasses import dataclass
 import json
@@ -68,6 +71,7 @@ class GitAnnexSettings:
 MoveFunction = Callable[[str, str], None]
     
 class AnnexCache:
+    """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
     urls: Dict[str, List[str]]
     md5s: Dict[str, bytes]
     sources: Dict[str, List[str]]
