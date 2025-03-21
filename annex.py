@@ -80,8 +80,12 @@ class AnnexCache:
     git: Git
     dolt: DoltSqlServer
     move: MoveFunction
+    auto_push: bool
+    batch_size: int
+    count: int
+    time: float
 
-    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, move: MoveFunction, batch_size: int):
+    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, move: MoveFunction, auto_push: bool, batch_size: int):
         self.repo = repo
         self.dolt = dolt
         self.git = git
@@ -96,6 +100,7 @@ class AnnexCache:
         self.move = move
         self.time = time.time()
         self.local_uuid = git.config['annex.uuid']
+        self.auto_push = auto_push
 
     def increment_count(self):
         self.count += 1
@@ -169,7 +174,7 @@ class AnnexCache:
         if self.local_keys:
             with self.dolt.set_branch(self.local_uuid):
                 self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in self.local_keys])
-                self.dolt.commit()
+                self.dolt.commit(self.auto_push)
 
         # 3. Move the annex files to the annex directory.
 
@@ -187,7 +192,7 @@ class AnnexCache:
         self.local_keys.clear()
 
         logger.debug("pushing dolt database")
-        self.dolt.push()
+        self.dolt.commit(self.auto_push)
 
         new_now = time.time()
         elapsed_time = new_now - self.time

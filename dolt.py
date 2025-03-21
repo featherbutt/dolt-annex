@@ -79,7 +79,7 @@ class DoltSqlServer:
         self.connection.commit()
         return res
 
-    def commit(self):
+    def commit(self, push: bool = True):
         logger.debug("dolt add")
         self.cursor.execute("call DOLT_ADD('.');")
         logger.debug("dolt commit")
@@ -88,14 +88,11 @@ class DoltSqlServer:
         except pymysql.err.OperationalError as e:
             if "nothing to commit" in str(e):
                 pass
-        
-    def push(self):
-        self.commit()
-        logger.debug("dolt push")
-        self.cursor.execute("call DOLT_PUSH();")
+        if push:
+            logger.debug("dolt push")
+            self.cursor.execute("call DOLT_PUSH();")
         self.garbage_collect()
         
-
     @contextmanager
     def set_branch(self, branch: str):
         previous_branch = self.active_branch

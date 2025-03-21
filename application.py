@@ -131,13 +131,12 @@ class Application(cli.Application):
         with (
             LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            AnnexCache(repo, dolt_server, git, git_annex_settings, move, db_batch_size) as cache
+            AnnexCache(repo, dolt_server, git, git_annex_settings, move, self.config.auto_push, db_batch_size) as cache
         ):
             downloader = GitAnnexDownloader(
                     cache = cache,
                     git = git,
                     dolt_server = dolt_server,
-                    auto_push = self.config.auto_push,
                     batch_size = db_batch_size,
             )
             yield downloader

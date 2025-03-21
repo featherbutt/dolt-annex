@@ -24,10 +24,9 @@ class GitAnnexDownloader:
     max_extension_length: int
     dolt_server: DoltSqlServer
     batch_size: int
-    auto_push: bool
 
     def __init__(self, cache: AnnexCache,
-                 git: Git, dolt_server: DoltSqlServer, auto_push: bool, batch_size):
+                 git: Git, dolt_server: DoltSqlServer, batch_size):
         self.git = git
         self.cache = cache
         self.local_uuid = git.config['annex.uuid']
@@ -35,7 +34,6 @@ class GitAnnexDownloader:
         logger.info(f"Local UUID: {self.local_uuid}")
         self.dolt_server = dolt_server
         self.batch_size = batch_size
-        self.auto_push = auto_push
 
     @dry_run("Would record that uuid {uuid} is a source for this remote")
     def add_local_source(self, key: str):
