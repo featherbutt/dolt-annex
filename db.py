@@ -5,7 +5,48 @@
 
 import os
 import random
-from typing import Iterable, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
+import json
+
+SHARED_BRANCH_INIT_SQL = """
+create table `annex-keys` (url varchar(1000) primary key, `annex-key` varchar(1000), key (`annex-key`, url));
+create table `sources` (`annex-key` varchar(1000) primary key, `sources` json, `numSources` int generated always as (JSON_LENGTH(sources)) STORED, index (`numSources`));
+create table `hashes` (`hash` varbinary(256), `hashType` enum('md5'), `annex-key` varchar(1000), primary key (`hash`, `hashType`), key (`annex-key`, `hashType`));
+"""
+
+def get_annex_key_from_url(cursor, url: str) -> Optional[str]:
+    '''Get the annex key for a given url'''
+    cursor.execute("SELECT `annex-key` FROM `annex-keys` WHERE url = %s", (url,))
+    res = cursor.fetchone()
+    if res is None:
+        return None
+    return res[0]
+
+def get_urls_from_annex_key(cursor, key: str) -> List[str]:
+    '''Get the url for a given annex key'''
+    cursor.execute("SELECT url FROM `annex-keys` WHERE `annex-key` = %s", (key,))
+    res = cursor.fetchall()
+    return [row[0] for row in res]
+    
+def get_sources_from_annex_key(cursor, key: str) -> Iterable[str]:
+    '''Get the sources for a given annex key'''
+    cursor.execute("SELECT sources FROM `sources` WHERE `annex-key` = %s", (key,))
+    res = cursor.fetchone()
+    if res is None:
+        return []
+    sources : Dict[str, int] = json.loads(res[0])
+    return sources.keys()
+
+
+PERSONAL_BRANCH_INIT_SQL = """
+create table `local_keys` (`annex-key` varchar(1000) primary key);
+"""
+
+def is_key_present(cursor, key: str) -> bool:
+    '''Get the sources for a given annex key'''
+    cursor.execute("SELECT COUNT(*) FROM `local_keys` WHERE `annex-key` = %s", (key,))
+    (count,) = cursor.fetchone()
+    return count > 0
 
 SOURCES_SQL = """
     INSERT INTO sources (`annex-key`, sources)
