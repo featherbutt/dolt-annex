@@ -12,6 +12,18 @@ import dry_run
 from annex import AnnexCache, GitAnnexSettings
 from bup_ext.bup_ext import CommitMetadata
 
+class Env:
+    DOLT_DIR = "DA_DOLT_DIR"
+    SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
+    DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
+    DOLT_DB = "DA_DOLT_DB"
+    DOLT_REMOTE = "DA_DOLT_REMOTE"
+    GIT_DIR = "DA_GIT_DIR"
+    GIT_REMOTE = "DA_GIT_REMOTE"
+    EMAIL = "DA_EMAIL"
+    NAME = "DA_NAME"
+    ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
+    AUTO_PUSH = "DA_AUTO_PUSH"
 @dataclass
 class Config:
     """Global configuration settings"""
@@ -61,53 +73,50 @@ class Application(cli.Application):
             for key, value in config_json.items():
                 setattr(self.config, key, value)
 
-    dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname="DA_DOLT_DIR")
+    dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname=Env.DOLT_DIR)
 
-    spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname="DA_SPAWN_DOLT_SERVER",
+    spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname=Env.SPAWN_DOLT_SERVER,
                                  help = "If set, spawn a new Dolt server instead of connecting to an existing one.")
 
-    dolt_server_socket = cli.SwitchAttr("--dolt-server-socket", str, envname="DA_DOLT_SERVER_SOCKET",
+    dolt_server_socket = cli.SwitchAttr("--dolt-server-socket", str, envname=Env.DOLT_SERVER_SOCKET,
                                         help = "The UNIX socket to use for the Dolt server.")
 
-    dolt_db = cli.SwitchAttr("--dolt-db", str, envname="DA_DOLT_DB")
+    dolt_db = cli.SwitchAttr("--dolt-db", str, envname=Env.DOLT_DB)
 
-    dolt_remote = cli.SwitchAttr("--dolt-remote", str, envname="DA_DOLT_REMOTE")
+    dolt_remote = cli.SwitchAttr("--dolt-remote", str, envname=Env.DOLT_REMOTE)
 
-    git_dir = cli.SwitchAttr("--git-dir", cli.ExistingDirectory, envname="DA_GIT_DIR")
+    git_dir = cli.SwitchAttr("--git-dir", cli.ExistingDirectory, envname=Env.GIT_DIR)
 
-    git_remote = cli.SwitchAttr("--git-remote", str, envname="DA_GIT_REMOTE")
+    git_remote = cli.SwitchAttr("--git-remote", str, envname=Env.GIT_REMOTE)
 
-    email = cli.SwitchAttr("--email", str, envname="DA_EMAIL")
+    email = cli.SwitchAttr("--email", str, envname=Env.EMAIL)
 
-    name = cli.SwitchAttr("--name", str, envname="DA_NAME")
+    name = cli.SwitchAttr("--name", str, envname=Env.NAME)
 
-    annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname="DA_ANNEX_COMMIT_MESSAGE")
+    annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
 
-    auto_push = cli.Flag("--auto-push", envname="DA_AUTO_PUSH", help = "If set, automatically push annexed files to origin.")
+    auto_push = cli.Flag("--auto-push", envname=Env.AUTO_PUSH, help = "If set, automatically push annexed files to origin.")
 
     def main(self, *args):
-        if self.dolt_dir is not None:
-            self.config.dolt_dir = self.dolt_dir
-        if self.spawn_dolt_server is not None:
-            self.config.spawn_dolt_server = self.spawn_dolt_server
-        if self.dolt_server_socket is not None:
-            self.config.dolt_server_socket = self.dolt_server_socket
-        if self.dolt_db is not None:
-            self.config.dolt_db = self.dolt_db
-        if self.dolt_remote is not None:
-            self.config.dolt_remote = self.dolt_remote
-        if self.git_dir is not None:
-            self.config.git_dir = self.git_dir
-        if self.git_remote is not None:
-            self.config.git_remote = self.git_remote
-        if self.email is not None:
-            self.config.email = self.email
-        if self.name is not None:
-            self.config.name = self.name
-        if self.annexcommitmessage is not None:
-            self.config.annexcommitmessage = self.annexcommitmessage
-        if self.auto_push:
-            self.config.auto_push = True
+        # Set each config parameter in order of preference:
+        # 1. Command line argument or environment variable
+        # 2. Existing config file passed in with -c
+        # 3. Default value
+        self.config.dolt_dir = self.dolt_dir or self.config.dolt_dir or "./dolt"
+        self.config.spawn_dolt_server = self.spawn_dolt_server or self.config.spawn_dolt_server
+        self.config.dolt_server_socket = self.dolt_server_socket or self.config.dolt_server_socket
+        self.config.dolt_db = self.dolt_db or self.config.dolt_db
+        self.config.dolt_remote = self.dolt_remote or self.config.dolt_remote or "origin"
+        self.config.git_dir = self.git_dir or self.config.git_dir or "./git"
+        self.config.git_remote = self.git_remote or self.config.git_remote or "origin"
+        self.config.email = self.email or self.config.email or "user@localhost"
+        self.config.name = self.name or self.config.name or "user"
+        self.config.annexcommitmessage = self.annexcommitmessage or self.config.annexcommitmessage or "update git-annex"
+
+        if self.auto_push is not None:
+            self.config.auto_push = self.auto_push
+        elif self.config.auto_push is None:
+            self.config.auto_push = False
 
         if self.nested_command is None:
             self.help()
@@ -117,26 +126,25 @@ class Application(cli.Application):
             return 1
         self.config.validate()
 
-    @contextmanager
-    def Downloader(self, db_batch_size):
-        db_config = {
-            "unix_socket": self.config.dolt_server_socket,
-            "user": "root",
-            "database": self.config.dolt_db,
-            "autocommit": True,
-        }
-        git = Git(self.config.git_dir)
-        commit_metadata = CommitMetadata()
-        git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
-        with (
-            LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
-            DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            AnnexCache(repo, dolt_server, git, git_annex_settings, self.config.auto_push, db_batch_size) as cache
-        ):
-            downloader = GitAnnexDownloader(
-                    cache = cache,
-                    git = git,
-                    dolt_server = dolt_server,
-            )
-            yield downloader
-            downloader.flush()
+@contextmanager
+def Downloader(base_config: Config, db_batch_size):
+    db_config = {
+        "unix_socket": base_config.dolt_server_socket,
+        "user": "root",
+        "database": base_config.dolt_db,
+        "autocommit": True,
+    }
+    git = Git(base_config.git_dir)
+    commit_metadata = CommitMetadata()
+    git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
+    with (
+        LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
+        AnnexCache(repo, dolt_server, git, git_annex_settings, base_config.auto_push, db_batch_size) as cache
+    ):
+        downloader = GitAnnexDownloader(
+                cache = cache,
+                git = git,
+                dolt_server = dolt_server,
+        )
+        yield downloader
