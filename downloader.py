@@ -7,8 +7,11 @@ import pathlib
 import subprocess
 from typing import Dict, List
 
+import pymysql
+
 import annex
 from annex import WEB_UUID, AnnexCache
+import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
 from logger import logger
@@ -30,6 +33,16 @@ class GitAnnexDownloader:
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.info(f"Local UUID: {self.local_uuid}")
         self.dolt_server = dolt_server
+        # Create personal branch if it doesn't exist.
+        # TODO: Make a branch with no parents.
+        try:
+            self.dolt_server.execute("CALL DOLT_BRANCH(%s);", (self.local_uuid,))
+            with self.dolt_server.set_branch(self.local_uuid):
+                self.dolt_server.execute(db.PERSONAL_BRANCH_INIT_SQL, [])
+                self.dolt_server.commit(False)
+        except pymysql.err.OperationalError as e:
+            if "already exists" not in str(e):
+                raise
 
     @dry_run("Would record that uuid {uuid} is a source for this remote")
     def add_local_source(self, key: str):
