@@ -9,7 +9,7 @@ from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
 import dry_run
-from annex import AnnexCache, GitAnnexSettings, MoveFunction
+from annex import AnnexCache, GitAnnexSettings
 from bup_ext.bup_ext import CommitMetadata
 
 @dataclass
@@ -62,13 +62,13 @@ class Application(cli.Application):
                 setattr(self.config, key, value)
 
     dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname="DA_DOLT_DIR")
-   
+
     spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname="DA_SPAWN_DOLT_SERVER",
                                  help = "If set, spawn a new Dolt server instead of connecting to an existing one.")
 
     dolt_server_socket = cli.SwitchAttr("--dolt-server-socket", str, envname="DA_DOLT_SERVER_SOCKET",
                                         help = "The UNIX socket to use for the Dolt server.")
-    
+
     dolt_db = cli.SwitchAttr("--dolt-db", str, envname="DA_DOLT_DB")
 
     dolt_remote = cli.SwitchAttr("--dolt-remote", str, envname="DA_DOLT_REMOTE")
@@ -118,7 +118,7 @@ class Application(cli.Application):
         self.config.validate()
 
     @contextmanager
-    def Downloader(self, move: MoveFunction, db_batch_size):
+    def Downloader(self, db_batch_size):
         db_config = {
             "unix_socket": self.config.dolt_server_socket,
             "user": "root",
@@ -131,14 +131,12 @@ class Application(cli.Application):
         with (
             LocalRepo(bytes(self.config.git_dir, encoding='utf8')) as repo,
             DoltSqlServer(self.config.dolt_dir, db_config, self.config.spawn_dolt_server) as dolt_server,
-            AnnexCache(repo, dolt_server, git, git_annex_settings, move, self.config.auto_push, db_batch_size) as cache
+            AnnexCache(repo, dolt_server, git, git_annex_settings, self.config.auto_push, db_batch_size) as cache
         ):
             downloader = GitAnnexDownloader(
                     cache = cache,
                     git = git,
                     dolt_server = dolt_server,
-                    batch_size = db_batch_size,
             )
             yield downloader
             downloader.flush()
-

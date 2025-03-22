@@ -3,37 +3,33 @@
 
 from collections.abc import Callable
 import os
-import tempfile
+import pathlib
 import subprocess
-import requests
-from typing import List, Optional
+from typing import Dict, List
 
 import annex
 from annex import WEB_UUID, AnnexCache
 from dolt import DoltSqlServer
 from dry_run import dry_run
-import importers
 from logger import logger
 from git import Git
-
+from type_hints import AnnexKey, PathLike
 
 class GitAnnexDownloader:
-        
+
     git: Git
     local_uuid: str
     max_extension_length: int
     dolt_server: DoltSqlServer
-    batch_size: int
 
     def __init__(self, cache: AnnexCache,
-                 git: Git, dolt_server: DoltSqlServer, batch_size):
+                 git: Git, dolt_server: DoltSqlServer):
         self.git = git
         self.cache = cache
         self.local_uuid = git.config['annex.uuid']
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.info(f"Local UUID: {self.local_uuid}")
         self.dolt_server = dolt_server
-        self.batch_size = batch_size
 
     @dry_run("Would record that uuid {uuid} is a source for this remote")
     def add_local_source(self, key: str):
@@ -51,83 +47,18 @@ class GitAnnexDownloader:
         self.cache.insert_url(key, url)
         self.cache.insert_source(key, WEB_UUID)
 
-    def download_file(self, url: str) -> Optional[str]:
-        """Download a file from a url, add it to the annex, and update the database"""
-        extension = os.path.splitext(url)[1]
-        suffix = None
-        if len(extension) <= self.max_extension_length+1:
-            suffix = extension
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            try:
-                response = requests.get(url, stream=True)
-                response.raise_for_status()
-                
-                for chunk in response.iter_content(chunk_size=8192):
-                    temp_file.write(chunk)
-                temp_file.flush()
-                
-                abs_path = os.path.abspath(temp_file.name) 
-                key = self.git.annex.calckey(abs_path)
-                self.cache.insert_file(key, abs_path)
-                
-                self.add_local_source(key)
-                self.add_source(key, self.local_uuid)
-                self.update_database(url, key)
-                
-                return key
-                
-            except (requests.RequestException, subprocess.CalledProcessError, ValueError) as e:
-                print(f"Error processing URL {url}: {str(e)}")
-                return None
-            
-    def import_file(self, path: str, importer: importers.Importer, follow_symlinks: bool):
-        """Import a file into the annex"""
-        extension = os.path.splitext(path)[1]
-        if len(extension) > self.max_extension_length+1:
-            return
-        # catch both regular symlinks and windows shortcuts
-        is_symlink = os.path.islink(path) or extension == 'lnk'
-        original_path = os.path.abspath(path)
-        if is_symlink:
-            if not follow_symlinks:
-                return
-            else:
-                path = os.path.realpath(path)
-        if importer and importer.skip(path):
-            return
-        logger.debug(f"Importing file {path}")
-        abs_path = os.path.abspath(path)
-        key = self.git.annex.calckey(abs_path)
-        self.add_local_source(key)
-
-        if importer:
-            urls = importer.url(original_path, path)
-            for url in urls:
-                self.update_database(url, key)
-            if (md5 := importer.md5(original_path)):
-                self.record_md5(md5, key)
-
-        self.cache.insert_file(key, abs_path)
-    
     @dry_run("Would record that key {key} has md5 {md5}")
     def record_md5(self, md5: str, key: str):
         md5bytes = bytes.fromhex(md5)
         self.cache.insert_md5(key, md5bytes)
-        
-    def import_directory(self, path: str, importer: importers.Importer, follow_symlinks: bool):
-        """Import a directory into the annex"""
-        logger.debug(f"Importing directory {path}")
-        for root, _, files in os.walk(path):
-            for file in files:
-                self.import_file(os.path.join(root, file), importer, follow_symlinks)
 
     def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]], follow_symlinks: bool = False):
         """Import a git branch into the annex. Currently unused."""
         # Stream the git ls-tree output
         git = Git(other_repo)
-        
+
         process = git.popen('ls-tree', '-r', branch, stdout=subprocess.PIPE, text=True)
-        
+
         # Process files as they come in
         for line in process.stdout:
             objectmode, objecttype, objecthash, filename = line.strip().split()
@@ -143,25 +74,27 @@ class GitAnnexDownloader:
         retcode = process.wait()
         if retcode != 0:
             raise subprocess.CalledProcessError(retcode, 'git ls-tree')
-        
+
     def mark_present_keys(self):
         """Record the keys that are present in the annex"""
         # TODO: Account for non-bare repos
-        for root, _, files in os.walk(os.path.join(self.git.git_dir, 'annex', 'objects')):
+        for _, _, files in os.walk(os.path.join(self.git.git_dir, 'annex', 'objects')):
             for file in files:
-                logger.debug(f"marking {file} as present")
-                self.cache.mark_present(file)
+                # The key is the filename
+                key = file
+                logger.debug(f"marking {key} as present")
+                self.cache.mark_present(key)
 
     def discover_and_populate(self, record_urls: bool, record_sources: bool):
         """Walk the git-annex branch and populate the database"""
-        
+
         # Stream the git ls-tree output
         process = subprocess.Popen(
             ['git', '-C', self.git.git_dir, 'ls-tree', '-r', 'git-annex', '--name-only'],
             stdout=subprocess.PIPE,
             text=True
         )
-        
+
         # Process files as they come in
         assert process.stdout is not None
         for line in process.stdout:
@@ -171,14 +104,14 @@ class GitAnnexDownloader:
             if filename.endswith('.log'):
                 key = os.path.splitext(os.path.basename(filename))[0]
                 logger.log(f"Processing key: {key}")
-                
+
                 if record_sources:
                     log_content = self.git.show('git-annex', filename)
                     if log_content:
                         uuid_dict = annex.parse_log_file(log_content)
                         for source in uuid_dict or []:
                             self.cache.insert_source(key, source)
-                
+
                 if record_urls:
                     # Check for web URLs
                     web_log = f"{os.path.splitext(filename)[0]}.log.web"
@@ -193,8 +126,15 @@ class GitAnnexDownloader:
         if retcode != 0:
             raise subprocess.CalledProcessError(retcode, 'git ls-tree')
 
-    def register_url(self, url: str, key: str):
-        pass
-
     def flush(self):
         self.cache.flush()
+
+MoveFunction = Callable[[PathLike, PathLike], None]
+
+def move_files(downloader: GitAnnexDownloader, move: MoveFunction, files: Dict[AnnexKey, PathLike]):
+    """Move files to the annex"""
+    logger.debug("moving annex files")
+    for key, file_path in files.items():
+        key_path = downloader.git.annex.get_annex_key_path(key)
+        pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
+        move(file_path, key_path)

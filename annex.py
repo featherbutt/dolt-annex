@@ -5,8 +5,6 @@
 
 from dataclasses import dataclass
 import json
-import os
-import pathlib
 import time
 from typing import Callable, Dict, List, Set
 
@@ -67,37 +65,32 @@ def parse_web_log(content: str) -> List[str]:
 class GitAnnexSettings:
     commit_metadata: CommitMetadata
     ref: bytes
-
-MoveFunction = Callable[[str, str], None]
-    
 class AnnexCache:
     """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
     urls: Dict[str, List[str]]
     md5s: Dict[str, bytes]
     sources: Dict[str, List[str]]
     local_keys: Set[str]
-    files: Dict[str, str]
     git: Git
     dolt: DoltSqlServer
-    move: MoveFunction
     auto_push: bool
     batch_size: int
     count: int
     time: float
+    flush_hooks: List[Callable[[], None]]
 
-    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, move: MoveFunction, auto_push: bool, batch_size: int):
+    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, auto_push: bool, batch_size: int):
         self.repo = repo
         self.dolt = dolt
         self.git = git
         self.urls = {}
         self.md5s = {}
         self.sources = {}
-        self.files = {}
+        self.flush_hooks = []
         self.local_keys = set()
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
-        self.move = move
         self.time = time.time()
         self.local_uuid = git.config['annex.uuid']
         self.auto_push = auto_push
@@ -113,7 +106,7 @@ class AnnexCache:
             self.urls[key] = []
         self.urls[key].append(url)
         self.increment_count()
-        
+
 
     def insert_md5(self, key: str, md5: bytes):
         self.md5s[key] = md5
@@ -125,27 +118,29 @@ class AnnexCache:
         self.sources[key].append(source)
         self.increment_count()
 
-    def insert_file(self, key: str, filename: str):
-        self.files[key] = filename
-        self.increment_count()
-
     def mark_present(self, key: str):
+        """Mark a key as present in the local repository."""
         self.local_keys.add(key)
         self.increment_count()
 
+    def add_flush_hook(self, hook: Callable[[], None]):
+        """Add a hook to be called when the cache is flushed."""
+        self.flush_hooks.append(hook)
+
     def flush(self):
+        """Flush the cache to the git-annex branch and the Dolt database."""
         # Flushing the cache must be done in the following order:
         # 1. Update the git-annex branch to contain the new ownership records and registered urls.
         # 2. Update the Dolt database to match the git-annex branch.
         # 3. Move the annex files to the annex directory. This step is a no-op when running the downloader,
-        #    because downloaded files were alreafy written into the annex.
+        #    because downloaded files were already written into the annex.
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
         logger.debug("flushing cache")
-        if not self.urls and not self.md5s and not self.sources and not self.files and not self.local_keys:
+        if not self.urls and not self.md5s and not self.sources and not self.local_keys:
             return
-        
+
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
         patch = DirectoryPatch()
         def insert(key_values: Dict[str, List[str]], suffix: bytes):
@@ -154,7 +149,7 @@ class AnnexCache:
                 file_path = key_path + suffix
                 rows = [[now, b"1", bytes(value, encoding = "utf8")] for value in values]
                 patch.insert(file_path, update_file(rows, 2))
-        
+
         if self.sources or self.urls:
             logger.debug("creating git-annex patch")
             insert(self.sources, b".log")
@@ -178,17 +173,13 @@ class AnnexCache:
 
         # 3. Move the annex files to the annex directory.
 
-        logger.debug("moving annex files")
-        for key, file_path in self.files.items():
-            key_path = self.git.annex.get_annex_key_path(key)
-            pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
-            self.move(file_path, key_path)
-        
-        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.files), len(self.local_keys))
+        for hook in self.flush_hooks:
+            hook()
+
+        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.local_keys))
         self.urls.clear()
         self.md5s.clear()
         self.sources.clear()
-        self.files.clear()
         self.local_keys.clear()
 
         logger.debug("pushing dolt database")
@@ -206,6 +197,6 @@ class AnnexCache:
 
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.flush()
