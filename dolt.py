@@ -92,7 +92,7 @@ class DoltSqlServer:
             logger.debug("dolt push")
             self.cursor.execute("call DOLT_PUSH();")
         self.garbage_collect()
-        
+
     @contextmanager
     def set_branch(self, branch: str):
         previous_branch = self.active_branch

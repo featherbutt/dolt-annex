@@ -20,7 +20,7 @@ class ScanAnnex(cli.Application):
     skip_urls = cli.Flag("--skip_urls")
 
     skip_local_keys = cli.Flag("--skip_local_keys")
-    
+
     def main(self):
         with self.parent.Downloader(None, self.batch_size) as downloader:
             if not self.skip_local_keys:

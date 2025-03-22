@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import os
 import stat
 import time
-from typing import Generator, Optional
+from typing import Optional
 
 from bup import metadata
 from bup.hashsplit import GIT_MODE_FILE, GIT_MODE_SYMLINK, GIT_MODE_TREE
