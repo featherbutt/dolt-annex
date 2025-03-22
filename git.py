@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from plumbum import local # type: ignore
 
@@ -26,6 +27,7 @@ class GitAnnex:
         self.cmd = git_cmd["annex"]
         self.git_dir = git_dir
         self.dry_run = dry_run
+        self.uuid = git_cmd("config", "annex.uuid").strip()
 
     # TODO: Replace these commands with continuous batch commands
     def calckey(self, key: str) -> str:
@@ -41,6 +43,10 @@ class GitAnnex:
     @dry_run("Would register {key} with url {url}")
     def registerurl(self, key: str, url: str):
         return self.cmd("registerurl", key, url)
+        
+    def is_present(self, key: str) -> bool:
+        returncode, _, _ = self.cmd.run(["readpresentkey", key, self.uuid], retcode=None)
+        return returncode == 0
 
     @dry_run("Would add {file_path} to annex with key {key}")
     def setkey(self, key: str, file_path: str):
@@ -49,7 +55,6 @@ class GitAnnex:
     @dry_run("Would transfer key {key} to remote {remote}")
     def push_content(self, key: str, remote: str = "origin"):
         return self.cmd("transferkey", key, "--to", remote)
-
 
 class Git:
     def __init__(self, git_dir: str):

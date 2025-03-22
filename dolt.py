@@ -57,16 +57,13 @@ class DoltSqlServer:
         try:
             self.cursor.execute("call DOLT_GC();")
         except pymysql.err.OperationalError as e:
-            if "no changes since last gc" in str(e):
-                pass
-            else:
+            if "no changes since last gc" not in str(e):
                 raise
         self.connection = pymysql.connect(**self.db_config)
         self.cursor = self.connection.cursor()
 
     @dry_run("Would execute {sql} with values {values}")
     def executemany(self, sql: str, values):
-        logger.debug(f"flushing {len(values)} rows")
         self.cursor.executemany(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
@@ -86,8 +83,8 @@ class DoltSqlServer:
         try:
             self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
         except pymysql.err.OperationalError as e:
-            if "nothing to commit" in str(e):
-                pass
+            if "nothing to commit" not in str(e):
+                raise
         if push:
             logger.debug("dolt push")
             self.cursor.execute("call DOLT_PUSH();")

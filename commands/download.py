@@ -10,7 +10,7 @@ import requests
 from downloader import GitAnnexDownloader, move_files
 import sql
 from logger import logger
-from application import Application
+from application import Application, Downloader
 from type_hints import AnnexKey, PathLike
 
 class DownloadBatch(cli.Application):
@@ -40,7 +40,7 @@ class DownloadBatch(cli.Application):
             self.help()
             return 1
         
-        with self.parent.Downloader(None, self.batch_size) as downloader:
+        with Downloader(self.parent.config, self.batch_size) as downloader:
             while True:
                 urls, num_urls = sql.random_batch(self.url_prefix, downloader.dolt_server.cursor, self.batch_size)
                 logger.info(f"Discovered {num_urls} unprocessed URLs.")

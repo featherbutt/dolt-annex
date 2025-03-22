@@ -1,6 +1,6 @@
 from plumbum import cli # type: ignore
 
-from application import Application
+from application import Application, Downloader
 
 class ScanAnnex(cli.Application):
     """Scan the git-annex branch for files to import into Dolt.
@@ -22,7 +22,7 @@ class ScanAnnex(cli.Application):
     skip_local_keys = cli.Flag("--skip_local_keys")
 
     def main(self):
-        with self.parent.Downloader(None, self.batch_size) as downloader:
+        with Downloader(self.parent.config, self.batch_size) as downloader:
             if not self.skip_local_keys:
                 downloader.mark_present_keys()
             if not self.skip_urls or not self.skip_sources:
