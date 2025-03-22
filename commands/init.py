@@ -4,6 +4,7 @@ from pathlib import Path
 from plumbum import cli, local # type: ignore
 
 from application import Application, Config
+from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
 
 def is_wsl():
     """Check if running in Windows Subsystem for Linux"""
@@ -106,9 +107,19 @@ def do_init(base_config: Config, init_config: InitConfig):
         Path(base_config.dolt_dir).mkdir(parents=True, exist_ok=True)
 
         local_uuid = git_config("annex.uuid").strip()
-        #dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-        local.cmd.dolt("clone", "--remote", base_config.dolt_remote, init_config.dolt_url, base_config.dolt_dir)
-        #dolt("init", "--name", base_config.name, "--email", base_config.email)
-        #dolt("remote", "add", base_config.dolt_remote, init_config.dolt_url)
-        #dolt("pull", base_config.dolt_remote, "main")
-        local.cmd.dolt.with_cwd(base_config.dolt_dir)("branch", local_uuid)
+
+        if init_config.dolt_url:
+            #dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+            local.cmd.dolt("clone", "--remote", base_config.dolt_remote, init_config.dolt_url, base_config.dolt_dir)
+            #dolt("init", "--name", base_config.name, "--email", base_config.email)
+            #dolt("remote", "add", base_config.dolt_remote, init_config.dolt_url)
+            #dolt("pull", base_config.dolt_remote, "main")
+            #local.cmd.dolt.with_cwd(base_config.dolt_dir)("branch", local_uuid)
+        else:
+            dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+            dolt("init", "--name", base_config.name, "--email", base_config.email)
+            dolt("checkout", '-b', local_uuid)
+            dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
+            dolt("checkout", "main")
+            dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
+            
