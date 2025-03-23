@@ -138,8 +138,6 @@ class AnnexCache:
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
         logger.debug("flushing cache")
-        if not self.urls and not self.md5s and not self.sources and not self.local_keys:
-            return
 
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
         patch = DirectoryPatch()

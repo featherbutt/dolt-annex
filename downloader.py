@@ -151,3 +151,4 @@ def move_files(downloader: GitAnnexDownloader, move: MoveFunction, files: Dict[A
         key_path = downloader.git.annex.get_annex_key_path(key)
         pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
         move(file_path, key_path)
+    files.clear()
