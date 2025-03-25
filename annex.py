@@ -16,20 +16,21 @@ import sql
 from dolt import DoltSqlServer
 from git import Git
 from logger import logger
+from type_hints import UUID, AnnexKey
 
 # reserved git-annex UUID for the web special remote
-WEB_UUID = '00000000-0000-0000-0000-000000000001'
+WEB_UUID = UUID('00000000-0000-0000-0000-000000000001')
 
-def parse_log_file(content: str) -> Set[str]:
+def parse_log_file(content: str) -> Set[UUID]:
     """Parse a .log file and return a set of UUIDs that have the file"""
-    uuids = set()
+    uuids: Set[UUID] = set()
     for line in content.splitlines():
         if not line.strip():
             continue
         try:
             timestamp, present, uuid = line.split()
             if present == "1" and uuid != WEB_UUID:
-                uuids.add(uuid)
+                uuids.add(UUID(uuid))
         except ValueError:
             print(f"Warning: malformed log line: {line}")
     return uuids
@@ -70,7 +71,7 @@ class AnnexCache:
     urls: Dict[str, List[str]]
     md5s: Dict[str, bytes]
     sources: Dict[str, List[str]]
-    local_keys: Set[str]
+    remote_keys: Dict[UUID, Set[AnnexKey]]
     git: Git
     dolt: DoltSqlServer
     auto_push: bool
@@ -87,7 +88,7 @@ class AnnexCache:
         self.md5s = {}
         self.sources = {}
         self.flush_hooks = []
-        self.local_keys = set()
+        self.remote_keys = {}
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
@@ -112,15 +113,15 @@ class AnnexCache:
         self.md5s[key] = md5
         self.increment_count()
 
-    def insert_source(self, key: str, source: str):
+    def insert_source(self, key: AnnexKey, source: UUID):
         if key not in self.sources:
             self.sources[key] = []
         self.sources[key].append(source)
-        self.increment_count()
+        if source != WEB_UUID:
+            if source not in self.remote_keys:
+                self.remote_keys[source] = set()
+            self.remote_keys[source].add(key)
 
-    def mark_present(self, key: str):
-        """Mark a key as present in the local repository."""
-        self.local_keys.add(key)
         self.increment_count()
 
     def add_flush_hook(self, hook: Callable[[], None]):
@@ -154,7 +155,6 @@ class AnnexCache:
             insert(self.urls, b".log.web")
             logger.debug("applying git-annex patch")
             apply_patch(self.repo, self.git_annex_settings.ref, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
-
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug("flushing dolt database")
@@ -164,21 +164,23 @@ class AnnexCache:
             self.dolt.executemany(sql.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
         if self.md5s:
             self.dolt.executemany(sql.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
-        if self.local_keys:
-            with self.dolt.set_branch(self.local_uuid):
-                self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in self.local_keys])
-                self.dolt.commit(self.auto_push)
+
+        if self.remote_keys:
+            for remote_uuid, keys in self.remote_keys.items():
+                with self.dolt.set_branch(remote_uuid):
+                    self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in keys])
+                    self.dolt.commit(self.auto_push)
 
         # 3. Move the annex files to the annex directory.
 
         for hook in self.flush_hooks:
             hook()
 
-        num_keys = max(len(self.urls), len(self.md5s), len(self.sources), len(self.local_keys))
+        num_keys = max(len(self.urls), len(self.md5s), len(self.sources))
         self.urls.clear()
         self.md5s.clear()
         self.sources.clear()
-        self.local_keys.clear()
+        self.remote_keys.clear()
 
         logger.debug("pushing dolt database")
         self.dolt.commit(self.auto_push)
