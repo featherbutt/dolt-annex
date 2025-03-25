@@ -98,3 +98,7 @@ class DoltSqlServer:
         yield
         self.cursor.execute("call DOLT_CHECKOUT(%s)", previous_branch)
         self.active_branch = previous_branch
+
+    def pull_branch(self, branch: str, remote: str):
+        with self.set_branch(branch):
+            self.cursor.execute("call DOLT_PULL(%s, %s)", (remote, branch))

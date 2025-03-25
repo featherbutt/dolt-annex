@@ -1,14 +1,15 @@
 from dataclasses import dataclass
 import os
-import shutil
-from typing import Callable, Dict, Iterable, List
+from typing import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
 import importers
-from application import Application, Config, Downloader
-from downloader import GitAnnexDownloader, move_files, MoveFunction
+from application import Application, Downloader
+from downloader import GitAnnexDownloader, move_files
 from logger import logger
+import move_functions
+from move_functions import MoveFunction
 from type_hints import AnnexKey, PathLike
 
 @dataclass
@@ -85,14 +86,11 @@ class Import(cli.Application):
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
         if self.copy:
-            return shutil.copy
+            return move_functions.copy
         elif self.symlink:
-            def move_and_symlink(src: str, dst: str):
-                shutil.move(src, dst)
-                os.symlink(dst, src)
-            return move_and_symlink
+            return move_functions.move_and_symlink
         else:
-            return shutil.move
+            return move_functions.move
         
     def get_importer(self, downloader: GitAnnexDownloader) -> importers.Importer:
         if self.from_other_annex:
@@ -125,11 +123,11 @@ class Import(cli.Application):
             do_import(import_config, downloader, importer, files_or_directories)
 
 def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.Importer, files_or_directories: Iterable[str]):
-        key_paths: Dict[AnnexKey, PathLike] = {}
-        downloader.cache.add_flush_hook(lambda: move_files(downloader, import_config.move_function, key_paths))
-        
-        for file_or_directory in files_or_directories:
-            import_path(import_config, downloader, file_or_directory, importer, key_paths)
+    key_paths: Dict[AnnexKey, PathLike] = {}
+    downloader.cache.add_flush_hook(lambda: move_files(downloader, import_config.move_function, key_paths))
+    
+    for file_or_directory in files_or_directories:
+        import_path(import_config, downloader, file_or_directory, importer, key_paths)
 
 def import_path(config: ImportConfig, downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
     """Import a file or directory into the annex"""

@@ -1,10 +1,12 @@
+from dataclasses import dataclass
+import json
 import os
-from typing import List
+from typing import Iterable
 
 from plumbum import local # type: ignore
 
 from dry_run import dry_run
-from logger import logger
+from type_hints import UUID
 
 class GitConfig:
     def __init__(self, git_cmd):
@@ -25,6 +27,7 @@ class GitConfig:
 class GitAnnex:
     def __init__(self, git_cmd, git_dir: str):
         self.cmd = git_cmd["annex"]
+        self.git_cmd = git_cmd
         self.git_dir = git_dir
         self.dry_run = dry_run
         self.uuid = git_cmd("config", "annex.uuid").strip()
@@ -35,6 +38,10 @@ class GitAnnex:
 
     def get_branch_key_path(self, key: str) -> str:
         return self.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
+    
+    def get_relative_annex_key_path(self, key: str):
+        rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
+        return rel_path
 
     def get_annex_key_path(self, key: str):
         rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
@@ -55,7 +62,27 @@ class GitAnnex:
     @dry_run("Would transfer key {key} to remote {remote}")
     def push_content(self, key: str, remote: str = "origin"):
         return self.cmd("transferkey", key, "--to", remote)
+    
+    def get_remote_uuid(self, remote: str) -> UUID:
+        """Get the uuid of a remote"""
+        remote_info = json.loads(self.cmd("info", remote, "--json"))
+        return remote_info["uuid"]
+    
+    def pull_branch(self, branch: str, remote: str):
+        self.cmd("fetch", remote, branch)
+        self.merge_branch(branch, f"{remote}/{branch}")
 
+    def merge_branch(self, dst_ref: str, src_ref: str):
+        returncode, _, _ = self.cmd.run(["merge-tree", "--no-message", dst_ref, src_ref], retcode=None)
+    
+    def sync(self):
+        self.cmd("sync", "--no-content")
+
+@dataclass
+class ConnectionInfo:
+    user: str
+    host: str
+    path: str
 class Git:
     def __init__(self, git_dir: str):
         self.git_dir = git_dir
@@ -68,3 +95,19 @@ class Git:
 
     def popen(self, *args, **kwargs):
         return self.cmd.popen(*args, **kwargs)
+    
+    def get_remote_url(self, remote: str) -> str:
+        return self.cmd("remote", "get-url", remote).strip()
+
+    def get_remote_info(self, remote: str) -> ConnectionInfo:
+        remote_url = self.get_remote_url(remote)
+        # could be a file or an ssh url
+        user, rest = remote_url.split('@', maxsplit=1)
+        host, path = rest.split(':', maxsplit=1)
+        return ConnectionInfo(user, host, path)
+    
+    def merge_branch(self, into_branch: str, *from_refs: Iterable[str]):
+        from_oids = [self.cmd("show-ref", ref, "-s").strip() for ref in from_refs]
+        new_tree = self.cmd("merge-tree", "--no-messages", *from_oids).strip()
+        new_commit = self.cmd("commit-tree", new_tree, *[x for oid  in from_oids for x in ["-p", oid]], "-m", "Merge").strip()
+        self.cmd("update-ref", into_branch, new_commit)

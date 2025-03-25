@@ -14,13 +14,14 @@ from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
 import importers
+import move_functions
 from tests.setup import setup,  base_config
 from type_hints import AnnexKey
 from db import get_annex_key_from_url, get_sources_from_annex_key, get_urls_from_annex_key, is_key_present
 
 import_config = ImportConfig(
     batch_size = 10,
-    move_function = shutil.move,
+    move_function = move_functions.move,
     follow_symlinks = False,
 )
 

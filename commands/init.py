@@ -111,6 +111,8 @@ def do_init(base_config: Config, init_config: InitConfig):
         if init_config.dolt_url:
             #dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
             local.cmd.dolt("clone", "--remote", base_config.dolt_remote, init_config.dolt_url, base_config.dolt_dir)
+            dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+            dolt("fetch")
             #dolt("init", "--name", base_config.name, "--email", base_config.email)
             #dolt("remote", "add", base_config.dolt_remote, init_config.dolt_url)
             #dolt("pull", base_config.dolt_remote, "main")
@@ -118,8 +120,13 @@ def do_init(base_config: Config, init_config: InitConfig):
         else:
             dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
             dolt("init", "--name", base_config.name, "--email", base_config.email)
-            dolt("checkout", '-b', local_uuid)
-            dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
-            dolt("checkout", "main")
             dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
-            
+            dolt("add", ".")
+            dolt("commit", "-m", "init shared branch")
+        dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+        dolt("checkout", '-b', local_uuid)
+        dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
+        dolt("add", ".")
+        dolt("commit", "-m", "init personal branch")
+        dolt("checkout", "main")
+        dolt("config", "--local", "--add", "push.autoSetupRemote", "true")

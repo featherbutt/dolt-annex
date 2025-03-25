@@ -8,7 +8,7 @@ from plumbum import local # type: ignore
 
 from application import Config
 from commands.init import InitConfig, do_init
-from db import SHARED_BRANCH_INIT_SQL
+from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
 
 base_config = Config(
     dolt_dir = "./dolt",
@@ -20,6 +20,7 @@ base_config = Config(
     name = "user",
     annexcommitmessage = "commit message",
     spawn_dolt_server = True,
+    auto_push = True,
 )
 
 def setup(tmp_path):
@@ -29,17 +30,24 @@ def setup(tmp_path):
     git = git["-C", "./git_origin"]
     git("-c", "annex.tune.objecthashlower=true", "annex", "init")
     git_config = git["config", "--local"]
-    local_uuid = git_config("annex.uuid").strip()
+    origin_uuid = git_config("annex.uuid").strip()
+    print(f"Origin UUID: {origin_uuid}")
     Path("./dolt_origin").mkdir()
     Path("./dolt_tmp").mkdir()
     dolt = local.cmd.dolt.with_cwd("./dolt_tmp")
     dolt("init", "-b", "main")
     
+    dolt("checkout", "-b", origin_uuid)
+    dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
+    dolt("add", ".")
+    dolt("commit", "-m", "init personal branch")
+    dolt("checkout", "main")
     dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
     dolt("add", ".")
     dolt("commit", "-m", "init shared branch")
     dolt("remote", "add", "origin", "file://../dolt_origin/")
     dolt("push", "origin", "main")
+    dolt("push", "origin", origin_uuid)
     
     init_config = InitConfig(
         init_git = True,
