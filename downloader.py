@@ -3,7 +3,6 @@
 
 from collections.abc import Callable
 import os
-import pathlib
 import subprocess
 from typing import Dict, List
 
@@ -16,12 +15,13 @@ from dolt import DoltSqlServer
 from dry_run import dry_run
 from logger import logger
 from git import Git
-from type_hints import AnnexKey, PathLike
+from move_functions import MoveFunction
+from type_hints import UUID, AnnexKey, PathLike
 
 class GitAnnexDownloader:
 
     git: Git
-    local_uuid: str
+    local_uuid: UUID
     max_extension_length: int
     dolt_server: DoltSqlServer
 
@@ -29,7 +29,7 @@ class GitAnnexDownloader:
                  git: Git, dolt_server: DoltSqlServer):
         self.git = git
         self.cache = cache
-        self.local_uuid = git.config['annex.uuid']
+        self.local_uuid = UUID(git.config['annex.uuid'])
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.info(f"Local UUID: {self.local_uuid}")
         self.dolt_server = dolt_server
@@ -45,18 +45,22 @@ class GitAnnexDownloader:
                 raise
 
     @dry_run("Would record that uuid {uuid} is a source for this remote")
-    def add_local_source(self, key: str):
+    def add_local_source(self, key: AnnexKey):
         """Add a source to the database for a key"""
-        self.cache.mark_present(key)
+        # self.cache.mark_present(key)
         self.cache.insert_source(key, self.local_uuid)
 
+    def add_remote_source(self, key: AnnexKey, uuid: UUID):
+        """Add a source to the database for a key"""
+        self.cache.insert_source(key, uuid)
+
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
-    def add_source(self, key: str, uuid: str):
+    def add_source(self, key: AnnexKey, uuid: UUID):
         """Add a source to the database for a key"""
         self.cache.insert_source(key, uuid)
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
-    def update_database(self, url: str, key: str):
+    def update_database(self, url: str, key: AnnexKey):
         self.cache.insert_url(key, url)
         self.cache.insert_source(key, WEB_UUID)
 
@@ -115,7 +119,7 @@ class GitAnnexDownloader:
             if '/' not in filename:
                 continue
             if filename.endswith('.log'):
-                key = os.path.splitext(os.path.basename(filename))[0]
+                key = AnnexKey(os.path.splitext(os.path.basename(filename))[0])
                 logger.log(f"Processing key: {key}")
 
                 if record_sources:
@@ -142,13 +146,10 @@ class GitAnnexDownloader:
     def flush(self):
         self.cache.flush()
 
-MoveFunction = Callable[[PathLike, PathLike], None]
-
 def move_files(downloader: GitAnnexDownloader, move: MoveFunction, files: Dict[AnnexKey, PathLike]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for key, file_path in files.items():
         key_path = downloader.git.annex.get_annex_key_path(key)
-        pathlib.Path(os.path.dirname(key_path)).mkdir(parents=True, exist_ok=True)
         move(file_path, key_path)
     files.clear()
