@@ -70,7 +70,6 @@ class FALRImporter(Importer):
         return 'thumbnail' in path.split('/')[-1]
 
 class MD5Importer(Importer):
-
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         basename = os.path.basename(abs_path)
         basename_parts = basename.split('.')

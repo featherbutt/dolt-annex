@@ -108,16 +108,16 @@ class GitEntry(BupEntry):
         item_it = self.repo.cat(ref)
         get_oidx, typ, _ = next(item_it)
         assert get_oidx == ref
-        
+
         data = b''.join(item_it)
 
         if typ != b'tree':
             assert typ == b'blob'
             return
-        
+
         if self.additional_files:
             self.invalidate()
-        
+
         for mode, name, ent_id in tree_decode(data):
             if self.additional_files and (child_additional_files := self.additional_files.files.pop(name, None)):
                 if mode == GIT_MODE_TREE:
