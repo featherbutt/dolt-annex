@@ -151,7 +151,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
     if len(extension) > downloader.max_extension_length+1:
         return
     # catch both regular symlinks and windows shortcuts
-    is_symlink = os.path.islink(path) or extension == 'lnk'
+    is_symlink = os.path.islink(path) or extension == '.lnk'
     original_path = os.path.abspath(path)
     if is_symlink:
         if not config.follow_symlinks:
