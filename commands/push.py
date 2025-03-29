@@ -23,12 +23,14 @@ class FileMover:
             local_cwd = os.getcwd()
         self.local_cwd = os.path.abspath(local_cwd)
         self.remote_cwd = os.path.abspath(remote_cwd)
+        print("remote path", self.remote_cwd)
         self.move_function = move_function
 
     def put(self, local_path: str, remote_path: str) -> None:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
+        print(f"Moving {abs_local_path} to {abs_remote_path}")
         self.move_function(
             abs_local_path,
             abs_remote_path)
@@ -47,7 +49,7 @@ class FileMover:
         self.remote_cwd = old_remote_cwd
 
 @contextmanager
-def file_mover(git: Git, remote: str):
+def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iterable[FileMover]:
     remote_path = git.get_remote_url(remote)
     local_path = os.path.join(os.getcwd(), git.git_dir)
     if '@' in remote_path:
@@ -56,11 +58,25 @@ def file_mover(git: Git, remote: str):
         local_path = os.path.join(local_path, 'annex/objects')
         user, rest = remote_path.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
-        with sftpretty.Connection(host, username = user, default_path = path) as sftp:
+        print(ssh_config, known_hosts)
+        cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
+        with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
             if sftp.exists('.git'):
                 sftp.chdir('.git')
+            sftp.mkdir_p('annex/objects')
             sftp.chdir('annex/objects')
-            yield FileMover(sftp.put, sftp.getcwd(), local_path)            
+            def sftp_put(
+                local_path: PathLike,
+                remote_path: PathLike,
+            ) -> None:
+                """Move a file from the local filesystem to the remote filesystem using SFTP"""
+                print(f"Moving {local_path} to {remote_path}")
+                sftp.mkdir_p(os.path.dirname(remote_path))
+                if sftp.exists(remote_path):
+                    print(f"File {remote_path} already exists, skipping")
+                    return
+                sftp.put(local_path, remote_path)
+            yield FileMover(sftp_put, sftp.getcwd(), local_path)            
     else:
         # Remote path may be relative to the local git directory
         remote_path = os.path.join(local_path, remote_path)
@@ -84,13 +100,34 @@ class Push(cli.Application):
         default = 1000,
     )
 
+    ssh_config = cli.SwitchAttr(
+        "--ssh-config",
+        str,
+        help="The path to the ssh config file",
+        default = "~/.ssh/config",
+    )
+
+    known_hosts = cli.SwitchAttr(
+        "--known-hosts",
+        str,
+        help="The path to the known hosts file",
+        default = "~/.ssh/known_hosts",
+    )
+
+    limit = cli.SwitchAttr(
+        "--limit",
+        int,
+        help="The maximum number of files to push",
+        default = None,
+    )
+
     def main(self, remote, *args) -> int:
         """Entrypoint for push command"""
         with Downloader(self.parent.config, self.batch_size) as downloader:
-            do_push(downloader, remote, args)
+            do_push(downloader, remote, args, self.ssh_config, None, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, remote: str, args) -> int:
+def do_push(downloader: GitAnnexDownloader, remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
     git = downloader.git
     dolt = downloader.dolt_server
     remote_uuid = git.annex.get_remote_uuid(remote)
@@ -102,11 +139,11 @@ def do_push(downloader: GitAnnexDownloader, remote: str, args) -> int:
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
-        keys = diff_keys(dolt, downloader.local_uuid, remote_uuid)
+        keys = diff_keys(dolt, downloader.local_uuid, remote_uuid, limit)
     else:
         keys = args
 
-    with file_mover(git, remote) as mover:
+    with file_mover(git, remote, ssh_config, known_hosts) as mover:
         for key in keys:
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
@@ -121,9 +158,13 @@ def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
     remote_uuid = git.annex.get_remote_uuid(remote)
     dolt.pull_branch(remote_uuid, remote)
 
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str) -> Iterable[AnnexKey]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[AnnexKey]:
     """Return each key that is in the first ref but not in the second ref"""
     with dolt.set_branch(in_ref):
-        for (diff_type, annex_key) in dolt.execute("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, in_ref)):
+        if limit is not None:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, in_ref, limit))
+        else:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, in_ref))
+        for (diff_type, annex_key) in query:
             if diff_type == "added":
                 yield AnnexKey(annex_key)
