@@ -1,0 +1,9 @@
+Host localhost
+   HostName localhost
+   PreferredAuthentications publickey
+   IdentityFile ~/.ssh/id_ed25519
+
+Host backup.featherbutt.com
+   HostName backup.featherbutt.com
+   PreferredAuthentications publickey
+   IdentityFile ~/.ssh/id_ed25519

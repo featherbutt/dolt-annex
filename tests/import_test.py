@@ -15,7 +15,7 @@ from downloader import GitAnnexDownloader
 from git import Git
 import importers
 import move_functions
-from tests.setup import setup,  base_config
+from tests.setup import setup_file_remote,  base_config
 from type_hints import AnnexKey
 from db import get_annex_key_from_url, get_sources_from_annex_key, get_urls_from_annex_key, is_key_present
 
@@ -77,7 +77,7 @@ def test_import_falr(tmp_path):
 
 def do_test_import(tmp_path, importer_factory, expected_urls):
     """Run and validate the importer"""
-    setup(tmp_path)
+    setup_file_remote(tmp_path)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,

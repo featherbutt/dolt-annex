@@ -15,7 +15,7 @@ from downloader import GitAnnexDownloader
 from git import Git
 import importers
 import move_functions
-from tests.setup import setup,  base_config
+from tests.setup import setup_file_remote, setup_ssh_remote, base_config
 from type_hints import AnnexKey
 
 import_config = ImportConfig(
@@ -32,9 +32,16 @@ def key_from_bytes(data: bytes, extension: str) -> AnnexKey:
 
 batch_size = 10
 
+def test_push_local(tmp_path):
+    setup_file_remote(tmp_path)
+    test_push(tmp_path)
+
+def test_push_sftp(tmp_path):
+    with setup_ssh_remote(tmp_path):
+        test_push(tmp_path)
+
 def test_push(tmp_path):
-    """Run and validate the importer"""
-    setup(tmp_path)
+    """Run and validate pushing content files to a remote"""
     importer = importers.DirectoryImporter("https://prefix")
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
@@ -56,11 +63,13 @@ def test_push(tmp_path):
                 git = git,
                 dolt_server = dolt_server,
             )
+            ssh_config = os.path.join(os.path.dirname(__file__), "config/ssh_config")
+            known_hosts = None
             do_import(import_config, downloader, importer, ["import_data"])
             downloader.flush()
-            files_pushed = do_push(downloader, "origin", [])
+            files_pushed = do_push(downloader, "origin", [], ssh_config, known_hosts)
             assert files_pushed == 2
             downloader.flush()
-            files_pushed = do_push(downloader, "origin", [])
+            files_pushed = do_push(downloader, "origin", [], ssh_config, known_hosts)
             assert files_pushed == 0
         

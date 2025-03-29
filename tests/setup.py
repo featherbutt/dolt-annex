@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from contextlib import contextmanager
 from pathlib import Path
 import os
+import getpass
+import time
 
-from plumbum import local # type: ignore
+from plumbum import BG, local # type: ignore
 
 from application import Config
 from commands.init import InitConfig, do_init
@@ -23,7 +26,20 @@ base_config = Config(
     auto_push = True,
 )
 
-def setup(tmp_path):
+def setup_file_remote(tmp_path):
+    setup(tmp_path, "../git_origin")
+
+@contextmanager
+def setup_ssh_remote(tmp_path):
+    print(tmp_path)
+    user = getpass.getuser()
+    # sshd_process = local.cmd.sshd.popen(["-f", "tests/config/sshd_config"], )
+    # sshd_process = local.cmd.sshd["-f", "tests/config/sshd_config"] & BG
+    setup(tmp_path, f"{user}@localhost:{tmp_path}/git_origin")
+    yield
+    # sshd_process.terminate()
+
+def setup(tmp_path, git_remote_url: str):
     os.chdir(tmp_path)
     git = local.cmd.git
     git("init", "--bare", "git_origin", "-b", "git-annex")
@@ -52,7 +68,7 @@ def setup(tmp_path):
     init_config = InitConfig(
         init_git = True,
         init_dolt = True,
-        git_url = "../git_origin",          # git_url is relative the git directory
+        git_url = git_remote_url,          # git_url is relative the git directory
         dolt_url = "file://./dolt_origin/", # dolt_url is relative to the base directory
         remote_name = "test_remote",
     )
