@@ -23,7 +23,6 @@ class FileMover:
             local_cwd = os.getcwd()
         self.local_cwd = os.path.abspath(local_cwd)
         self.remote_cwd = os.path.abspath(remote_cwd)
-        print("remote path", self.remote_cwd)
         self.move_function = move_function
 
     def put(self, local_path: str, remote_path: str) -> None:
