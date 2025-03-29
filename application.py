@@ -139,6 +139,7 @@ def Downloader(base_config: Config, db_batch_size):
         "user": "root",
         "database": base_config.dolt_db,
         "autocommit": True,
+        "port": 3306,
     }
     git = Git(base_config.git_dir)
     commit_metadata = CommitMetadata()

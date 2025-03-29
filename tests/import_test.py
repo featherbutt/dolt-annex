@@ -3,6 +3,7 @@
 
 import hashlib
 import os
+import random
 import shutil
 from typing import Dict
 
@@ -84,13 +85,14 @@ def do_test_import(tmp_path, importer_factory, expected_urls):
         "user": "root",
         "database": base_config.dolt_db,
         "autocommit": True,
+        "port": random.randint(20000, 21000),
     }
     git = Git(base_config.git_dir)
     commit_metadata = CommitMetadata()
     git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
         LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
     ):
         with AnnexCache(repo, dolt_server, git, git_annex_settings, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(

@@ -45,7 +45,10 @@ class DoltSqlServer:
 
     def spawn_dolt_server(self, dolt_dir: str) -> Tuple[Any, pymysql.connections.Connection]:
         dolt = local.cmd.dolt.with_cwd(dolt_dir)
-        dolt_server_process = dolt.popen("sql-server")
+        args = []
+        if "port" in self.db_config:
+            args.extend(["-P", str(self.db_config["port"])])
+        dolt_server_process = dolt.popen(["sql-server", *args])
         while True:
             try:
                 return dolt_server_process, pymysql.connect(**self.db_config)
