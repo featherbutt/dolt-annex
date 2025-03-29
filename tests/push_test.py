@@ -69,9 +69,9 @@ def do_test_push(tmp_path):
             known_hosts = None
             do_import(import_config, downloader, importer, ["import_data"])
             downloader.flush()
-            files_pushed = do_push(downloader, "origin", [], ssh_config, known_hosts)
+            files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
             assert files_pushed == 2
             downloader.flush()
-            files_pushed = do_push(downloader, "origin", [], ssh_config, known_hosts)
+            files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
             assert files_pushed == 0
         

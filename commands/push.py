@@ -120,21 +120,35 @@ class Push(cli.Application):
         default = None,
     )
 
-    def main(self, remote, *args) -> int:
+    git_remote = cli.SwitchAttr(
+        "--git-remote",
+        str,
+        help="The name of the git remote",
+    )
+
+    dolt_remote = cli.SwitchAttr(
+        "--dolt-remote",
+        str,
+        help="The name of the dolt remote",
+    )
+
+    def main(self, *args) -> int:
         """Entrypoint for push command"""
         with Downloader(self.parent.config, self.batch_size) as downloader:
-            do_push(downloader, remote, args, self.ssh_config, None, self.limit)
+            git_remote = self.git_remote or self.parent.config.git_remote
+            dolt_remote = self.dolt_remote or self.parent.config.dolt_remote
+            do_push(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
+def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
     git = downloader.git
     dolt = downloader.dolt_server
-    remote_uuid = git.annex.get_remote_uuid(remote)
     files_pushed = 0
+    remote_uuid = git.annex.get_remote_uuid(git_remote)
 
-    dolt.pull_branch(remote_uuid, remote)
+    dolt.pull_branch(remote_uuid, dolt_remote)
     # TODO: Fast forward if you can
-    git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{remote}/git-annex")
+    git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
@@ -142,7 +156,7 @@ def do_push(downloader: GitAnnexDownloader, remote: str, args, ssh_config: str, 
     else:
         keys = args
 
-    with file_mover(git, remote, ssh_config, known_hosts) as mover:
+    with file_mover(git, git_remote, ssh_config, known_hosts) as mover:
         for key in keys:
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
