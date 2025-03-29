@@ -18,7 +18,7 @@ class DoltSqlServer:
     cursor: pymysql.cursors.Cursor
     active_branch: str
 
-    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
+    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool, gc: bool):
         self.db_config = db_config
 
         if spawn_dolt_server:
@@ -28,6 +28,7 @@ class DoltSqlServer:
             self.connection = pymysql.connect(**db_config)
 
         self.cursor = self.connection.cursor()
+        self.gc = gc
         self.garbage_collect()
 
         self.cursor.execute("SELECT ACTIVE_BRANCH()")
@@ -54,6 +55,8 @@ class DoltSqlServer:
 
     @dry_run("Would run garbage collection")
     def garbage_collect(self):
+        if not self.gc:
+            return
         try:
             self.cursor.execute("call DOLT_GC();")
         except pymysql.err.OperationalError as e:
