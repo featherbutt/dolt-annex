@@ -152,7 +152,7 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
-        keys = diff_keys(dolt, downloader.local_uuid, remote_uuid, limit)
+        keys = list(diff_keys(dolt, downloader.local_uuid, remote_uuid, limit))
     else:
         keys = args
 
