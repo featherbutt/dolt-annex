@@ -1,9 +1,9 @@
 {
     "dolt_dir": "./annex-locations",
     "dolt_db": "annex-locations",
-    "dolt_remote": "http://doltlab:50051/admin/annex-locations",
+    "dolt_remote": "origin",
     "git_dir": "./git-annex",
-    "git_remote": "ssh@github.com:user/my-git-annex-archive",
+    "git_remote": "origin",
     "email": "author@example.com",
     "name": "A U Thor",
     "annexcommitmessage": "update"
