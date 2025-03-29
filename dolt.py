@@ -67,14 +67,23 @@ class DoltSqlServer:
         self.cursor.executemany(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
-
+    
     @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
         self.cursor.execute(sql, values)
-        res = self.cursor.fetchall()
+        self.cursor.fetchall()
         self.cursor.execute("COMMIT;")
         self.connection.commit()
-        return res
+    
+    @dry_run("Would execute {sql} with values {values}")
+    def query(self, sql: str, values):
+        self.cursor.execute(sql, values)
+        res = self.cursor.fetchmany()
+        while res:
+            yield from res
+            res = self.cursor.fetchmany()
+        self.cursor.execute("COMMIT;")
+        self.connection.commit()
 
     def commit(self, push: bool = True):
         logger.debug("dolt add")
