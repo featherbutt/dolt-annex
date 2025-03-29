@@ -65,7 +65,7 @@ class GitAnnex:
     
     def get_remote_uuid(self, remote: str) -> UUID:
         """Get the uuid of a remote"""
-        remote_info = json.loads(self.cmd("info", remote, "--json"))
+        remote_info = json.loads(self.cmd("info", remote, "--json", "--fast"))
         return remote_info["uuid"]
     
     def pull_branch(self, branch: str, remote: str):
