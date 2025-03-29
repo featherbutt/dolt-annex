@@ -12,6 +12,7 @@ from git import Git
 import move_functions
 from move_functions import MoveFunction
 from type_hints import AnnexKey, PathLike
+from logger import logger
 
 class FileMover:
     local_cwd: str
@@ -29,7 +30,7 @@ class FileMover:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
-        print(f"Moving {abs_local_path} to {abs_remote_path}")
+        logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
         self.move_function(
             abs_local_path,
             abs_remote_path)
@@ -57,8 +58,8 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
         local_path = os.path.join(local_path, 'annex/objects')
         user, rest = remote_path.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
-        print(ssh_config, known_hosts)
         cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
+        cnopts.log_level = 'warning'
         with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
             if sftp.exists('.git'):
                 sftp.chdir('.git')
@@ -69,10 +70,9 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
                 remote_path: PathLike,
             ) -> None:
                 """Move a file from the local filesystem to the remote filesystem using SFTP"""
-                print(f"Moving {local_path} to {remote_path}")
                 sftp.mkdir_p(os.path.dirname(remote_path))
                 if sftp.exists(remote_path):
-                    print(f"File {remote_path} already exists, skipping")
+                    logger.info(f"File {remote_path} already exists, skipping")
                     return
                 sftp.put(local_path, remote_path)
             yield FileMover(sftp_put, sftp.getcwd(), local_path)            
