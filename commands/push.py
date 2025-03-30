@@ -59,7 +59,7 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
         user, rest = remote_path.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
         cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
-        cnopts.log_level = 'warning'
+        cnopts.log_level = 'error'
         with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
             if sftp.exists('.git'):
                 sftp.chdir('.git')
