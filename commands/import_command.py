@@ -85,6 +85,7 @@ class Import(cli.Application):
 
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
+        print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
         if self.copy:
             return move_functions.copy
         elif self.symlink:

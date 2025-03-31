@@ -21,5 +21,6 @@ def move_and_symlink(src: str, dst: str):
     os.symlink(dst, src)
 
 def move(src: str, dst: str):
+    print("moving from", src, "to", dst)
     pathlib.Path(os.path.dirname(dst)).mkdir(parents=True, exist_ok=True)
     return shutil.move(src, dst)
