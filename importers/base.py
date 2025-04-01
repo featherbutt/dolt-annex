@@ -85,7 +85,7 @@ class MD5Importer(Importer):
         elif source == "rule34":
             return [f"https://r34i.paheal-cdn.net/{md5[:2]}/{md5[2:4]}/{md5}"]
         else:
-            raise ValueError(f"Unknown source: {source}")
+            raise ValueError(f"Unknown source: {basename}")
     
     def md5(self, path: str) -> str | None:
         basename = os.path.basename(path)
