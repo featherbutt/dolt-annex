@@ -48,6 +48,8 @@ class DoltSqlServer:
         args = []
         if "port" in self.db_config:
             args.extend(["-P", str(self.db_config["port"])])
+        if "unix_socket" in self.db_config:
+            args.extend(["--socket", self.db_config["unix_socket"]])
         dolt_server_process = dolt.popen(["sql-server", *args])
         while True:
             try:

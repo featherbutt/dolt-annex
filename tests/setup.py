@@ -5,9 +5,9 @@ from contextlib import contextmanager
 from pathlib import Path
 import os
 import getpass
-import time
+import random
 
-from plumbum import BG, local # type: ignore
+from plumbum import local # type: ignore
 
 from application import Config
 from commands.init import InitConfig, do_init
@@ -24,6 +24,7 @@ base_config = Config(
     annexcommitmessage = "commit message",
     spawn_dolt_server = True,
     auto_push = True,
+    dolt_server_socket=f"/tmp/mysql{random.randint(1,1000)}.sock",
 )
 
 def setup_file_remote(tmp_path):
