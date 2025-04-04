@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+import csv
+from io import TextIOWrapper
 import os
 from typing import Dict, Iterable
 
@@ -11,6 +13,28 @@ from logger import logger
 import move_functions
 from move_functions import MoveFunction
 from type_hints import AnnexKey, PathLike
+
+class ImportCsv:
+    KEY_ANNEX_KEY = 'annex_key'
+    KEY_URL = 'url'
+    KEYS = {KEY_ANNEX_KEY, KEY_URL}
+
+    @classmethod
+    def import_csv(cls, downloader: GitAnnexDownloader, csv_file: TextIOWrapper):
+        """Import annex keys from CSV file"""
+        fields_checked = False
+        for row in csv.DictReader(csv_file):
+            if not fields_checked:
+                key_set = set(row.keys())
+                if not key_set.issuperset(cls.KEYS):
+                    raise ValueError(f'Missing field keys: {cls.KEYS - key_set}')
+                fields_checked = True
+
+            annex_key = row[cls.KEY_ANNEX_KEY]
+            url = row[cls.KEY_URL]
+
+            downloader.add_local_source(annex_key)
+            downloader.update_database(url, annex_key)
 
 @dataclass
 class ImportConfig:
@@ -30,6 +54,13 @@ class Import(cli.Application):
         int,
         help="The number of files to process at once",
         default = 1000,
+    )
+
+    from_csv = cli.SwitchAttr(
+        "--from-csv",
+        str,
+        help="Import annex keys and urls from CSV. File must contain the following fields: f{ImportCsv.KEYS}",
+        excludes = ["--from-other-annex", "--url-prefix", "--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
     )
 
     from_other_annex = cli.SwitchAttr(
@@ -108,7 +139,7 @@ class Import(cli.Application):
     def main(self, *files_or_directories: str):
         self.files = {}
 
-        if not self.copy and not self.move and not self.symlink:
+        if not self.from_csv and not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
         move_function = self.get_move_function()
@@ -120,8 +151,12 @@ class Import(cli.Application):
             follow_symlinks = follow_symlinks,
         )
         with Downloader(self.parent.config, import_config.batch_size) as downloader:
-            importer = self.get_importer(downloader)
-            do_import(import_config, downloader, importer, files_or_directories)
+            if self.from_csv:
+                with open(self.from_csv) as csv_file:
+                    ImportCsv.import_csv(downloader, csv_file)
+            else:
+                importer = self.get_importer(downloader)
+                do_import(import_config, downloader, importer, files_or_directories)
 
 def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, PathLike] = {}
