@@ -84,6 +84,8 @@ class MD5Importer(Importer):
             return [f"https://img3.gelbooru.com/images/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
         elif source == "rule34":
             return [f"https://r34i.paheal-cdn.net/{md5[:2]}/{md5[2:4]}/{md5}"]
+        elif source == "e6ai":
+            return [f"https://static1.e6ai.net/data/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
         else:
             raise ValueError(f"Unknown source: {basename}")
     
