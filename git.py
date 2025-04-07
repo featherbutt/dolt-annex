@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from typing import Iterable
@@ -6,7 +7,7 @@ from typing import Iterable
 from plumbum import local # type: ignore
 
 from dry_run import dry_run
-from type_hints import UUID
+from type_hints import UUID, AnnexKey, PathLike
 
 class GitConfig:
     def __init__(self, git_cmd):
@@ -33,19 +34,22 @@ class GitAnnex:
         self.uuid = git_cmd("config", "annex.uuid").strip()
 
     # TODO: Replace these commands with continuous batch commands
-    def calckey(self, key: str) -> str:
-        return self.cmd("calckey", key).strip()
+    def calckey(self, key_path: PathLike) -> AnnexKey:
+        return self.cmd("calckey", key_path).strip()
 
-    def get_branch_key_path(self, key: str) -> str:
-        return self.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
-    
-    def get_relative_annex_key_path(self, key: str):
-        rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
-        return rel_path
+    def get_branch_key_path(self, key: AnnexKey) -> PathLike:
+        # return self.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
+        md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
+        return PathLike(f"{md5[:3]}/{md5[3:6]}/{key}")
+           
+    def get_relative_annex_key_path(self, key: AnnexKey) -> PathLike:
+        md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
+        return PathLike(f"{md5[:3]}/{md5[3:6]}/{key}/{key}")
 
-    def get_annex_key_path(self, key: str):
-        rel_path = self.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
-        return os.path.abspath(os.path.join(self.git_dir, "annex", "objects", rel_path))
+    def get_annex_key_path(self, key: AnnexKey) -> PathLike:
+        md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
+        rel_path = f"{md5[:3]}/{md5[3:6]}/{key}/{key}"
+        return PathLike(os.path.abspath(os.path.join(self.git_dir, "annex", "objects", rel_path)))
 
     @dry_run("Would register {key} with url {url}")
     def registerurl(self, key: str, url: str):
@@ -67,13 +71,6 @@ class GitAnnex:
         """Get the uuid of a remote"""
         remote_info = json.loads(self.cmd("info", remote, "--json", "--fast"))
         return remote_info["uuid"]
-    
-    def pull_branch(self, branch: str, remote: str):
-        self.cmd("fetch", remote, branch)
-        self.merge_branch(branch, f"{remote}/{branch}")
-
-    def merge_branch(self, dst_ref: str, src_ref: str):
-        returncode, _, _ = self.cmd.run(["merge-tree", "--no-message", dst_ref, src_ref], retcode=None)
     
     def sync(self):
         self.cmd("sync", "--no-content")
