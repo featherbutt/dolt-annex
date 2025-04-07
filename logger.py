@@ -9,8 +9,11 @@ def format_args(func, message, *args, **kwargs):
     bound_args.apply_defaults()
     return message.format(*bound_args.args, **bound_args.arguments)
 
-INFO = 0
-DEBUG = 1
+ERROR = 0
+WARNING = 1
+INFO = 2
+VERBOSE = 3
+DEBUG = 4
 class Logger:
     """A simple configurable logger"""
     def __init__(self, log_func: Callable, log_level=INFO):
@@ -49,9 +52,21 @@ class Logger:
         """Log a message with DEBUG severity"""
         self.log(DEBUG, *message)
 
+    def verbose(self, *message):
+        """Log a message with VERBOSE severity"""
+        self.log(VERBOSE, *message)
+
     def info(self, *message):
         """Log a message with INFO severity"""
         self.log(INFO, *message)
+
+    def warning(self, *message):
+        """Log a message with WARNING severity"""
+        self.log(WARNING, *message)
+
+    def error(self, *message):
+        """Log a message with INFO severity"""
+        self.log(ERROR, *message)
 
 null_logger = Logger(lambda *args, **kwargs: None)
 """null_logger is a logger that swallows all messages"""
