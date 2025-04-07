@@ -123,8 +123,10 @@ def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str
 def assert_key(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exists_check: bool = False):
     """Assert that the key and its associated data is present in the annex and the Dolt database"""
     # 1. Check the annexed file exists at the expected path
-    key_path = git.annex.get_annex_key_path(key)
-    assert skip_exists_check or os.path.exists(key_path)
+    # We call git-annex here to make sure that our computed path agrees with git-annex
+    rel_path = git.annex.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
+    abs_path = os.path.abspath(os.path.join(git.git_dir, "annex", "objects", rel_path))
+    assert skip_exists_check or os.path.exists(abs_path)
     # 2. Check that the key has the correct registered URL
     # 3. Check that the key has the expected sources
     assert git.annex.is_present(key)
