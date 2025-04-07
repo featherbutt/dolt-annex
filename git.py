@@ -111,3 +111,12 @@ class Git:
         new_tree = self.cmd("merge-tree", "--no-messages", *from_oids).strip()
         new_commit = self.cmd("commit-tree", new_tree, *[x for oid  in from_oids for x in ["-p", oid]], "-m", "Merge").strip()
         self.cmd("update-ref", into_branch, new_commit)
+
+    def push_branch(self, remote: str, branch: str):
+        return self.cmd("push", remote, branch).strip()
+
+    def get_revision(self, ref: str) -> str:
+        return self.cmd("rev-parse", ref).strip()
+    
+    def fetch(self, remote: str, ref: str) -> str:
+        return self.cmd("fetch", remote, ref).strip()

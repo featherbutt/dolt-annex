@@ -119,3 +119,26 @@ class DoltSqlServer:
     def pull_branch(self, branch: str, remote: str):
         with self.set_branch(branch):
             self.cursor.execute("call DOLT_PULL(%s, %s)", (remote, branch))
+
+    def push_branch(self, branch: str, remote: str):
+        with self.set_branch(branch):
+            self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote, branch))
+            res = self.cursor.fetchone()
+            assert res is not None
+            status, _ = res
+            if status != 0:
+                # In the event of a conflict, attempt merging first.
+                logger.debug(f"Potential conflict, attempting to merge {branch} with {remote}")
+                self.pull_branch(branch, remote)
+                self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote, branch))
+                res = self.cursor.fetchone()
+                assert res is not None
+                status, _ = res
+                if status != 0:
+                    raise Exception(f"Failed to push {branch} to {remote} after merge")
+
+    def get_revision(self, ref: str):
+        self.cursor.execute("SELECT DOLT_HASHOF(%s);", ref)
+        res = self.cursor.fetchone()
+        assert res is not None
+        return res[0]

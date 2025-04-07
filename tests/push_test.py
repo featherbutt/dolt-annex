@@ -71,6 +71,16 @@ def do_test_push(tmp_path):
             downloader.flush()
             files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
             assert files_pushed == 2
+            # Check that git branch was pushed.
+            assert git.get_revision("origin/git-annex") == git.get_revision("git-annex")
+
+            # Check that the dolt branches were pushed.
+            remote_uuid = git.annex.get_remote_uuid("origin")
+            assert dolt_server.get_revision("origin/main") == dolt_server.get_revision("main")
+            assert dolt_server.get_revision(f"origin/{git.annex.uuid}") == dolt_server.get_revision(git.annex.uuid)
+            assert dolt_server.get_revision(f"origin/{remote_uuid}") == dolt_server.get_revision(remote_uuid)
+
+            # Pushing again should have no effect
             downloader.flush()
             files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
             assert files_pushed == 0
