@@ -2,7 +2,8 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
-from typing import Iterable
+
+from typing_extensions import Iterable
 
 from plumbum import local # type: ignore
 

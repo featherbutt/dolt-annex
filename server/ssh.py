@@ -4,11 +4,11 @@
 import base64
 import pathlib
 import subprocess
-from typing import Optional, override, Any
 import threading
 from select import select
 from cryptography.hazmat.primitives import hashes, serialization
 
+from typing_extensions import Optional, override
 import paramiko
 import plumbum # type: ignore
 

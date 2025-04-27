@@ -2,8 +2,9 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Optional
 from plumbum import cli # type: ignore
+
+from typing_extensions import Optional
 
 import requests
 

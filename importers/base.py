@@ -1,6 +1,7 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import os
-from typing import List
+
+from typing_extensions import List
 
 from plumbum import local # type: ignore
 

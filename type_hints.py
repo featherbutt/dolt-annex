@@ -3,8 +3,9 @@
 
 """Utility type declarations"""
 
-from typing import NewType, TYPE_CHECKING
 import uuid
+
+from typing_extensions import NewType, TYPE_CHECKING
 
 PathLike = NewType('PathLike', str)
 AnnexKey = NewType('AnnexKey', str)

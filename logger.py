@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 import functools
 import inspect
-from typing import Callable
+
+from typing_extensions import Callable
 
 def format_args(func, message, *args, **kwargs):
     signature = inspect.signature(func)

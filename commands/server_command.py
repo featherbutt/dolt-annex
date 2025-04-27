@@ -6,8 +6,8 @@ import os
 import socket
 import threading
 import time
-from types import ModuleType
-from typing import NoReturn, Optional
+
+from typing_extensions import Optional
 
 from plumbum import cli # type: ignore
 import paramiko

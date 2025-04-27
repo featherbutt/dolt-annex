@@ -2,7 +2,8 @@ from dataclasses import dataclass
 import csv
 from io import TextIOWrapper
 import os
-from typing import Dict, Iterable
+
+from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 

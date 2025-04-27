@@ -4,7 +4,8 @@
 from collections.abc import Callable
 import os
 import subprocess
-from typing import Dict, List
+
+from typing_extensions import Dict, List
 
 import pymysql
 

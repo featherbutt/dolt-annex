@@ -3,7 +3,8 @@
 
 from contextlib import contextmanager
 import time
-from typing import Any, Dict, Tuple
+
+from typing_extensions import Any, Dict, Tuple
 
 from plumbum import local # type: ignore
 import pymysql

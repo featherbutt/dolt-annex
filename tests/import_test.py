@@ -6,7 +6,8 @@ from io import StringIO
 import os
 import random
 import shutil
-from typing import Dict
+
+from typing_extensions import Dict
 
 from annex import AnnexCache, GitAnnexSettings
 from bup.repo import LocalRepo

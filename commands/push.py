@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
-from typing import Iterable, Optional
+
+from typing_extensions import Iterable, Optional
 
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore

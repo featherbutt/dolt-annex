@@ -5,8 +5,9 @@
 
 import os
 import random
-from typing import Dict, Iterable, List, Optional, Tuple
 import json
+
+from typing_extensions import Dict, Iterable, List, Optional, Tuple
 
 SHARED_BRANCH_INIT_SQL = """
 create table `annex-keys` (url varchar(1000) primary key, `annex-key` varchar(1000), key (`annex-key`, url));

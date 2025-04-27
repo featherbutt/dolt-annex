@@ -5,7 +5,8 @@
 
 import os
 import random
-from typing import Iterable, Tuple
+
+from typing_extensions import Iterable, Tuple
 
 SOURCES_SQL = """
     INSERT INTO sources (`annex-key`, sources)

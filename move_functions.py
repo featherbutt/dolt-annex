@@ -4,7 +4,8 @@
 import os
 import pathlib
 import shutil
-from typing import Callable
+
+from typing_extensions import Callable
 
 from type_hints import PathLike
 

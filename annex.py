@@ -6,7 +6,8 @@
 from dataclasses import dataclass
 import json
 import time
-from typing import Callable, Dict, List, Set
+
+from typing_extensions import Callable, Dict, List, Set
 
 from bup.repo.base import RepoProtocol as Repo
 

@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional
+
+from typing_extensions import Callable, Dict, List, Optional
 
 FilePatch = Callable[[Optional[bytes]], bytes]
 """A FilePatch is a function that describes how to modify a file."""
