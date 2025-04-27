@@ -128,7 +128,7 @@ class AnnexCache:
         """Add a hook to be called when the cache is flushed."""
         self.flush_hooks.append(hook)
 
-    def flush(self):
+    def flush(self, update_annex: bool = False):
         """Flush the cache to the git-annex branch and the Dolt database."""
         # Flushing the cache must be done in the following order:
         # 1. Update the git-annex branch to contain the new ownership records and registered urls.
@@ -149,7 +149,7 @@ class AnnexCache:
                 rows = [[now, b"1", bytes(value, encoding = "utf8")] for value in values]
                 patch.insert(file_path, update_file(rows, 2))
 
-        if self.sources or self.urls:
+        if update_annex and (self.sources or self.urls):
             logger.debug("creating git-annex patch")
             insert(self.sources, b".log")
             insert(self.urls, b".log.web")
