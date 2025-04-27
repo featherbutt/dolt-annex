@@ -7,11 +7,14 @@ import os
 import getpass
 import random
 
+from paramiko import PKey
 from plumbum import local # type: ignore
 
 from application import Config
 from commands.init import InitConfig, do_init
+from commands.server_command import server_context
 from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
+from git import Git
 
 base_config = Config(
     dolt_dir = "./dolt",
@@ -28,7 +31,8 @@ base_config = Config(
 )
 
 def setup_file_remote(tmp_path):
-    setup(tmp_path, "../git_origin")
+    setup(tmp_path)
+    init("../git_origin")
 
 @contextmanager
 def setup_ssh_remote(tmp_path):
@@ -36,11 +40,12 @@ def setup_ssh_remote(tmp_path):
     user = getpass.getuser()
     # sshd_process = local.cmd.sshd.popen(["-f", "tests/config/sshd_config"], )
     # sshd_process = local.cmd.sshd["-f", "tests/config/sshd_config"] & BG
-    setup(tmp_path, f"{user}@localhost:{tmp_path}/git_origin")
+    setup(tmp_path)
+    init(f"{user}@localhost:{tmp_path}/git_origin")
     yield
     # sshd_process.terminate()
 
-def setup(tmp_path, git_remote_url: str):
+def setup(tmp_path):
     os.chdir(tmp_path)
     git = local.cmd.git
     git("init", "--bare", "git_origin", "-b", "git-annex")
@@ -66,6 +71,7 @@ def setup(tmp_path, git_remote_url: str):
     dolt("push", "origin", "main")
     dolt("push", "origin", origin_uuid)
     
+def init(git_remote_url: str):
     init_config = InitConfig(
         init_git = True,
         init_dolt = True,

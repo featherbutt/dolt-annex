@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from contextlib import contextmanager
 import os
 import socket
+import threading
+import time
 from types import ModuleType
 from typing import NoReturn, Optional
 
@@ -54,7 +57,7 @@ class Server(cli.Application):
         default = None,
     )
 
-    def main(self, *args) -> NoReturn:
+    def main(self, *args):
         """Entrypoint for server command"""
         base_config = self.parent.config
         git = Git(base_config.git_dir)
@@ -77,7 +80,7 @@ def run_transport(git: Git, connection: socket.socket, key: paramiko.PKey, autho
     transport.accept()
 
 
-def start_server(git: Git, host, port, key, authorized_keys_dir) -> NoReturn:
+def start_server(git: Git, host, port, key, authorized_keys_dir, terminate_event=None):
     logger.debug(f'Serving over sftp at {host}:{port}')
 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -85,8 +88,32 @@ def start_server(git: Git, host, port, key, authorized_keys_dir) -> NoReturn:
     server_socket.bind((host, port))
     server_socket.listen(BACKLOG)
 
-    while True:
+    while terminate_event is None or not terminate_event.is_set():
         connection, _ = server_socket.accept()
         logger.debug('Established connection from %s', connection.getpeername())
         run_transport(git, connection, key, authorized_keys_dir)
         
+@contextmanager
+def server_context(git: Git, host: str, port: int, key: paramiko.PKey, authorized_keys_dir: Optional[str] = None):
+    terminate_event = threading.Event()
+    server_thread = threading.Thread(
+        target=start_server,
+        args=(git, host, port, key, authorized_keys_dir),
+        daemon=True,
+    )
+    server_thread.start()
+    while True:
+            try:
+                # Wait for the server to start
+                with socket.create_connection((host, port), timeout=1) as sock:
+                    logger.debug('Server started')
+                    break
+            except socket.error:
+                logger.debug('Waiting for server to start')
+                time.sleep(1)
+    yield
+    terminate_event.set()
+    server_thread.join()
+    logger.debug('Server stopped')
+
+

@@ -34,6 +34,15 @@ class FileMover:
         self.move_function(
             abs_local_path,
             abs_remote_path)
+        
+    def get(self, local_path: str, remote_path: str) -> None:
+        """Move a file from the local filesystem to the remote filesystem"""
+        abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
+        abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
+        logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
+        self.move_function(
+            abs_local_path,
+            abs_remote_path)
 
     @contextmanager
     def cd(self, local_path: Optional[str] = None, remote_path: Optional[str] = None):
@@ -180,12 +189,29 @@ def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
     dolt.pull_branch(remote_uuid, remote)
 
 def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[AnnexKey]:
-    """Return each key that is in the first ref but not in the second ref"""
-    with dolt.set_branch(in_ref):
+    """
+    Return each key that is in the first ref but not in the second ref.
+
+    This is more complicated than just selecting from dolt_commit_diff_local_keys, because
+    a simple diff returns all changes, including keys that are in the second ref but not the first.
+    If multiple clients are pushing to the same server, most of these keys won't be keys the client can send.
+
+    Instead, we create a third branch containing the union of both branch's keys, then compute which keys
+    are in the union but not in the second branch. This union branch only needs to be created once in order
+    to push or pull annexed files, because the union doesn't change as files are copied to/from the server.
+    """
+    refs = [in_ref, not_in_ref]
+    refs.sort()
+    union_branch_name = f"union-{refs[0]}-{refs[1]}"
+    # Create the union branch if it doesn't exist
+    
+    with dolt.maybe_create_branch(union_branch_name, in_ref):
+        dolt.merge(in_ref)
+        dolt.merge(not_in_ref)
         if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, in_ref, limit))
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, union_branch_name, limit))
         else:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, in_ref))
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, union_branch_name))
         for (diff_type, annex_key) in query:
-            if diff_type == "added":
-                yield AnnexKey(annex_key)
+            assert diff_type == "added"
+            yield AnnexKey(annex_key)

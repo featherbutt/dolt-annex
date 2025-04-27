@@ -107,14 +107,27 @@ class DoltSqlServer:
             self.cursor.execute("call DOLT_PUSH();")
         self.garbage_collect()
 
-    @contextmanager
+    def maybe_create_branch(self, branch: str, start_point: str = "HEAD"):
+        """
+        Return the named branch, creating it from start_point if it doesn't exist.
+
+        The returned branch can be used as a context manager to switch back to the original branch
+        when done. This is useful for creating a branch and then switching to it.
+        """
+        try:
+            self.cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
+        except pymysql.err.OperationalError as e:
+            if "already exists" not in str(e):
+                raise DoltException(f"Failed to create branch {branch} from {start_point}") from e
+        return DoltBranch(self, branch)
+        
     def set_branch(self, branch: str):
-        previous_branch = self.active_branch
-        self.cursor.execute("call DOLT_CHECKOUT(%s)", branch)
-        self.active_branch = branch
-        yield
-        self.cursor.execute("call DOLT_CHECKOUT(%s)", previous_branch)
-        self.active_branch = previous_branch
+        """
+        Set the active branch to the given branch.
+        
+        This can be used as a context manager to automatically switch
+        back to the previous branch when done."""
+        return DoltBranch(self, branch)
 
     def pull_branch(self, branch: str, remote: str):
         with self.set_branch(branch):
@@ -135,10 +148,52 @@ class DoltSqlServer:
                 assert res is not None
                 status, _ = res
                 if status != 0:
-                    raise Exception(f"Failed to push {branch} to {remote} after merge")
+                    raise DoltException(f"Failed to push {branch} to {remote} after merge")
 
     def get_revision(self, ref: str):
         self.cursor.execute("SELECT DOLT_HASHOF(%s);", ref)
         res = self.cursor.fetchone()
         assert res is not None
         return res[0]
+
+    def merge(self, branch: str):
+        """Merge the given branch into the current branch."""
+        try:
+            self.cursor.execute("call DOLT_MERGE(%s);", (branch,))
+        except pymysql.err.OperationalError as e:
+            if "nothing to merge" not in str(e):
+                raise DoltException(f"Failed to merge {branch} into {self.active_branch}") from e
+        res = self.cursor.fetchone()
+        assert res is not None
+        _, _, conflicts, _ = res
+        if conflicts > 0:
+            self.cursor.execute("call DOLT_MERGE('--abort');")
+            raise DoltException(f"Failed to merge {branch} into {self.active_branch}: unresolvable conflicts detected")
+
+class DoltException(Exception):
+    """Exception raised for errors when executing Dolt commands."""
+
+class DoltBranch:
+    """Represents a branch in a Dolt repository.
+    
+    This can be used as a context manager to switch to the branch
+    and automatically switch back to the previous branch when done.
+    """
+
+    previous_branches: list[str]
+
+    def __init__(self, dolt: DoltSqlServer, branch: str):
+        self.dolt = dolt
+        self.branch = branch
+        self.previous_branches = []
+
+    def __enter__(self):
+        self.previous_branches.append(self.dolt.active_branch)
+        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s)", self.branch)
+        self.dolt.active_branch = self.branch
+        return self.dolt.set_branch(self.branch)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        active_branch = self.previous_branches.pop()
+        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s)", active_branch)
+        self.dolt.active_branch = active_branch

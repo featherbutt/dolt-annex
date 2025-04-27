@@ -3,20 +3,24 @@
 
 import hashlib
 import os
+from pathlib import Path
 import random
 import shutil
+
+import paramiko 
 
 from annex import AnnexCache, GitAnnexSettings
 from bup.repo import LocalRepo
 from bup_ext.bup_ext import CommitMetadata
 from commands.import_command import ImportConfig, do_import
 from commands.push import do_push
+from commands.server_command import server_context
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
 import importers
 import move_functions
-from tests.setup import setup_file_remote, setup_ssh_remote, base_config
+from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
 from type_hints import AnnexKey
 
 import_config = ImportConfig(
@@ -39,6 +43,24 @@ def test_push_local(tmp_path):
 
 def test_push_sftp(tmp_path):
     with setup_ssh_remote(tmp_path):
+        do_test_push(tmp_path)
+
+def test_push_server(tmp_path):
+    print(tmp_path)
+    os.chdir(tmp_path)
+    #Path("./client").mkdir()
+    #Path("./server").mkdir()
+    
+    server_key = paramiko.RSAKey.generate(bits=1024)
+    host = "localhost"
+    ssh_port = random.randint(21000, 22000)
+    setup(tmp_path)
+
+    server_git = Git(f"{tmp_path}/git_origin")
+    
+    # setup server, then create server context, then setup client.
+    with server_context(server_git, host, ssh_port, server_key, str(Path(__file__).parent / "test_client_keys")):
+        init(f"ssh://git@localhost:{ssh_port}/{tmp_path}/git_origin")
         do_test_push(tmp_path)
 
 def do_test_push(tmp_path):
@@ -67,21 +89,34 @@ def do_test_push(tmp_path):
             )
             ssh_config = os.path.join(os.path.dirname(__file__), "config/ssh_config")
             known_hosts = None
-            do_import(import_config, downloader, importer, ["import_data"])
+            do_import(import_config, downloader, importer, ["import_data/00"])
             downloader.flush()
-            files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
+
+            files_pushed = push_and_verify(downloader, git, dolt_server, ssh_config, known_hosts)
             assert files_pushed == 2
-            # Check that git branch was pushed.
-            assert git.get_revision("origin/git-annex") == git.get_revision("git-annex")
-
-            # Check that the dolt branches were pushed.
-            remote_uuid = git.annex.get_remote_uuid("origin")
-            assert dolt_server.get_revision("origin/main") == dolt_server.get_revision("main")
-            assert dolt_server.get_revision(f"origin/{git.annex.uuid}") == dolt_server.get_revision(git.annex.uuid)
-            assert dolt_server.get_revision(f"origin/{remote_uuid}") == dolt_server.get_revision(remote_uuid)
-
             # Pushing again should have no effect
-            downloader.flush()
-            files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
+
+            files_pushed = push_and_verify(downloader, git, dolt_server, ssh_config, known_hosts)
             assert files_pushed == 0
-        
+
+            # But if we add more files, it should push them
+            do_import(import_config, downloader, importer, ["import_data/08"])
+            downloader.flush()
+
+            files_pushed = push_and_verify(downloader, git, dolt_server, ssh_config, known_hosts)
+            assert files_pushed == 1
+
+
+def push_and_verify(downloader: GitAnnexDownloader, git: Git, dolt_server: DoltSqlServer, ssh_config: str, known_hosts: str):
+    files_pushed = do_push(downloader, "origin", "origin", [], ssh_config, known_hosts)
+    downloader.flush()
+    # Check that git branch was pushed.
+    assert git.get_revision("origin/git-annex") == git.get_revision("git-annex")
+
+    # Check that the dolt branches were pushed.
+    remote_uuid = git.annex.get_remote_uuid("origin")
+    assert dolt_server.get_revision("origin/main") == dolt_server.get_revision("main")
+    assert dolt_server.get_revision(f"origin/{git.annex.uuid}") == dolt_server.get_revision(git.annex.uuid)
+    assert dolt_server.get_revision(f"origin/{remote_uuid}") == dolt_server.get_revision(remote_uuid)
+
+    return files_pushed
