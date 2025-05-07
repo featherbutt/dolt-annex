@@ -171,7 +171,11 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
         for key in keys:
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
-            mover.put(rel_key_path, rel_key_path)
+            try:
+                mover.put(rel_key_path, rel_key_path)
+            except Exception:
+                rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+                mover.put(rel_key_path, rel_key_path)
             downloader.cache.insert_source(key, remote_uuid)
             files_pushed += 1
 
