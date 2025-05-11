@@ -94,12 +94,15 @@ class DoltSqlServer:
         self.cursor.execute("COMMIT;")
         self.connection.commit()
 
-    def commit(self, push: bool = True):
+    def commit(self, push: bool = True, amend: bool = False):
         logger.debug("dolt add")
         self.cursor.execute("call DOLT_ADD('.');")
         logger.debug("dolt commit")
         try:
-            self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
+            if amend:
+                self.cursor.execute("call DOLT_COMMIT('--amend');")
+            else:
+                self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
         except pymysql.err.OperationalError as e:
             if "nothing to commit" not in str(e):
                 raise

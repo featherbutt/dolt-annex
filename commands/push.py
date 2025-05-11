@@ -180,6 +180,9 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
             files_pushed += 1
 
     downloader.flush()
+
+    with dolt.set_branch(remote_uuid):
+        dolt.commit(False, amend=True)
     # Push the git branch
     git.push_branch(git_remote, "git-annex")
     # Push the dolt branch
