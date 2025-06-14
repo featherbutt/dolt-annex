@@ -170,7 +170,6 @@ class AnnexCache:
             for remote_uuid, keys in self.remote_keys.items():
                 with self.dolt.set_branch(remote_uuid):
                     self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in keys])
-                    self.dolt.commit(self.auto_push)
 
         # 3. Move the annex files to the annex directory.
 
@@ -182,9 +181,6 @@ class AnnexCache:
         self.md5s.clear()
         self.sources.clear()
         self.remote_keys.clear()
-
-        logger.debug("pushing dolt database")
-        self.dolt.commit(self.auto_push)
 
         new_now = time.time()
         elapsed_time = new_now - self.time
