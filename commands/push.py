@@ -20,19 +20,20 @@ class FileMover:
     remote_cwd: str
     move_function: MoveFunction
 
-    def __init__(self, move_function: MoveFunction, remote_cwd: str, local_cwd = None) -> None:
+    def __init__(self, put_function: MoveFunction, get_function: MoveFunction, remote_cwd: str, local_cwd = None) -> None:
         if local_cwd is None:
             local_cwd = os.getcwd()
         self.local_cwd = os.path.abspath(local_cwd)
         self.remote_cwd = os.path.abspath(remote_cwd)
-        self.move_function = move_function
+        self.put_function = put_function
+        self.get_function = get_function
 
     def put(self, local_path: str, remote_path: str) -> None:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
         logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        self.move_function(
+        self.put_function(
             abs_local_path,
             abs_remote_path)
         
@@ -41,7 +42,7 @@ class FileMover:
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
         logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        self.move_function(
+        self.get_function(
             abs_local_path,
             abs_remote_path)
 
@@ -85,7 +86,17 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
                     logger.info(f"File {remote_path} already exists, skipping")
                     return
                 sftp.put(local_path, remote_path)
-            yield FileMover(sftp_put, sftp.getcwd(), local_path)            
+            def sftp_get(
+                local_path: PathLike,
+                remote_path: PathLike,
+            ) -> None:
+                """Move a file from the remote filesystem to the local filesystem using SFTP"""
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                if os.path.exists(local_path):
+                    logger.info(f"File {local_path} already exists, skipping")
+                    return
+                sftp.get(remote_path, local_path)
+            yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
     else:
         # Remote path may be relative to the local git directory
         remote_path = os.path.join(local_path, remote_path)
@@ -183,7 +194,7 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
 
     # with dolt.set_branch(remote_uuid):
     #    dolt.commit(False, amend=True)
-    
+
     # Push the git branch
     git.push_branch(git_remote, "git-annex")
     # Push the dolt branch
