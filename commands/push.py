@@ -184,13 +184,16 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
             try:
-                mover.put(rel_key_path, rel_key_path)
-            except Exception:
-                old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-                mover.put(old_rel_key_path, rel_key_path)
-            downloader.cache.insert_source(key, remote_uuid)
-            files_pushed += 1
-
+                try:
+                    mover.put(rel_key_path, rel_key_path)
+                except Exception:
+                    old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+                    mover.put(old_rel_key_path, rel_key_path)
+                downloader.cache.insert_source(key, remote_uuid)
+                files_pushed += 1
+            except Exception as e:
+                logger.error(f"Failed to push {key}: {e}")
+                continue
     downloader.flush()
 
     # with dolt.set_branch(remote_uuid):
