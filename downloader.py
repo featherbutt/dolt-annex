@@ -25,6 +25,7 @@ class GitAnnexDownloader:
     local_uuid: UUID
     max_extension_length: int
     dolt_server: DoltSqlServer
+    cache: AnnexCache
 
     def __init__(self, cache: AnnexCache,
                  git: Git, dolt_server: DoltSqlServer):

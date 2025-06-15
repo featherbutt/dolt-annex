@@ -80,6 +80,8 @@ class AnnexCache:
     count: int
     time: float
     flush_hooks: List[Callable[[], None]]
+    write_sources_table: bool = False
+    write_git_annex: bool = False
 
     def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, auto_push: bool, batch_size: int):
         self.repo = repo
@@ -96,6 +98,7 @@ class AnnexCache:
         self.time = time.time()
         self.local_uuid = git.config['annex.uuid']
         self.auto_push = auto_push
+
 
     def increment_count(self):
         self.count += 1
@@ -159,7 +162,7 @@ class AnnexCache:
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug("flushing dolt database")
-        if self.sources:
+        if self.write_sources_table and self.sources:
             self.dolt.executemany(sql.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
         if self.urls:
             self.dolt.executemany(sql.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])

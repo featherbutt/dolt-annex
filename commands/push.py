@@ -169,8 +169,9 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
 
     dolt.pull_branch(remote_uuid, dolt_remote)
     # TODO: Fast forward if you can
-    git.fetch(git_remote, "git-annex")
-    git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
+    if downloader.cache.write_git_annex:
+        git.fetch(git_remote, "git-annex")
+        git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
@@ -196,11 +197,13 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
     #    dolt.commit(False, amend=True)
 
     # Push the git branch
-    git.push_branch(git_remote, "git-annex")
+    if downloader.cache.write_git_annex and downloader.cache.auto_push:
+        git.push_branch(git_remote, "git-annex")
     # Push the dolt branch
-    dolt.push_branch("main", dolt_remote)
-    dolt.push_branch(git.annex.uuid, dolt_remote)
-    dolt.push_branch(remote_uuid, dolt_remote)
+    if downloader.cache.auto_push:
+        dolt.push_branch("main", dolt_remote)
+        dolt.push_branch(git.annex.uuid, dolt_remote)
+        dolt.push_branch(remote_uuid, dolt_remote)
     return files_pushed
 
 def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
