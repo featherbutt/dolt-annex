@@ -45,11 +45,11 @@ class GitAnnex:
            
     def get_relative_annex_key_path(self, key: AnnexKey) -> PathLike:
         md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
-        return PathLike(f"{md5[:3]}/{md5[3:6]}}/{key}")
+        return PathLike(f"{md5[:3]}/{md5[3:6]}/{key}")
 
     def get_annex_key_path(self, key: AnnexKey) -> PathLike:
         md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
-        rel_path = f"{md5[:3]}/{md5[3:6]}}/{key}"
+        rel_path = f"{md5[:3]}/{md5[3:6]}/{key}"
         return PathLike(os.path.abspath(os.path.join(self.git_dir, "annex", "objects", rel_path)))
 
     def get_old_relative_annex_key_path(self, key: AnnexKey) -> PathLike:
