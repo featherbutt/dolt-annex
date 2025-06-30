@@ -43,8 +43,8 @@ class FileMover:
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
         logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
         self.get_function(
-            abs_local_path,
-            abs_remote_path)
+            abs_remote_path,
+            abs_local_path)
 
     @contextmanager
     def cd(self, local_path: Optional[str] = None, remote_path: Optional[str] = None):
@@ -87,8 +87,8 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
                     return
                 sftp.put(local_path, remote_path)
             def sftp_get(
-                local_path: PathLike,
                 remote_path: PathLike,
+                local_path: PathLike,
             ) -> None:
                 """Move a file from the remote filesystem to the local filesystem using SFTP"""
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -106,7 +106,7 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iter
         if os.path.exists(os.path.join(local_path, '.git')):
             local_path = os.path.join(local_path, '.git')
         local_path = os.path.join(local_path, 'annex/objects')
-        yield FileMover(move_functions.copy, remote_path, local_path)
+        yield FileMover(move_functions.copy, move_functions.copy, remote_path, local_path)
 
 class Push(cli.Application):
     """Push imported files to a remote repository"""

@@ -69,17 +69,18 @@ class Pull(cli.Application):
             do_pull(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
         return 0
 
-def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: Optional[str], limit: Optional[int] = None) -> int:
+def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
     git = downloader.git
     dolt = downloader.dolt_server
     files_pulled = 0
     local_uuid = UUID(git.config['annex.uuid'])
     remote_uuid = git.annex.get_remote_uuid(git_remote)
 
-    dolt.pull_branch(local_uuid, dolt_remote)
+    dolt.pull_branch(remote_uuid, dolt_remote)
     # TODO: Fast forward if you can
-    git.fetch(git_remote, f"refs/remotes/{git_remote}/git-annex")
-    git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
+    if downloader.cache.write_git_annex:
+        git.fetch(git_remote, f"refs/remotes/{git_remote}/git-annex")
+        git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
