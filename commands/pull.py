@@ -1,9 +1,6 @@
-from contextlib import contextmanager
-import os
 
 from typing_extensions import Iterable, Optional
 
-import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
 from application import Application, Downloader
@@ -11,10 +8,7 @@ from commands.push import file_mover
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
-import move_functions
-from move_functions import MoveFunction
-from type_hints import UUID, AnnexKey, PathLike
-from logger import logger
+from type_hints import UUID, AnnexKey
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
@@ -61,6 +55,12 @@ class Pull(cli.Application):
         help="The name of the dolt remote",
     )
 
+    dolt_remote = cli.SwitchAttr(
+        "--source",
+        str,
+        help="Filter pulled files to those from a specific original source",
+    )
+
     def main(self, *args) -> int:
         """Entrypoint for pull command"""
         with Downloader(self.parent.config, self.batch_size) as downloader:
@@ -69,7 +69,7 @@ class Pull(cli.Application):
             do_pull(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
         return 0
 
-def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
+def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, source: Optional[str], limit: Optional[int] = None) -> int:
     git = downloader.git
     dolt = downloader.dolt_server
     files_pulled = 0
@@ -84,7 +84,10 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
 
     keys: Iterable[AnnexKey]
     if len(args) == 0:
-        keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
+        if source is not None:
+            keys = diff_keys_from_source(dolt, dolt_remote, remote_uuid, source, limit)
+        else:
+            keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
     else:
         keys = args
 
@@ -114,6 +117,17 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
             query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, in_ref, limit))
         else:
             query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, in_ref))
+        for (diff_type, annex_key) in query:
+            if diff_type == "added":
+                yield AnnexKey(annex_key)
+
+def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[AnnexKey]:
+    """Return each key that is in the first ref but not in the second ref"""
+    with dolt.set_branch(in_ref):
+        if limit is not None:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
+        else:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
         for (diff_type, annex_key) in query:
             if diff_type == "added":
                 yield AnnexKey(annex_key)
