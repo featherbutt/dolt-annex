@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+from typing import Generator
 
 from typing_extensions import Iterable, Optional
 
@@ -60,7 +61,7 @@ class FileMover:
         self.remote_cwd = old_remote_cwd
 
 @contextmanager
-def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Iterable[FileMover]:
+def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Generator[FileMover]:
     remote_path = git.get_remote_url(remote)
     local_path = os.path.join(os.getcwd(), git.git_dir)
     if '@' in remote_path:

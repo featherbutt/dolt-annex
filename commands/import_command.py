@@ -198,7 +198,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
     if importer and importer.skip(path):
         return
     logger.debug(f"Importing file {path}")
-    abs_path = os.path.abspath(path)
+    abs_path = PathLike(os.path.abspath(path))
     key = downloader.git.annex.calckey(abs_path)
     downloader.add_local_source(key)
 
