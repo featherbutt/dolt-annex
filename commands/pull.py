@@ -1,4 +1,5 @@
 
+import os
 from typing_extensions import Iterable, Optional
 
 from plumbum import cli # type: ignore
@@ -95,11 +96,13 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
         for key in keys:
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
+            old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
             try:
-                mover.get(rel_key_path, rel_key_path)
-            except Exception:
-                old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
                 mover.get(rel_key_path, old_rel_key_path)
+            except Exception:
+                if os.path.exists(rel_key_path):
+                    raise Exception(f"{rel_key_path} exists now!")
+                mover.get(rel_key_path, rel_key_path)
             downloader.cache.insert_source(key, remote_uuid)
             files_pulled += 1
 
