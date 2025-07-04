@@ -9,8 +9,6 @@ from downloader import GitAnnexDownloader
 from git import Git
 import dry_run
 from annex import AnnexCache, GitAnnexSettings
-from bup_ext.bup_ext import CommitMetadata
-
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
@@ -141,7 +139,7 @@ def Downloader(base_config: Config, db_batch_size):
         "port": 3306,
     }
     git = Git(base_config.git_dir)
-    commit_metadata = CommitMetadata()
+    commit_metadata = None #CommitMetadata()
     git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
         # LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,

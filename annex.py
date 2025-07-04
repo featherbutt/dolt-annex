@@ -61,7 +61,7 @@ def parse_web_log(content: str) -> List[str]:
 
 @dataclass
 class GitAnnexSettings:
-    commit_metadata: CommitMetadata
+    commit_metadata: None
     ref: bytes
 class AnnexCache:
     """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
