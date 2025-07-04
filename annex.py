@@ -9,8 +9,6 @@ import time
 
 from typing_extensions import Callable, Dict, List, Set
 
-from bup_ext.patch import DirectoryPatch, update_file
-from bup_ext.bup_ext import CommitMetadata, apply_patch
 import sql
 from dolt import DoltSqlServer
 from git import Git
@@ -143,20 +141,20 @@ class AnnexCache:
         logger.debug("flushing cache")
 
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
-        patch = DirectoryPatch()
+        # patch = DirectoryPatch()
         def insert(key_values: Dict[str, List[str]], suffix: bytes):
             for key, values in key_values.items():
                 key_path = bytes(self.git.annex.get_branch_key_path(key), encoding="utf8")
                 file_path = key_path + suffix
                 rows = [[now, b"1", bytes(value, encoding = "utf8")] for value in values]
-                patch.insert(file_path, update_file(rows, 2))
+                # patch.insert(file_path, update_file(rows, 2))
 
         if update_annex and (self.sources or self.urls):
             logger.debug("creating git-annex patch")
             insert(self.sources, b".log")
             insert(self.urls, b".log.web")
             logger.debug("applying git-annex patch")
-            apply_patch(self.repo, self.git_annex_settings.ref, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
+            # apply_patch(self.repo, self.git_annex_settings.ref, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug("flushing dolt database")
