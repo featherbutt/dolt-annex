@@ -61,7 +61,7 @@ class FileMover:
         self.remote_cwd = old_remote_cwd
 
 @contextmanager
-def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Generator[FileMover]:
+def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Generator[FileMover, None, None]:
     remote_path = git.get_remote_url(remote)
     local_path = os.path.join(os.getcwd(), git.git_dir)
     if '@' in remote_path:
