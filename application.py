@@ -4,7 +4,6 @@ import json
 
 from plumbum import cli # type: ignore
 
-from bup.repo import LocalRepo
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
@@ -145,9 +144,9 @@ def Downloader(base_config: Config, db_batch_size):
     commit_metadata = CommitMetadata()
     git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
-        LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
+        # LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
-        AnnexCache(repo, dolt_server, git, git_annex_settings, base_config.auto_push, db_batch_size) as cache
+        AnnexCache(None, dolt_server, git, git_annex_settings, base_config.auto_push, db_batch_size) as cache
     ):
         downloader = GitAnnexDownloader(
                 cache = cache,

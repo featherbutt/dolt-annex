@@ -9,8 +9,6 @@ import time
 
 from typing_extensions import Callable, Dict, List, Set
 
-from bup.repo.base import RepoProtocol as Repo
-
 from bup_ext.patch import DirectoryPatch, update_file
 from bup_ext.bup_ext import CommitMetadata, apply_patch
 import sql
@@ -83,7 +81,7 @@ class AnnexCache:
     write_sources_table: bool = False
     write_git_annex: bool = False
 
-    def __init__(self, repo: Repo, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, auto_push: bool, batch_size: int):
+    def __init__(self, repo: None, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, auto_push: bool, batch_size: int):
         self.repo = repo
         self.dolt = dolt
         self.git = git
