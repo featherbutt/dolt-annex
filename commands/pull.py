@@ -99,7 +99,7 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
                 mover.get(rel_key_path, rel_key_path)
             except Exception:
                 old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-                mover.get(old_rel_key_path, rel_key_path)
+                mover.get(rel_key_path, old_rel_key_path)
             downloader.cache.insert_source(key, remote_uuid)
             files_pulled += 1
 
