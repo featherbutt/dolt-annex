@@ -5,7 +5,7 @@ from typing_extensions import Iterable, Optional
 from plumbum import cli # type: ignore
 
 from application import Application, Downloader
-from commands.push import file_mover
+from commands.push import file_mover, diff_keys, diff_keys_from_source
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
@@ -97,40 +97,9 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
             # key_path = git.annex.get_annex_key_path(key)
             rel_key_path = git.annex.get_relative_annex_key_path(key)
             old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-            try:
-                mover.get(rel_key_path, old_rel_key_path)
-            except Exception:
-                if os.path.exists(rel_key_path):
-                    raise Exception(f"{rel_key_path} exists now!")
+            if not mover.get(rel_key_path, old_rel_key_path):
                 mover.get(rel_key_path, rel_key_path)
             downloader.cache.insert_source(key, local_uuid)
             files_pulled += 1
 
     return files_pulled
-
-def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
-    """Fetch the personal branch for the remote"""
-    remote_uuid = git.annex.get_remote_uuid(remote)
-    dolt.pull_branch(remote_uuid, remote)
-
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[AnnexKey]:
-    """Return each key that is in the first ref but not in the second ref"""
-    with dolt.set_branch(in_ref):
-        if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, in_ref, limit))
-        else:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, in_ref))
-        for (diff_type, annex_key) in query:
-            if diff_type == "added":
-                yield AnnexKey(annex_key)
-
-def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[AnnexKey]:
-    """Return each key that is in the first ref but not in the second ref"""
-    with dolt.set_branch(in_ref):
-        if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
-        else:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
-        for (diff_type, annex_key) in query:
-            if diff_type == "added":
-                yield AnnexKey(annex_key)

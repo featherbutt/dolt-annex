@@ -10,7 +10,7 @@ from typing_extensions import Callable
 from type_hints import PathLike
 
 
-MoveFunction = Callable[[PathLike, PathLike], None]
+MoveFunction = Callable[[PathLike, PathLike], bool]
 
 def copy(src: str, dst: str):
     pathlib.Path(os.path.dirname(dst)).mkdir(parents=True, exist_ok=True)

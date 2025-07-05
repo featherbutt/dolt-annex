@@ -38,12 +38,12 @@ class FileMover:
             abs_local_path,
             abs_remote_path)
         
-    def get(self, local_path: str, remote_path: str) -> None:
+    def get(self, local_path: str, remote_path: str) -> bool:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
-        logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        self.get_function(
+        logger.info(f"Moving {abs_remote_path} to {abs_local_path}")
+        return self.get_function(
             abs_remote_path,
             abs_local_path)
 
@@ -90,13 +90,16 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Gene
             def sftp_get(
                 remote_path: PathLike,
                 local_path: PathLike,
-            ) -> None:
+            ) -> bool:
                 """Move a file from the remote filesystem to the local filesystem using SFTP"""
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                if not sftp.exists(remote_path):
+                    return False
                 if os.path.exists(local_path):
                     logger.info(f"File {local_path} already exists, skipping")
-                    return
+                    return False
                 sftp.get(remote_path, local_path)
+                return True
             yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
     else:
         # Remote path may be relative to the local git directory
@@ -242,3 +245,18 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
         for (diff_type, annex_key) in query:
             assert diff_type == "added"
             yield AnnexKey(annex_key)
+
+def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[AnnexKey]:
+    refs = [in_ref, not_in_ref]
+    refs.sort()
+    union_branch_name = f"union-{refs[0]}-{refs[1]}"
+    # Create the union branch if it doesn't exist
+    
+    with dolt.maybe_create_branch(union_branch_name, in_ref):
+        if limit is not None:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
+        else:
+            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
+        for (diff_type, annex_key) in query:
+            if diff_type == "added":
+                yield AnnexKey(annex_key)
