@@ -103,7 +103,7 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
                 if os.path.exists(rel_key_path):
                     raise Exception(f"{rel_key_path} exists now!")
                 mover.get(rel_key_path, rel_key_path)
-            downloader.cache.insert_source(key, remote_uuid)
+            downloader.cache.insert_source(key, local_uuid)
             files_pulled += 1
 
     return files_pulled
