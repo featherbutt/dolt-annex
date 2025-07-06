@@ -30,6 +30,11 @@ LOCAL_KEYS_SQL = """
     INSERT IGNORE INTO local_keys (`annex-key`) values (%s);
 """
 
+LOCAL_SUBMISSIONS_SQL = """
+    INSERT IGNORE INTO `local_submissions` (`source`, `id`, `updated`, `part`)
+    VALUES (%s, %s, %s, %s);
+"""
+
 # What follows is a hack. Ideally we'd like to get a page of urls by simply executing a query like:
 #
 # SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL OFFSET X LIMIT 1000;

@@ -60,7 +60,8 @@ def setup(tmp_path):
     dolt("init", "-b", "main")
     
     dolt("checkout", "-b", origin_uuid)
-    dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
+    for query in PERSONAL_BRANCH_INIT_SQL:
+        dolt("sql", "-q", query)
     dolt("add", ".")
     dolt("commit", "-m", "init personal branch")
     dolt("checkout", "main")

@@ -60,6 +60,13 @@ def parse_web_log(content: str) -> List[str]:
 # - Move the annex files in a batch.
 
 @dataclass
+class SubmissionId:
+    source: str
+    sid: int
+    updated: str
+    part: int
+
+@dataclass
 class GitAnnexSettings:
     commit_metadata: None
     ref: bytes
@@ -69,6 +76,7 @@ class AnnexCache:
     md5s: Dict[str, bytes]
     sources: Dict[str, List[str]]
     remote_keys: Dict[UUID, Set[AnnexKey]]
+    remote_submissions: Dict[UUID, List[SubmissionId]]
     git: Git
     dolt: DoltSqlServer
     auto_push: bool
@@ -88,6 +96,7 @@ class AnnexCache:
         self.sources = {}
         self.flush_hooks = []
         self.remote_keys = {}
+        self.remote_submissions = {}
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
@@ -113,7 +122,7 @@ class AnnexCache:
         self.md5s[key] = md5
         self.increment_count()
 
-    def insert_source(self, key: AnnexKey, source: UUID):
+    def insert_key_source(self, key: AnnexKey, source: UUID):
         if key not in self.sources:
             self.sources[key] = []
         self.sources[key].append(source)
@@ -121,6 +130,14 @@ class AnnexCache:
             if source not in self.remote_keys:
                 self.remote_keys[source] = set()
             self.remote_keys[source].add(key)
+
+        self.increment_count()
+
+    def insert_submission_source(self, submission: SubmissionId, source: UUID):
+        if source != WEB_UUID:
+            if source not in self.remote_submissions:
+                self.remote_submissions[source] = []
+            self.remote_submissions[source].append(submission)
 
         self.increment_count()
 
@@ -169,6 +186,11 @@ class AnnexCache:
             for remote_uuid, keys in self.remote_keys.items():
                 with self.dolt.set_branch(remote_uuid):
                     self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in keys])
+        
+        if self.remote_submissions:
+            for remote_uuid, submissions in self.remote_submissions.items():
+                with self.dolt.set_branch(remote_uuid):
+                    self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [(submission.source, submission.sid, submission.updated, submission.part) for submission in submissions])
 
         # 3. Move the annex files to the annex directory.
 

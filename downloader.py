@@ -35,36 +35,31 @@ class GitAnnexDownloader:
         self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
         logger.info(f"Local UUID: {self.local_uuid}")
         self.dolt_server = dolt_server
-        # Create personal branch if it doesn't exist.
-        # TODO: Make a branch with no parents.
-        try:
-            self.dolt_server.execute("CALL DOLT_BRANCH(%s);", (self.local_uuid,))
-            with self.dolt_server.set_branch(self.local_uuid):
-                self.dolt_server.execute(db.PERSONAL_BRANCH_INIT_SQL, [])
-                self.dolt_server.commit(False)
-        except pymysql.err.OperationalError as e:
-            if "already exists" not in str(e):
-                raise
+        # Initialize the local branch if it doesn't exist
+        with self.dolt_server.maybe_create_branch(self.local_uuid):
+            for query in db.PERSONAL_BRANCH_INIT_SQL:
+                self.dolt_server.execute(query, [])
+            self.dolt_server.commit(False)
 
     @dry_run("Would record that uuid {uuid} is a source for this remote")
     def add_local_source(self, key: AnnexKey):
         """Add a source to the database for a key"""
         # self.cache.mark_present(key)
-        self.cache.insert_source(key, self.local_uuid)
+        self.cache.insert_key_source(key, self.local_uuid)
 
     def add_remote_source(self, key: AnnexKey, uuid: UUID):
         """Add a source to the database for a key"""
-        self.cache.insert_source(key, uuid)
+        self.cache.insert_key_source(key, uuid)
 
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: AnnexKey, uuid: UUID):
         """Add a source to the database for a key"""
-        self.cache.insert_source(key, uuid)
+        self.cache.insert_key_source(key, uuid)
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: AnnexKey):
         self.cache.insert_url(key, url)
-        self.cache.insert_source(key, WEB_UUID)
+        self.cache.insert_key_source(key, WEB_UUID)
 
     @dry_run("Would record that key {key} has md5 {md5}")
     def record_md5(self, md5: str, key: str):
@@ -129,7 +124,7 @@ class GitAnnexDownloader:
                     if log_content:
                         uuid_dict = annex.parse_log_file(log_content)
                         for source in uuid_dict or []:
-                            self.cache.insert_source(key, source)
+                            self.cache.insert_key_source(key, source)
 
                 if record_urls:
                     # Check for web URLs

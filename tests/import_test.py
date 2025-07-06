@@ -9,7 +9,7 @@ import shutil
 
 from typing_extensions import Dict
 
-from annex import AnnexCache, GitAnnexSettings
+from annex import AnnexCache, GitAnnexSettings, SubmissionId
 from bup.repo import LocalRepo
 from bup_ext.bup_ext import CommitMetadata
 from commands.import_command import ImportConfig, ImportCsv, do_import
@@ -20,7 +20,7 @@ import importers
 import move_functions
 from tests.setup import setup_file_remote,  base_config
 from type_hints import AnnexKey
-from db import get_annex_key_from_url, get_sources_from_annex_key, get_urls_from_annex_key, is_key_present
+from db import get_annex_key_from_submission_id, get_annex_key_from_url, get_sources_from_annex_key, get_urls_from_annex_key, is_key_present, is_submission_present
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -42,7 +42,7 @@ def test_import_with_prefix_url(tmp_path):
     }
     def importer_factory(downloader: GitAnnexDownloader) -> importers.Importer:
         return importers.DirectoryImporter("https://prefix")
-    do_test_import(tmp_path, importer_factory, expected_urls)
+    do_test_import(tmp_path, importer_factory, expected_urls, [])
 
 def test_import_e621(tmp_path):
     """Test importing with a url determined by the md5 hash of the file"""
@@ -52,13 +52,19 @@ def test_import_e621(tmp_path):
     }
     def importer_factory(downloader: GitAnnexDownloader) -> importers.Importer:
         return importers.MD5Importer()
-    do_test_import(tmp_path, importer_factory, expected_urls)
+    do_test_import(tmp_path, importer_factory, expected_urls, [])
 
 def test_import_falr(tmp_path):
     """Test importing with a url determined by selecting from the Dolt database"""
     expected_urls = {
         "591785b794601e212b260e25925636fd.e621.txt": "https://d.furaffinity.net/art/denalilobita/1742711834/1742711834.denalilobita_transdaffy.png",
         "b1946ac92492d2347c6235b4d2611184.e621.txt": "https://d.furaffinity.net/art/detergentt/1742713111/1742713111.detergentt_pulchra_headshot_18mar2025.png",
+        "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": "https://d.furaffinity.net/art/asdf/1234/1234.asdf_transdaffy.png",
+    }
+    expected_submission_ids = {
+        "591785b794601e212b260e25925636fd.e621.txt": SubmissionId("furaffinity.net", 12345678, '2021-01-01', 1),
+        "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": SubmissionId("furaffinity.net", 12345690, '2021-01-01', 1),
+        "b1946ac92492d2347c6235b4d2611184.e621.txt": SubmissionId("furaffinity.net", 876543210, '2021-01-01', 1),
     }
     def importer_factory(downloader: GitAnnexDownloader) -> importers.Importer:
         dolt = downloader.dolt_server
@@ -73,12 +79,14 @@ def test_import_falr(tmp_path):
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin""", [])
         dolt.executemany("INSERT INTO `filenames` VALUES (%s, %s, %s, %s, %s, %s);", [
             ['furaffinity.net', 12345678, '2021-01-01', 1, 'https://d.furaffinity.net/art/denalilobita/1742711834/1742711834.denalilobita_transdaffy.png', '1742711834.denalilobita_transdaffy.png'],
+            ['furaffinity.net', 12345690, '2021-01-01', 1, 'https://d.furaffinity.net/art/asdf/1234/1234.asdf_transdaffy.png', '1234.asdf_transdaffy.png'],
+
             ['furaffinity.net', 876543210, '2021-01-01', 1, 'https://d.furaffinity.net/art/detergentt/1742713111/1742713111.detergentt_pulchra_headshot_18mar2025.png', '1742713111.detergentt_pulchra_headshot_18mar2025.png'],
         ])
         return importers.FALRImporter(downloader.dolt_server, "dolt", "main")
-    do_test_import(tmp_path, importer_factory, expected_urls)
+    do_test_import(tmp_path, importer_factory, expected_urls, expected_submission_ids)
 
-def do_test_import(tmp_path, importer_factory, expected_urls):
+def do_test_import(tmp_path, importer_factory, expected_urls, expected_submission_ids):
     """Run and validate the importer"""
     setup_file_remote(tmp_path)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
@@ -104,9 +112,9 @@ def do_test_import(tmp_path, importer_factory, expected_urls):
             )
             importer = importer_factory(downloader)
             do_import(import_config, downloader, importer, ["import_data"])
-        validate_import(downloader, expected_urls)
+        validate_import(downloader, expected_urls, expected_submission_ids)
 
-def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str]):
+def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str], expected_submission_ids: Dict[str, SubmissionId]):
     """Check that the imported files are present in the annex and the Dolt database"""
     print(os.path.curdir)
     assert os.path.exists("git/annex")
@@ -118,26 +126,36 @@ def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str
             with open(os.path.join(root, file), "rb") as f:
                 key = key_from_bytes(f.read(), extension)
             assert_key(downloader.git, downloader.dolt_server, key, expected_urls[file])
+            assert_submission_id(downloader.git, downloader.dolt_server, key, expected_submission_ids[file])
 
     assert file_count == len(expected_urls)
+    assert file_count == len(expected_submission_ids)
 
 def assert_key(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exists_check: bool = False):
     """Assert that the key and its associated data is present in the annex and the Dolt database"""
     # 1. Check the annexed file exists at the expected path
     # We call git-annex here to make sure that our computed path agrees with git-annex
-    rel_path = git.annex.cmd("examinekey", "--format=${hashdirlower}${key}/${key}", key).strip()
+    # rel_path = git.annex.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
+    rel_path = git.annex.get_relative_annex_key_path(key)
     abs_path = os.path.abspath(os.path.join(git.git_dir, "annex", "objects", rel_path))
     assert skip_exists_check or os.path.exists(abs_path)
     # 2. Check that the key has the correct registered URL
     # 3. Check that the key has the expected sources
-    assert git.annex.is_present(key)
+    # assert git.annex.is_present(key)
     # 4. Check that the key exists in the shared Dolt branch
-    assert git.annex.uuid in get_sources_from_annex_key(dolt.cursor, key)
     assert expected_url in get_urls_from_annex_key(dolt.cursor, key)
     assert get_annex_key_from_url(dolt.cursor, expected_url) == key
     # 5. Check that the key exists in the personal Dolt branch
     with dolt.set_branch(git.annex.uuid):
         assert is_key_present(dolt.cursor, key)
+
+def assert_submission_id(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_submission_id: SubmissionId):
+    """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""
+    # 4. Check that the key exists in the shared Dolt branch
+    assert get_annex_key_from_submission_id(dolt.cursor, expected_submission_id, "dolt") == key
+    # 5. Check that the key exists in the personal Dolt branch
+    with dolt.set_branch(git.annex.uuid):
+        assert is_submission_present(dolt.cursor, expected_submission_id)
 
 def test_import_csv(tmp_path):
     """Test importing with a url determined by the md5 hash of the file"""

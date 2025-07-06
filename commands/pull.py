@@ -1,11 +1,12 @@
 
 import os
-from typing_extensions import Iterable, Optional
+from typing_extensions import Iterable, Optional, Tuple
 
 from plumbum import cli # type: ignore
 
+from annex import SubmissionId
 from application import Application, Downloader
-from commands.push import file_mover, diff_keys, diff_keys_from_source
+from commands.push import FileMover, file_mover, diff_keys, diff_keys_from_source
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
@@ -69,6 +70,29 @@ class Pull(cli.Application):
             dolt_remote = self.dolt_remote or self.parent.config.dolt_remote
             do_pull(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
         return 0
+    
+def pull_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+    files_pulled = 0
+    for key in keys:
+        rel_key_path = git.annex.get_relative_annex_key_path(key)
+        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        if not mover.get(rel_key_path, old_rel_key_path):
+            mover.get(rel_key_path, rel_key_path)
+        downloader.cache.insert_key_source(key, local_uuid)
+        files_pulled += 1
+    return files_pulled
+
+def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+    files_pulled = 0
+    for key, submission in keys_and_submissions:
+        rel_key_path = git.annex.get_relative_annex_key_path(key)
+        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        if not mover.get(rel_key_path, old_rel_key_path):
+            mover.get(rel_key_path, rel_key_path)
+        downloader.cache.insert_key_source(key, local_uuid)
+        downloader.cache.insert_submission_source(submission, local_uuid)
+        files_pulled += 1
+    return files_pulled
 
 def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, source: Optional[str], limit: Optional[int] = None) -> int:
     git = downloader.git
@@ -83,23 +107,20 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
         git.fetch(git_remote, f"refs/remotes/{git_remote}/git-annex")
         git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
 
-    keys: Iterable[AnnexKey]
-    if len(args) == 0:
-        if source is not None:
-            keys = diff_keys_from_source(dolt, dolt_remote, remote_uuid, source, limit)
-        else:
-            keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
-    else:
-        keys = args
-
     with file_mover(git, git_remote, ssh_config, known_hosts) as mover:
-        for key in keys:
-            # key_path = git.annex.get_annex_key_path(key)
-            rel_key_path = git.annex.get_relative_annex_key_path(key)
-            old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-            if not mover.get(rel_key_path, old_rel_key_path):
-                mover.get(rel_key_path, rel_key_path)
-            downloader.cache.insert_source(key, local_uuid)
-            files_pulled += 1
+        if len(args) == 0:
+            total_files_pulled = 0
+            while True:
+                if source is not None:
+                    keys_and_submissions = diff_keys_from_source(dolt, dolt_remote, remote_uuid, source, limit)
+                    files_pulled = pull_submissions_and_keys(keys_and_submissions, git, downloader, mover, local_uuid)
+                else:
+                    keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
+                    files_pulled = pull_keys(keys, git, downloader, mover, local_uuid)
+                if files_pulled == 0:
+                    break
+                total_files_pulled += files_pulled
+            return total_files_pulled
+        else:
+            return pull_keys(args, git, downloader, mover, local_uuid)
 
-    return files_pulled

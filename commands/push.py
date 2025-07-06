@@ -1,19 +1,19 @@
 from contextlib import contextmanager
 import os
-from typing import Generator
 
-from typing_extensions import Iterable, Optional
+from typing_extensions import Iterable, Optional, Generator, Tuple
 
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
+from annex import SubmissionId
 from application import Application, Downloader
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 from git import Git
 import move_functions
 from move_functions import MoveFunction
-from type_hints import AnnexKey, PathLike
+from type_hints import UUID, AnnexKey, PathLike
 from logger import logger
 
 class FileMover:
@@ -193,7 +193,7 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
                 except Exception:
                     old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
                     mover.put(old_rel_key_path, rel_key_path)
-                downloader.cache.insert_source(key, remote_uuid)
+                downloader.cache.insert_key_source(key, remote_uuid)
                 files_pushed += 1
             except Exception as e:
                 logger.error(f"Failed to push {key}: {e}")
@@ -211,6 +211,29 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
         dolt.push_branch("main", dolt_remote)
         dolt.push_branch(git.annex.uuid, dolt_remote)
         dolt.push_branch(remote_uuid, dolt_remote)
+    return files_pushed
+
+def push_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+    files_pushed = 0
+    for key in keys:
+        rel_key_path = git.annex.get_relative_annex_key_path(key)
+        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        if not mover.get(rel_key_path, old_rel_key_path):
+            mover.get(rel_key_path, rel_key_path)
+        downloader.cache.insert_key_source(key, local_uuid)
+        files_pushed += 1
+    return files_pushed
+
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+    files_pushed = 0
+    for key, submission in keys_and_submissions:
+        rel_key_path = git.annex.get_relative_annex_key_path(key)
+        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        if not mover.get(rel_key_path, old_rel_key_path):
+            mover.get(rel_key_path, rel_key_path)
+        downloader.cache.insert_key_source(key, local_uuid)
+        downloader.cache.insert_submission_source(submission, local_uuid)
+        files_pushed += 1
     return files_pushed
 
 def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
@@ -246,7 +269,7 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
             assert diff_type == "added"
             yield AnnexKey(annex_key)
 
-def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[AnnexKey]:
+def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}"
@@ -254,9 +277,10 @@ def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, sou
     
     with dolt.maybe_create_branch(union_branch_name, in_ref):
         if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
+            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` USING url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
         else:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON dolt_commit_diff_local_submissions.to_annex_key = `annex-keys`.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
-        for (diff_type, annex_key) in query:
-            if diff_type == "added":
-                yield AnnexKey(annex_key)
+            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` USING url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
+        for (diff_type, annex_key, to_source, to_sid, to_updated, to_part) in query:
+            assert diff_type == "added"
+            assert to_source == source
+            yield (AnnexKey(annex_key), SubmissionId(to_source, to_sid, to_updated, to_part))

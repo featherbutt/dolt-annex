@@ -125,7 +125,8 @@ def do_init(base_config: Config, init_config: InitConfig):
             dolt("commit", "-m", "init shared branch")
         dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
         dolt("checkout", '-b', local_uuid)
-        dolt("sql", "-q", PERSONAL_BRANCH_INIT_SQL)
+        for query in PERSONAL_BRANCH_INIT_SQL:
+            dolt("sql", "-q", query)
         dolt("add", ".")
         dolt("commit", "-m", "init personal branch")
         dolt("checkout", "main")

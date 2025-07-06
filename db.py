@@ -9,6 +9,8 @@ import json
 
 from typing_extensions import Dict, Iterable, List, Optional, Tuple
 
+from annex import SubmissionId
+
 SHARED_BRANCH_INIT_SQL = """
 create table `annex-keys` (url varchar(1000) primary key, `annex-key` varchar(1000), key (`annex-key`, url));
 create table `sources` (`annex-key` varchar(1000) primary key, `sources` json, `numSources` int generated always as (JSON_LENGTH(sources)) STORED, index (`numSources`));
@@ -18,6 +20,15 @@ create table `hashes` (`hash` varbinary(256), `hashType` enum('md5'), `annex-key
 def get_annex_key_from_url(cursor, url: str) -> Optional[str]:
     '''Get the annex key for a given url'''
     cursor.execute("SELECT `annex-key` FROM `annex-keys` WHERE url = %s", (url,))
+    res = cursor.fetchone()
+    if res is None:
+        return None
+    return res[0]
+
+def get_annex_key_from_submission_id(cursor, submission_id: SubmissionId, db: str) -> Optional[str]:
+    '''Get the annex key for a given submission ID'''
+    cursor.execute(f"SELECT `annex-key` FROM `{db}/main`.filenames JOIN `annex-keys` ON filenames.url = `annex-keys`.url WHERE `source` = %s AND `id` = %s AND `updated` = %s AND `part` = %s",
+                   (submission_id.source, submission_id.sid, submission_id.updated, submission_id.part))
     res = cursor.fetchone()
     if res is None:
         return None
@@ -39,13 +50,19 @@ def get_sources_from_annex_key(cursor, key: str) -> Iterable[str]:
     return sources.keys()
 
 
-PERSONAL_BRANCH_INIT_SQL = """
-create table `local_keys` (`annex-key` varchar(1000) primary key);
-"""
+PERSONAL_BRANCH_INIT_SQL = [
+    "create table if not exists `local_keys` (`annex-key` varchar(1000) primary key);",
+    "create table if not exists `local_submissions` (`source` enum('archiveofourown.org','furaffinity.net','e621.net','gelbooru.com','rule34.us','danbooru.donmai.us','e6ai.net') NOT NULL, `id` int NOT NULL, `updated` date NOT NULL, `part` int NOT NULL, PRIMARY KEY (`source`,`id`,`updated`,`part`));",
+]
 
 def is_key_present(cursor, key: str) -> bool:
-    '''Get the sources for a given annex key'''
     cursor.execute("SELECT COUNT(*) FROM `local_keys` WHERE `annex-key` = %s", (key,))
+    (count,) = cursor.fetchone()
+    return count > 0
+
+def is_submission_present(cursor, submission_id: SubmissionId) -> bool:
+    cursor.execute("SELECT COUNT(*) FROM `local_submissions` WHERE `source` = %s AND `id` = %s AND `updated` = %s AND `part` = %s",
+                   (submission_id.source, submission_id.sid, submission_id.updated, submission_id.part))
     (count,) = cursor.fetchone()
     return count > 0
 

@@ -1,15 +1,20 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import os
 
-from typing_extensions import List
+from typing_extensions import List, Optional
 
 from plumbum import local # type: ignore
 
 import annex
+from dolt import DoltSqlServer
 
 class Importer(AbstractBaseClass):
     @abstractmethod
     def url(self, abs_path: str, rel_path: str) -> List[str]:
+        ...
+
+    @abstractmethod
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
         ...
 
     @abstractmethod
@@ -33,6 +38,10 @@ class OtherAnnexImporter(Importer):
             return annex.parse_web_log(web_log)
         return []
     
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        return None
+
+    
     def md5(self, path: str) -> str | None:
         return None
     
@@ -49,11 +58,14 @@ class DirectoryImporter(Importer):
     def md5(self, path: str) -> str | None:
         return None
     
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        return None
+    
     def skip(self, path: str) -> bool:
         return False
 
 class FALRImporter(Importer):
-    def __init__(self, dolt_sql_server, other_dolt_db: str, other_dolt_branch: str):
+    def __init__(self, dolt_sql_server: DoltSqlServer, other_dolt_db: str, other_dolt_branch: str):
         self.dolt_sql_server = dolt_sql_server
         self.other_dolt_db = other_dolt_db
         self.other_dolt_branch = other_dolt_branch
@@ -61,9 +73,21 @@ class FALRImporter(Importer):
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         parts = abs_path.split(os.path.sep)
         sid = int(''.join(parts[-6:-1]))
-        res = self.dolt_sql_server.execute(f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;", (sid,))
+        query = f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
+        print(f"Executing query: {query} with sid: {sid}")
+        res = self.dolt_sql_server.query(query, (sid,))
         return [row[0] for row in res]
     
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        parts = abs_path.split(os.path.sep)
+        sid = int(''.join(parts[-6:-1]))
+        query = f"SELECT DISTINCT updated, part FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
+        print(f"Executing query: {query} with sid: {sid}")
+        res = self.dolt_sql_server.query(query, (sid,))
+        for row in res:
+            return annex.SubmissionId("furaffinity.net", sid, row[0], row[1])
+        return None
+
     def md5(self, path: str) -> str | None:
         return None
     
@@ -91,6 +115,9 @@ class MD5Importer(Importer):
             return [f"https://cdn.donmai.us/original/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
         else:
             raise ValueError(f"Unknown source: {basename}")
+        
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        return None
     
     def md5(self, path: str) -> str | None:
         basename = os.path.basename(path)
@@ -103,6 +130,9 @@ class NullImporter(Importer):
     """An importer that does nothing."""
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         return []
+    
+    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        return None
     
     def md5(self, path: str) -> str | None:
         return None
