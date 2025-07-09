@@ -77,6 +77,7 @@ class AnnexCache:
     sources: Dict[str, List[str]]
     remote_keys: Dict[UUID, Set[AnnexKey]]
     remote_submissions: Dict[UUID, List[SubmissionId]]
+    submission_keys: Dict[SubmissionId, AnnexKey]
     git: Git
     dolt: DoltSqlServer
     auto_push: bool
@@ -97,6 +98,7 @@ class AnnexCache:
         self.flush_hooks = []
         self.remote_keys = {}
         self.remote_submissions = {}
+        self.submission_keys = {}
         self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
@@ -138,6 +140,11 @@ class AnnexCache:
             if source not in self.remote_submissions:
                 self.remote_submissions[source] = []
             self.remote_submissions[source].append(submission)
+
+        self.increment_count()
+
+    def insert_submission_key(self, submission: SubmissionId, key: AnnexKey):
+        self.submission_keys[submission] = key
 
         self.increment_count()
 
@@ -192,6 +199,9 @@ class AnnexCache:
                 with self.dolt.set_branch(remote_uuid):
                     self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [(submission.source, submission.sid, submission.updated, submission.part) for submission in submissions])
 
+        if self.submission_keys:
+            self.dolt.executemany(sql.SUBMISSION_KEYS_SQL, [(submission.source, submission.sid, submission.updated, submission.part, key) for submission, key in self.submission_keys.items()])
+
         # 3. Move the annex files to the annex directory.
 
         for hook in self.flush_hooks:
@@ -202,6 +212,8 @@ class AnnexCache:
         self.md5s.clear()
         self.sources.clear()
         self.remote_keys.clear()
+        self.remote_submissions.clear()
+        self.submission_keys.clear()
 
         new_now = time.time()
         elapsed_time = new_now - self.time

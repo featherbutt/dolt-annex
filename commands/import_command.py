@@ -209,6 +209,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
         sid = importer.submission_id(original_path, path)
         if sid:
             downloader.cache.insert_submission_source(sid, downloader.local_uuid)
+            downloader.cache.insert_submission_key(sid, key)
         if (md5 := importer.md5(original_path)):
             downloader.record_md5(md5, key)
 

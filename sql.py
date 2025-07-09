@@ -35,6 +35,11 @@ LOCAL_SUBMISSIONS_SQL = """
     VALUES (%s, %s, %s, %s);
 """
 
+SUBMISSION_KEYS_SQL = """
+    INSERT IGNORE INTO `file_keys` (`source`, `id`, `updated`, `part`, `file_key`)
+    VALUES (%s, %s, %s, %s, %s);
+"""
+
 # What follows is a hack. Ideally we'd like to get a page of urls by simply executing a query like:
 #
 # SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL OFFSET X LIMIT 1000;
