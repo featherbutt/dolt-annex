@@ -54,7 +54,7 @@ class Import(cli.Application):
         "--batch_size",
         int,
         help="The number of files to process at once",
-        default = 1000,
+        default = 10000,
     )
 
     from_csv = cli.SwitchAttr(
@@ -133,7 +133,7 @@ class Import(cli.Application):
         elif self.from_md5:
             return importers.MD5Importer()
         elif self.from_falr:
-            return importers.FALRImporter(downloader.dolt_server, "filenames", "filenames")
+            return importers.FALRImporter(downloader.dolt_server, "gallery-archive", "main")
         else:
             return importers.NullImporter()
         
@@ -200,7 +200,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
     logger.debug(f"Importing file {path}")
     abs_path = PathLike(os.path.abspath(path))
     key = downloader.git.annex.calckey(abs_path)
-    downloader.add_local_source(key)
+    # downloader.add_local_source(key)
 
     if importer:
         urls = importer.url(original_path, path)

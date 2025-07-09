@@ -74,7 +74,6 @@ class FALRImporter(Importer):
         parts = abs_path.split(os.path.sep)
         sid = int(''.join(parts[-6:-1]))
         query = f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
-        print(f"Executing query: {query} with sid: {sid}")
         res = self.dolt_sql_server.query(query, (sid,))
         return [row[0] for row in res]
     
@@ -82,7 +81,6 @@ class FALRImporter(Importer):
         parts = abs_path.split(os.path.sep)
         sid = int(''.join(parts[-6:-1]))
         query = f"SELECT DISTINCT updated, part FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
-        print(f"Executing query: {query} with sid: {sid}")
         res = self.dolt_sql_server.query(query, (sid,))
         for row in res:
             return annex.SubmissionId("furaffinity.net", sid, row[0], row[1])
@@ -92,7 +90,7 @@ class FALRImporter(Importer):
         return None
     
     def skip(self, path: str) -> bool:
-        return 'thumbnail' in path.split('/')[-1]
+        return 'ubmission' not in path.split('/')[-1]
 
 class MD5Importer(Importer):
     def url(self, abs_path: str, rel_path: str) -> List[str]:
