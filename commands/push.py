@@ -283,9 +283,9 @@ def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, sou
     
     with dolt.maybe_create_branch(union_branch_name, in_ref):
         if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` USING url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
+            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON `annex-keys`.url = filenames.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
         else:
-            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` USING url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
+            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_sid`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON `annex-keys`.url = filenames.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
         for (diff_type, annex_key, to_source, to_sid, to_updated, to_part) in query:
             assert diff_type == "added"
             assert to_source == source

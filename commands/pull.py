@@ -112,7 +112,7 @@ def do_pull(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
             total_files_pulled = 0
             while True:
                 if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, dolt_remote, remote_uuid, source, limit)
+                    keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
                     files_pulled = pull_submissions_and_keys(keys_and_submissions, git, downloader, mover, local_uuid)
                 else:
                     keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
