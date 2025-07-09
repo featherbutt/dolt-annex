@@ -57,7 +57,7 @@ class Pull(cli.Application):
         help="The name of the dolt remote",
     )
 
-    dolt_remote = cli.SwitchAttr(
+    source = cli.SwitchAttr(
         "--source",
         str,
         help="Filter pulled files to those from a specific original source",
@@ -68,7 +68,7 @@ class Pull(cli.Application):
         with Downloader(self.parent.config, self.batch_size) as downloader:
             git_remote = self.git_remote or self.parent.config.git_remote
             dolt_remote = self.dolt_remote or self.parent.config.dolt_remote
-            do_pull(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
+            do_pull(downloader, git_remote, dolt_remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
     
 def pull_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:

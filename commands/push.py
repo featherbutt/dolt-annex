@@ -157,15 +157,21 @@ class Push(cli.Application):
         help="The name of the dolt remote",
     )
 
+    source = cli.SwitchAttr(
+        "--source",
+        str,
+        help="Filter pulled files to those from a specific original source",
+    )
+
     def main(self, *args) -> int:
         """Entrypoint for push command"""
         with Downloader(self.parent.config, self.batch_size) as downloader:
             git_remote = self.git_remote or self.parent.config.git_remote
             dolt_remote = self.dolt_remote or self.parent.config.dolt_remote
-            do_push(downloader, git_remote, dolt_remote, args, self.ssh_config, None, self.limit)
+            do_push(downloader, git_remote, dolt_remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, limit: Optional[int] = None) -> int:
+def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, source: Optional[str], limit: Optional[int] = None) -> int:
     git = downloader.git
     dolt = downloader.dolt_server
     files_pushed = 0
