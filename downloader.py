@@ -45,21 +45,22 @@ class GitAnnexDownloader:
     def add_local_source(self, key: AnnexKey):
         """Add a source to the database for a key"""
         # self.cache.mark_present(key)
-        self.cache.insert_key_source(key, self.local_uuid)
+        # self.cache.insert_key_source(key, self.local_uuid)
 
     def add_remote_source(self, key: AnnexKey, uuid: UUID):
         """Add a source to the database for a key"""
-        self.cache.insert_key_source(key, uuid)
+        # self.cache.insert_key_source(key, uuid)
 
     @dry_run("Would record that uuid {uuid} is a source for key {key}")
     def add_source(self, key: AnnexKey, uuid: UUID):
         """Add a source to the database for a key"""
-        self.cache.insert_key_source(key, uuid)
+        # self.cache.insert_key_source(key, uuid)
 
     @dry_run("Would record the we have a copy of key {key} from url {url}")
     def update_database(self, url: str, key: AnnexKey):
-        self.cache.insert_url(key, url)
-        self.cache.insert_key_source(key, WEB_UUID)
+        """Record that we have a copy of a key from a URL"""
+        # self.cache.insert_url(key, url)
+        # self.cache.insert_key_source(key, WEB_UUID)
 
     @dry_run("Would record that key {key} has md5 {md5}")
     def record_md5(self, md5: str, key: str):

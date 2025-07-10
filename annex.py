@@ -59,7 +59,7 @@ def parse_web_log(content: str) -> List[str]:
 # - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
-@dataclass
+@dataclass(frozen=True)
 class SubmissionId:
     source: str
     sid: int
