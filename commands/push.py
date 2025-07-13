@@ -280,7 +280,10 @@ def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, sou
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}"
     # Create the union branch if it doesn't exist
-    
+    with dolt.set_branch(in_ref):
+        dolt.commit(amend = True)
+    with dolt.set_branch(not_in_ref):
+        dolt.commit(amend = True)
     with dolt.maybe_create_branch(union_branch_name, in_ref):
         dolt.merge(in_ref)
         dolt.merge(not_in_ref)
