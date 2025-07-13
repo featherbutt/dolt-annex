@@ -29,12 +29,12 @@ class FileMover:
         self.put_function = put_function
         self.get_function = get_function
 
-    def put(self, local_path: str, remote_path: str) -> None:
+    def put(self, local_path: str, remote_path: str) -> bool:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
         abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
         logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        self.put_function(
+        return self.put_function(
             abs_local_path,
             abs_remote_path)
         
@@ -190,7 +190,7 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
             while True:
                 if source is not None:
                     keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
-                    files_pushed = push_submissions_and_keys(keys_and_submissions, git, downloader, mover, local_uuid)
+                    files_pushed = push_submissions_and_keys(keys_and_submissions, git, downloader, mover, remote_uuid)
                 else:
                     keys = list(diff_keys(dolt, local_uuid, remote_uuid, limit))
                     files_pushed = push_keys(keys, git, downloader, mover, local_uuid)
@@ -215,26 +215,25 @@ def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, a
         dolt.push_branch(remote_uuid, dolt_remote)
     return files_pushed
 
-def push_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+def push_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
     files_pushed = 0
     for key in keys:
         rel_key_path = git.annex.get_relative_annex_key_path(key)
         old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-        if not mover.get(rel_key_path, old_rel_key_path):
-            mover.get(rel_key_path, rel_key_path)
-        downloader.cache.insert_key_source(key, local_uuid)
+        if not mover.put(old_rel_key_path, rel_key_path):
+            mover.put(rel_key_path, rel_key_path)
+        downloader.cache.insert_key_source(key, remote_uuid)
         files_pushed += 1
     return files_pushed
 
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], git: Git, downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], git: Git, downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
     files_pushed = 0
     for key, submission in keys_and_submissions:
         rel_key_path = git.annex.get_relative_annex_key_path(key)
         old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
-        if not mover.get(rel_key_path, old_rel_key_path):
-            mover.get(rel_key_path, rel_key_path)
-        downloader.cache.insert_key_source(key, local_uuid)
-        downloader.cache.insert_submission_source(submission, local_uuid)
+        if not mover.put(old_rel_key_path, rel_key_path):
+            mover.put(rel_key_path, rel_key_path)
+        downloader.cache.insert_submission_source(submission, remote_uuid)
         files_pushed += 1
     return files_pushed
 
