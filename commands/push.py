@@ -262,12 +262,17 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
     with dolt.maybe_create_branch(union_branch_name, in_ref):
         dolt.merge(in_ref)
         dolt.merge(not_in_ref)
+        query = """
+        SELECT `to_annex-key`
+        FROM dolt_commit_diff_local_keys
+        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND diff_type = 'added'
+        """
         if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) LIMIT %s;", (not_in_ref, union_branch_name, limit))
+            query += " LIMIT %s"
+            query_results = dolt.query(query, (not_in_ref, union_branch_name, limit))
         else:
-            query = dolt.query("SELECT diff_type, `to_annex-key` FROM dolt_commit_diff_local_keys WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s);", (not_in_ref, union_branch_name))
-        for (diff_type, annex_key) in query:
-            assert diff_type == "added"
+            query_results = dolt.query(query, (not_in_ref, union_branch_name))
+        for (annex_key,) in query_results:
             yield AnnexKey(annex_key)
 
 def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
@@ -277,11 +282,23 @@ def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, sou
     # Create the union branch if it doesn't exist
     
     with dolt.maybe_create_branch(union_branch_name, in_ref):
+        dolt.merge(in_ref)
+        dolt.merge(not_in_ref)
+        query = """
+        SELECT
+            `annex-key`, `to_source`, `to_id`, `to_updated`, `to_part`
+        FROM dolt_commit_diff_local_submissions
+        JOIN filenames AS OF submissions
+            ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
+        JOIN `annex-keys` AS OF files
+            ON `annex-keys`.url = filenames.url
+        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s AND diff_type = 'added'
+        """
         if limit is not None:
-            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_id`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON `annex-keys`.url = filenames.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s LIMIT %s;", (not_in_ref, in_ref, source, limit))
+            query += " LIMIT %s"
+            query_results = dolt.query(query, (not_in_ref, union_branch_name, source, limit))
         else:
-            query = dolt.query("SELECT diff_type, `to_annex-key`, `to_source`, `to_id`, `to_updated`, `to_part` FROM dolt_commit_diff_local_submissions JOIN filenames ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part JOIN `annex-keys` ON `annex-keys`.url = filenames.url WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s;", (not_in_ref, in_ref, source))
-        for (diff_type, annex_key, to_source, to_sid, to_updated, to_part) in query:
-            assert diff_type == "added"
+            query_results = dolt.query(query, (not_in_ref, union_branch_name, source))
+        for (annex_key, to_source, to_sid, to_updated, to_part) in query_results:
             assert to_source == source
             yield (AnnexKey(annex_key), SubmissionId(to_source, to_sid, to_updated, to_part))
