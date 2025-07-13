@@ -135,7 +135,7 @@ class Push(cli.Application):
         "--known-hosts",
         str,
         help="The path to the known hosts file",
-        default = "~/.ssh/known_hosts",
+        default = None,
     )
 
     limit = cli.SwitchAttr(
