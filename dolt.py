@@ -11,6 +11,7 @@ import pymysql
 
 from dry_run import dry_run
 from logger import logger
+from remote import Remote
 
 class DoltSqlServer:
 
@@ -94,7 +95,7 @@ class DoltSqlServer:
         self.cursor.execute("COMMIT;")
         self.connection.commit()
 
-    def commit(self, push: bool = True, amend: bool = False):
+    def commit(self, amend: bool = False):
         logger.debug("dolt add")
         self.cursor.execute("call DOLT_ADD('.');")
         logger.debug("dolt commit")
@@ -106,10 +107,6 @@ class DoltSqlServer:
         except pymysql.err.OperationalError as e:
             if "nothing to commit" not in str(e):
                 raise
-        if push:
-            logger.debug("dolt push")
-            self.cursor.execute("call DOLT_PUSH();")
-        self.garbage_collect()
 
     def maybe_create_branch(self, branch: str, start_point: str = "HEAD"):
         """
@@ -133,13 +130,13 @@ class DoltSqlServer:
         back to the previous branch when done."""
         return DoltBranch(self, branch)
 
-    def pull_branch(self, branch: str, remote: str):
+    def pull_branch(self, branch: str, remote: Remote):
         with self.set_branch(branch):
-            self.cursor.execute("call DOLT_PULL(%s, %s)", (remote, branch))
+            self.cursor.execute("call DOLT_PULL(%s, %s)", (remote.name, branch))
 
-    def push_branch(self, branch: str, remote: str):
+    def push_branch(self, branch: str, remote: Remote):
         with self.set_branch(branch):
-            self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote, branch))
+            self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote.name, branch))
             res = self.cursor.fetchone()
             assert res is not None
             status, _ = res
@@ -162,6 +159,8 @@ class DoltSqlServer:
 
     def merge(self, branch: str):
         """Merge the given branch into the current branch."""
+        with self.set_branch(branch):
+            self.commit(amend=True)
         try:
             self.cursor.execute("call DOLT_MERGE(%s);", (branch,))
         except pymysql.err.OperationalError as e:

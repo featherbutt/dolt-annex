@@ -6,22 +6,23 @@ from pathlib import Path
 import os
 import getpass
 import random
+import uuid
+from uuid import UUID
 
-from paramiko import PKey
 from plumbum import local # type: ignore
 
 from application import Config
-from commands.init import InitConfig, do_init
-from commands.server_command import server_context
+from commands.init import InitConfig, do_init, read_uuid
+from config import config
+from context import local_uuid
 from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
-from git import Git
+from remote import Remote
 
 base_config = Config(
     dolt_dir = "./dolt",
     dolt_db = "dolt",
+    files_dir= "./files",
     dolt_remote = "origin",
-    git_dir = "./git",
-    git_remote = "origin",
     email = "user@localhost",
     name = "user",
     annexcommitmessage = "commit message",
@@ -31,53 +32,64 @@ base_config = Config(
 )
 
 def setup_file_remote(tmp_path):
-    setup(tmp_path)
-    init("../git_origin")
+    origin_uuid = uuid.uuid4()
+    setup(tmp_path, origin_uuid)
+    init()
+    Path(os.path.join(tmp_path, "remote_files")).mkdir()
+    return Remote(
+        url=f"file://{tmp_path}/remote_files",
+        uuid=origin_uuid,
+        name="origin",
+    )
+    
 
 @contextmanager
 def setup_ssh_remote(tmp_path):
-    print(tmp_path)
     user = getpass.getuser()
     # sshd_process = local.cmd.sshd.popen(["-f", "tests/config/sshd_config"], )
     # sshd_process = local.cmd.sshd["-f", "tests/config/sshd_config"] & BG
-    setup(tmp_path)
-    init(f"{user}@localhost:{tmp_path}/git_origin")
-    yield
+    origin_uuid = uuid.uuid4()
+    setup(tmp_path, origin_uuid)
+    init()
+    Path(os.path.join(tmp_path, "remote_files")).mkdir()
+    yield Remote(
+        url=f"{user}@localhost:{tmp_path}/remote_files",
+        uuid=origin_uuid,
+        name="origin",
+    )
     # sshd_process.terminate()
 
-def setup(tmp_path):
+def setup(tmp_path, origin_uuid: UUID):
     os.chdir(tmp_path)
-    git = local.cmd.git
-    git("init", "--bare", "git_origin", "-b", "git-annex")
-    git = git["-C", "./git_origin"]
-    git("-c", "annex.tune.objecthashlower=true", "annex", "init")
-    git_config = git["config", "--local"]
-    origin_uuid = git_config("annex.uuid").strip()
     print(f"Origin UUID: {origin_uuid}")
     Path("./dolt_origin").mkdir()
+    # Dolt remotes are slightly different than local repos, so we make a temp repo and push it.
     Path("./dolt_tmp").mkdir()
     dolt = local.cmd.dolt.with_cwd("./dolt_tmp")
-    dolt("init", "-b", "main")
+    dolt("init", "-b", "files")
     
     dolt("checkout", "-b", origin_uuid)
     for query in PERSONAL_BRANCH_INIT_SQL:
         dolt("sql", "-q", query)
     dolt("add", ".")
     dolt("commit", "-m", "init personal branch")
-    dolt("checkout", "main")
+    dolt("checkout", "-b", "new")
+    dolt("checkout", "files")
     dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
     dolt("add", ".")
     dolt("commit", "-m", "init shared branch")
     dolt("remote", "add", "origin", "file://../dolt_origin/")
-    dolt("push", "origin", "main")
+    dolt("push", "origin", "files")
+    dolt("push", "origin", "new")
     dolt("push", "origin", origin_uuid)
     
-def init(git_remote_url: str):
+def init():
     init_config = InitConfig(
-        init_git = True,
         init_dolt = True,
-        git_url = git_remote_url,          # git_url is relative the git directory
         dolt_url = "file://./dolt_origin/", # dolt_url is relative to the base directory
         remote_name = "test_remote",
     )
+    Path(base_config.files_dir).mkdir(parents=True, exist_ok=True)
     do_init(base_config, init_config)
+    config.set(base_config)
+    local_uuid.set(read_uuid())

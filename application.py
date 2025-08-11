@@ -1,14 +1,15 @@
 from contextlib import contextmanager
-from dataclasses import dataclass
 import json
 
 from plumbum import cli # type: ignore
 
+import context
+from config import Config
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
-from git import Git
 import dry_run
-from annex import AnnexCache, GitAnnexSettings
+from annex import AnnexCache
+from type_hints import UUID
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
@@ -22,27 +23,6 @@ class Env:
     ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
     AUTO_PUSH = "DA_AUTO_PUSH"
     NO_GC = "DA_NO_GC"
-@dataclass
-class Config:
-    """Global configuration settings"""
-    dolt_dir: str
-    dolt_db: str
-    dolt_remote: str
-    git_dir: str
-    git_remote: str
-    email: str
-    name: str
-    spawn_dolt_server: bool = False
-    dolt_server_socket: str = "/tmp/mysql.sock"
-    annexcommitmessage: str = "update git-annex"
-    auto_push: bool = False
-    gc: bool = True
-
-    def validate(self):
-        """Ensure that all required fields are set"""
-        for field in ["dolt_dir", "dolt_db", "dolt_remote", "git_dir", "git_remote", "email", "name", "annexcommitmessage"]:
-            if getattr(self, field) is None:
-                raise ValueError(f"Missing configuration: {field}")
 
 class Application(cli.Application):
     """The top level CLI command"""
@@ -54,9 +34,8 @@ class Application(cli.Application):
         self.config = Config(
             dolt_dir = None,
             dolt_db = None,
+            files_dir = None,
             dolt_remote = None,
-            git_dir = None,
-            git_remote = None,
             email = None,
             name = None,
         )
@@ -138,17 +117,12 @@ def Downloader(base_config: Config, db_batch_size):
         "autocommit": True,
         "port": 3306,
     }
-    git = Git(base_config.git_dir)
-    commit_metadata = None #CommitMetadata()
-    git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
-        # LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
-        AnnexCache(None, dolt_server, git, git_annex_settings, base_config.auto_push, db_batch_size) as cache
+        AnnexCache(None, dolt_server, base_config.auto_push, db_batch_size) as cache
     ):
         downloader = GitAnnexDownloader(
                 cache = cache,
-                git = git,
                 dolt_server = dolt_server,
         )
         yield downloader

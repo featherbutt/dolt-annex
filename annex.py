@@ -11,12 +11,11 @@ from typing_extensions import Callable, Dict, List, Set
 
 import sql
 from dolt import DoltSqlServer
-from git import Git
 from logger import logger
 from type_hints import UUID, AnnexKey
 
 # reserved git-annex UUID for the web special remote
-WEB_UUID = UUID('00000000-0000-0000-0000-000000000001')
+WEB_UUID = '00000000-0000-0000-0000-000000000001'
 
 def parse_log_file(content: str) -> Set[UUID]:
     """Parse a .log file and return a set of UUIDs that have the file"""
@@ -68,17 +67,15 @@ class SubmissionId:
 
 @dataclass
 class GitAnnexSettings:
-    commit_metadata: None
     ref: bytes
 class AnnexCache:
     """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
     urls: Dict[str, List[str]]
     md5s: Dict[str, bytes]
-    sources: Dict[str, List[str]]
+    sources: Dict[AnnexKey, List[str]]
     remote_keys: Dict[UUID, Set[AnnexKey]]
     remote_submissions: Dict[UUID, List[SubmissionId]]
     submission_keys: Dict[SubmissionId, AnnexKey]
-    git: Git
     dolt: DoltSqlServer
     auto_push: bool
     batch_size: int
@@ -88,10 +85,8 @@ class AnnexCache:
     write_sources_table: bool = False
     write_git_annex: bool = False
 
-    def __init__(self, repo: None, dolt: DoltSqlServer, git: Git, git_annex_settings: GitAnnexSettings, auto_push: bool, batch_size: int):
-        self.repo = repo
+    def __init__(self, dolt: DoltSqlServer, auto_push: bool, batch_size: int):
         self.dolt = dolt
-        self.git = git
         self.urls = {}
         self.md5s = {}
         self.sources = {}
@@ -99,11 +94,9 @@ class AnnexCache:
         self.remote_keys = {}
         self.remote_submissions = {}
         self.submission_keys = {}
-        self.git_annex_settings = git_annex_settings
         self.batch_size = batch_size
         self.count = 0
         self.time = time.time()
-        self.local_uuid = git.config['annex.uuid']
         self.auto_push = auto_push
 
 
@@ -165,20 +158,7 @@ class AnnexCache:
         logger.debug("flushing cache")
 
         now = bytes(str(int(time.time())), encoding="utf8") + b"s"
-        # patch = DirectoryPatch()
-        def insert(key_values: Dict[str, List[str]], suffix: bytes):
-            for key, values in key_values.items():
-                key_path = bytes(self.git.annex.get_branch_key_path(key), encoding="utf8")
-                file_path = key_path + suffix
-                rows = [[now, b"1", bytes(value, encoding = "utf8")] for value in values]
-                # patch.insert(file_path, update_file(rows, 2))
 
-        if update_annex and (self.sources or self.urls):
-            logger.debug("creating git-annex patch")
-            insert(self.sources, b".log")
-            insert(self.urls, b".log.web")
-            logger.debug("applying git-annex patch")
-            # apply_patch(self.repo, self.git_annex_settings.ref, self.git_annex_settings.ref, patch, self.git_annex_settings.commit_metadata)
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug("flushing dolt database")

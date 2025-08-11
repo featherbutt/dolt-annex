@@ -9,6 +9,5 @@ def test_init(tmp_path):
     """Test that the repository is initialized correctly"""
     setup_file_remote(tmp_path)
     assert os.path.exists("dolt")
-    assert os.path.exists("git")
     assert os.path.exists("dolt/.dolt")
-    assert os.path.exists("git/annex")
+    assert os.path.exists("files")

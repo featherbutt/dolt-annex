@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import uuid
 from plumbum import cli, local # type: ignore
 
 from application import Application, Config
@@ -12,10 +13,8 @@ def is_wsl():
 
 @dataclass
 class InitConfig:
-    init_git: bool
-    init_dolt: bool
-    git_url: str
-    dolt_url: str
+    init_dolt: bool # Do we need to initialize the Dolt repository?
+    dolt_url: str   # Are we adding a remote Dolt repository?
     remote_name: str
     
 class Init(cli.Application):
@@ -26,16 +25,6 @@ class Init(cli.Application):
     no_dolt = cli.Flag(
         "--no-dolt",
         help = "Don't initialize the Dolt repository",
-    )
-
-    no_git = cli.Flag(
-        "--no-git",
-        help = "Don't initialize the Git repository",
-    )
-
-    git_url = cli.SwitchAttr(
-        "--git-url",
-        envname = "DA_GIT_URL",
     )
 
     dolt_url = cli.SwitchAttr(
@@ -56,57 +45,28 @@ class Init(cli.Application):
 
         base_config = self.parent.config
         init_config = InitConfig(
-            init_git = not self.no_git,
             init_dolt = not self.no_dolt,
-            git_url = self.git_url,
             dolt_url = self.dolt_url,
             remote_name = self.remote_name,
         )
 
         do_init(base_config, init_config)
 
+def read_uuid() -> uuid.UUID:
+    try:
+        with open("uuid", encoding="utf-8") as fd:
+            local_uuid = uuid.UUID(fd.read().strip())
+    except FileNotFoundError:
+        # Generate a new UUID if not found
+        local_uuid = uuid.uuid4()
+        with open("uuid", "w", encoding="utf-8") as fd:
+            fd.write(str(local_uuid))
+    return local_uuid
+
 def do_init(base_config: Config, init_config: InitConfig):
-    git = local.cmd.git["-C", base_config.git_dir]
-
-    git_config = git["config", "--local"]
-    git_annex = git["annex"]
-
-    if init_config.init_git:
-        Path(base_config.git_dir).mkdir(parents=True, exist_ok=True)
-        git("init", "--bare")
-        
-        git_config("user.name", base_config.name)
-        git_config("user.email", base_config.email)
-        git("-c", "annex.tune.objecthashlower=true", "annex", "init", init_config.remote_name)
-        git_config("annex.commitmessage", base_config.annexcommitmessage)
-        git_config("annex.maxextensions", "1")
-        if is_wsl():
-            git_config("annex.crippledfilesystem", "true")
-        
-        if init_config.git_url:
-            git("remote", "add", base_config.git_remote, init_config.git_url)
-            git("fetch", base_config.git_remote, "git-annex")
-        
-        git_annex("mincopies", "3")
-        git_annex("numcopies", "3")
-
-        git_annex("initremote", "--sameas=web", "tor", "type=web", "urlinclude=*//*.onion/*")
-        git_config("remote.tor.cost", "300")
-
-        git_annex("initremote", "--sameas=web", "nontor", "type=web", "urlexclude=*//*.onion/*")
-        git_config("remote.nontor.cost", "100")
-
-        git_annex("enableremote", "tor")
-        git_annex("enableremote", "nontor")
-
-        git_annex("untrust", "web")
-        git_annex("untrust", "tor")
-        git_annex("untrust", "nontor")
-
+    local_uuid = read_uuid()
     if init_config.init_dolt:
         Path(base_config.dolt_dir).mkdir(parents=True, exist_ok=True)
-
-        local_uuid = git_config("annex.uuid").strip()
 
         if init_config.dolt_url:
             #dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
@@ -124,10 +84,14 @@ def do_init(base_config: Config, init_config: InitConfig):
             dolt("add", ".")
             dolt("commit", "-m", "init shared branch")
         dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+        dolt("checkout", "new")
         dolt("checkout", '-b', local_uuid)
         for query in PERSONAL_BRANCH_INIT_SQL:
             dolt("sql", "-q", query)
         dolt("add", ".")
-        dolt("commit", "-m", "init personal branch")
-        dolt("checkout", "main")
+        try:
+            dolt("commit", "-m", "init personal branch")
+        except Exception:
+            pass
+        dolt("checkout", "files")
         dolt("config", "--local", "--add", "push.autoSetupRemote", "true")

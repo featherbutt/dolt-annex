@@ -11,7 +11,7 @@ from paramiko import SFTPServerInterface, SFTPServer, SFTPAttributes, \
     ServerInterface
 import paramiko
 
-from git import Git
+from git import get_annex_key_path
 from type_hints import AnnexKey, PathLike
 
 CHUNK_SIZE = 8092
@@ -31,21 +31,18 @@ class AnnexSftpServer (SFTPServerInterface):
     in order to prevent clients from overwriting data.
     """
 
-    git: Git
-
-    def __init__(self, server: ServerInterface, git: Git):
+    def __init__(self, server: ServerInterface):
         SFTPServerInterface.__init__(self, server)
-        self.git = git
 
     def stat(self, path):
-        path = real_path(self.git, path)
+        path = real_path(path)
         try:
             return SFTPAttributes.from_stat(os.stat(path))
         except OSError as e:
             return SFTPServer.convert_errno(e.errno)
 
     def lstat(self, path):
-        path = real_path(self.git, path)
+        path = real_path(path)
         try:
             return SFTPAttributes.from_stat(os.lstat(path))
         except OSError as e:
@@ -56,12 +53,12 @@ class AnnexSftpServer (SFTPServerInterface):
         key = key_from_path(path)
         try:
             if flags & os.O_CREAT:
-                annex_file_location = self.git.annex.get_annex_key_path(key)
+                annex_file_location = get_annex_key_path(key)
                 if pathlib.Path(annex_file_location).exists():
                     raise FileExistsError(f"File {key} already exists, and overwriting existing files is not supported")
-                return NewFileHandle(self.git, flags, key)
+                return NewFileHandle(flags, key)
             else:
-                return ExistingFileHandle(self.git, flags, key)
+                return ExistingFileHandle(flags, key)
         except OSError as e:
             return SFTPServer.convert_errno(e.errno) # type: ignore
         
@@ -72,9 +69,9 @@ class ExistingFileHandle(paramiko.SFTPHandle):
     # SFTPHandle checks for this attribute and uses it for IO
     readfile: BufferedReader
 
-    def __init__(self, git: Git, flags, key: AnnexKey):
+    def __init__(self, flags, key: AnnexKey):
         super().__init__(flags)
-        annex_file_location = real_path_from_key(git, key)
+        annex_file_location = real_path_from_key(key)
         self.readfile = open(annex_file_location, "rb")
     
     def stat(self):
@@ -96,12 +93,10 @@ class NewFileHandle(paramiko.SFTPHandle):
 
     key: AnnexKey
     suffix: str
-    git: Git
 
-    def __init__(self, git: Git, flags, key: AnnexKey):
+    def __init__(self, flags, key: AnnexKey):
         super().__init__(flags)
         self.key = key
-        self.git = git
         self.suffix = pathlib.Path(key).suffix
         self.writefile = tempfile.NamedTemporaryFile(delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
         
@@ -122,7 +117,7 @@ class NewFileHandle(paramiko.SFTPHandle):
         super().close()
 
         # Move the file to the annex location
-        annex_file_location = self.git.annex.get_annex_key_path(self.key)
+        annex_file_location = get_annex_key_path(self.key)
         pathlib.Path(annex_file_location).parent.mkdir(parents=True, exist_ok=True)
         os.rename(self.writefile.name, annex_file_location)
 
@@ -130,11 +125,11 @@ def key_from_path(path: PathLike) -> AnnexKey:
     """Extract the key from a user-supplied path"""
     return AnnexKey(os.path.basename(path))
 
-def real_path_from_key(git: Git, key: AnnexKey) -> PathLike:
+def real_path_from_key(key: AnnexKey) -> PathLike:
     """Compute the filesystem path for a key"""
-    return git.annex.get_annex_key_path(key)
+    return get_annex_key_path(key)
 
-def real_path(git: Git, path: PathLike) -> PathLike:
+def real_path(path: PathLike) -> PathLike:
     """Given a user-supplied path to a key, return the real path where the corresponding file is stored"""
-    return real_path_from_key(git, key_from_path(path))
+    return real_path_from_key(key_from_path(path))
 

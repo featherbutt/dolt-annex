@@ -7,6 +7,8 @@ from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
+from config import config
+from git import key_from_file
 import importers
 from application import Application, Downloader
 from downloader import GitAnnexDownloader, move_files
@@ -161,7 +163,7 @@ class Import(cli.Application):
 
 def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, PathLike] = {}
-    downloader.cache.add_flush_hook(lambda: move_files(downloader, import_config.move_function, key_paths))
+    downloader.cache.add_flush_hook(lambda: move_files(import_config.move_function, key_paths))
     
     for file_or_directory in files_or_directories:
         import_path(import_config, downloader, file_or_directory, importer, key_paths)
@@ -182,7 +184,7 @@ def import_directory(config: ImportConfig, downloader: GitAnnexDownloader, path:
         for file in files:
             import_file(config, downloader, os.path.join(root, file), importer, key_paths)
 
-def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
+def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
     """Import a file into the annex"""
     extension = os.path.splitext(path)[1]
     if len(extension) > downloader.max_extension_length+1:
@@ -191,7 +193,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
     is_symlink = os.path.islink(path) or extension == '.lnk'
     original_path = os.path.abspath(path)
     if is_symlink:
-        if not config.follow_symlinks:
+        if not import_config.follow_symlinks:
             return
         else:
             path = os.path.realpath(path)
@@ -199,8 +201,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
         return
     logger.debug(f"Importing file {path}")
     abs_path = PathLike(os.path.abspath(path))
-    key = downloader.git.annex.calckey(abs_path)
-    # downloader.add_local_source(key)
+    key = key_from_file(abs_path)
 
     if importer:
         urls = importer.url(original_path, path)
@@ -208,7 +209,7 @@ def import_file(config: ImportConfig, downloader: GitAnnexDownloader, path: str,
             downloader.update_database(url, key)
         sid = importer.submission_id(original_path, path)
         if sid:
-            downloader.cache.insert_submission_source(sid, downloader.local_uuid)
+            downloader.cache.insert_submission_source(sid, config.get().local_uuid)
             downloader.cache.insert_submission_key(sid, key)
         if (md5 := importer.md5(original_path)):
             downloader.record_md5(md5, key)

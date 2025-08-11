@@ -1,42 +1,36 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from collections.abc import Callable
 import os
-import subprocess
 
-from typing_extensions import Dict, List
+from typing_extensions import Dict
 
-import pymysql
 
-import annex
-from annex import WEB_UUID, AnnexCache
+from annex import AnnexCache
+from config import config
 import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
+from git import get_annex_key_path
 from logger import logger
-from git import Git
 from move_functions import MoveFunction
 from type_hints import UUID, AnnexKey, PathLike
 
 class GitAnnexDownloader:
 
-    git: Git
-    local_uuid: UUID
     max_extension_length: int
     dolt_server: DoltSqlServer
     cache: AnnexCache
 
-    def __init__(self, cache: AnnexCache,
-                 git: Git, dolt_server: DoltSqlServer):
-        self.git = git
+    def __init__(self, cache: AnnexCache, dolt_server: DoltSqlServer):
         self.cache = cache
-        self.local_uuid = UUID(git.config['annex.uuid'])
-        self.max_extension_length = int(git.config.get('annex.maxextensionlength', 4))
-        logger.info(f"Local UUID: {self.local_uuid}")
+        self.max_extension_length = 4
+        self.files_dir = config.get().files_dir
+        local_uuid = config.get().local_uuid
+        logger.info(f"Local UUID: {local_uuid}")
         self.dolt_server = dolt_server
         # Initialize the local branch if it doesn't exist
-        with self.dolt_server.maybe_create_branch(self.local_uuid):
+        with self.dolt_server.maybe_create_branch(local_uuid):
             for query in db.PERSONAL_BRANCH_INIT_SQL:
                 self.dolt_server.execute(query, [])
             self.dolt_server.commit(False)
@@ -67,87 +61,25 @@ class GitAnnexDownloader:
         md5bytes = bytes.fromhex(md5)
         self.cache.insert_md5(key, md5bytes)
 
-    def import_git_branch(self, other_repo: str, branch: str, url_from_path: Callable[[str], List[str]], follow_symlinks: bool = False):
-        """Import a git branch into the annex. Currently unused."""
-        # Stream the git ls-tree output
-        git = Git(other_repo)
-
-        process = git.popen('ls-tree', '-r', branch, stdout=subprocess.PIPE, text=True)
-
-        # Process files as they come in
-        for line in process.stdout:
-            objectmode, objecttype, objecthash, filename = line.strip().split()
-            # TODO: Handle symlinks.
-            contents = git.show(branch, filename)
-            if contents:
-                symlink = contents.strip()
-                key = symlink.split('/')[-1]
-                urls = url_from_path(symlink)
-                for url in urls:
-                    self.cache.insert_url(key, url)
-        # Make sure the process completed successfully
-        retcode = process.wait()
-        if retcode != 0:
-            raise subprocess.CalledProcessError(retcode, 'git ls-tree')
-
     def mark_present_keys(self):
         """Record the keys that are present in the annex"""
         # TODO: Account for non-bare repos
-        for _, _, files in os.walk(os.path.join(self.git.git_dir, 'annex', 'objects')):
+        for _, _, files in os.walk('.'):
             for file in files:
                 # The key is the filename
                 key = file
                 logger.debug(f"marking {key} as present")
                 self.cache.mark_present(key)
 
-    def discover_and_populate(self, record_urls: bool, record_sources: bool):
-        """Walk the git-annex branch and populate the database"""
-
-        # Stream the git ls-tree output
-        process = subprocess.Popen(
-            ['git', '-C', self.git.git_dir, 'ls-tree', '-r', 'git-annex', '--name-only'],
-            stdout=subprocess.PIPE,
-            text=True
-        )
-
-        # Process files as they come in
-        assert process.stdout is not None
-        for line in process.stdout:
-            filename = line.strip()
-            if '/' not in filename:
-                continue
-            if filename.endswith('.log'):
-                key = AnnexKey(os.path.splitext(os.path.basename(filename))[0])
-                logger.log(f"Processing key: {key}")
-
-                if record_sources:
-                    log_content = self.git.show('git-annex', filename)
-                    if log_content:
-                        uuid_dict = annex.parse_log_file(log_content)
-                        for source in uuid_dict or []:
-                            self.cache.insert_key_source(key, source)
-
-                if record_urls:
-                    # Check for web URLs
-                    web_log = f"{os.path.splitext(filename)[0]}.log.web"
-                    web_content = self.git.show('git-annex', web_log)
-                    if web_content:
-                        urls = annex.parse_web_log(web_content)
-                        for url in urls:
-                            self.cache.insert_url(key, url)
-
-        # Make sure the process completed successfully
-        retcode = process.wait()
-        if retcode != 0:
-            raise subprocess.CalledProcessError(retcode, 'git ls-tree')
-
     def flush(self):
         self.cache.flush()
 
-def move_files(downloader: GitAnnexDownloader, move: MoveFunction, files: Dict[AnnexKey, PathLike]):
+def move_files(move: MoveFunction, files: Dict[AnnexKey, PathLike]):
     """Move files to the annex"""
     logger.debug("moving annex files")
+    base_config = config.get()
+    files_dir = os.path.abspath(base_config.files_dir)
     for key, file_path in files.items():
-        key_path = downloader.git.annex.get_annex_key_path(key)
+        key_path = PathLike(os.path.join(files_dir, get_annex_key_path(key)))
         move(file_path, key_path)
     files.clear()

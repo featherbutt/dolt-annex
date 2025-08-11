@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import hashlib
 from io import StringIO
 import os
 import random
@@ -9,18 +8,18 @@ import shutil
 
 from typing_extensions import Dict
 
-from annex import AnnexCache, GitAnnexSettings, SubmissionId
-from bup.repo import LocalRepo
-from bup_ext.bup_ext import CommitMetadata
+from annex import AnnexCache, SubmissionId
 from commands.import_command import ImportConfig, ImportCsv, do_import
+from config import config
+import context
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
-from git import Git
+from git import get_relative_annex_key_path, key_from_file
 import importers
 import move_functions
 from tests.setup import setup_file_remote,  base_config
-from type_hints import AnnexKey
-from db import get_annex_key_from_submission_id, get_annex_key_from_url, get_sources_from_annex_key, get_urls_from_annex_key, is_key_present, is_submission_present
+from type_hints import AnnexKey, PathLike
+from db import get_annex_key_from_submission_id, get_annex_key_from_url, get_urls_from_annex_key, is_key_present, is_submission_present
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -29,10 +28,6 @@ import_config = ImportConfig(
 )
 
 import_directory = os.path.join(os.path.dirname(__file__), "import_data")
-
-def key_from_bytes(data: bytes, extension: str) -> AnnexKey:
-    data_hash = hashlib.sha256(data).hexdigest()
-    return AnnexKey(f"SHA256E-s{len(data)}--{data_hash}.{extension}")
 
 def test_import_with_prefix_url(tmp_path):
     """Test importing with a url determined by the file path"""
@@ -97,17 +92,12 @@ def do_test_import(tmp_path, importer_factory, expected_urls, expected_submissio
         "autocommit": True,
         "port": random.randint(20000, 21000),
     }
-    git = Git(base_config.git_dir)
-    commit_metadata = CommitMetadata()
-    git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
-        LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
     ):
-        with AnnexCache(repo, dolt_server, git, git_annex_settings, base_config.auto_push, import_config.batch_size) as cache:
+        with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(
                 cache = cache,
-                git = git,
                 dolt_server = dolt_server,
             )
             importer = importer_factory(downloader)
@@ -121,23 +111,22 @@ def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str
     file_count = 0
     for root, _, files in os.walk(import_directory):
         for file in files:
+            file = PathLike(file)
             file_count += 1
-            extension = file.split(".")[-1]
-            with open(os.path.join(root, file), "rb") as f:
-                key = key_from_bytes(f.read(), extension)
-            assert_key(downloader.git, downloader.dolt_server, key, expected_urls[file])
-            assert_submission_id(downloader.git, downloader.dolt_server, key, expected_submission_ids[file])
+            key = key_from_file(file)
+            assert_key(downloader.dolt_server, key, expected_urls[file])
+            assert_submission_id(downloader.dolt_server, key, expected_submission_ids[file])
 
     assert file_count == len(expected_urls)
     assert file_count == len(expected_submission_ids)
 
-def assert_key(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exists_check: bool = False):
+def assert_key(dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exists_check: bool = False):
     """Assert that the key and its associated data is present in the annex and the Dolt database"""
     # 1. Check the annexed file exists at the expected path
     # We call git-annex here to make sure that our computed path agrees with git-annex
     # rel_path = git.annex.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
-    rel_path = git.annex.get_relative_annex_key_path(key)
-    abs_path = os.path.abspath(os.path.join(git.git_dir, "annex", "objects", rel_path))
+    rel_path = get_relative_annex_key_path(key)
+    abs_path = os.path.abspath(os.path.join(config.get().files_dir, "annex", "objects", rel_path))
     assert skip_exists_check or os.path.exists(abs_path)
     # 2. Check that the key has the correct registered URL
     # 3. Check that the key has the expected sources
@@ -146,15 +135,15 @@ def assert_key(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_url: str, 
     assert expected_url in get_urls_from_annex_key(dolt.cursor, key)
     assert get_annex_key_from_url(dolt.cursor, expected_url) == key
     # 5. Check that the key exists in the personal Dolt branch
-    with dolt.set_branch(git.annex.uuid):
+    with dolt.set_branch(config.get().local_uuid):
         assert is_key_present(dolt.cursor, key)
 
-def assert_submission_id(git: Git, dolt: DoltSqlServer, key: AnnexKey, expected_submission_id: SubmissionId):
+def assert_submission_id(dolt: DoltSqlServer, key: AnnexKey, expected_submission_id: SubmissionId):
     """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""
     # 4. Check that the key exists in the shared Dolt branch
     assert get_annex_key_from_submission_id(dolt.cursor, expected_submission_id, "dolt") == key
     # 5. Check that the key exists in the personal Dolt branch
-    with dolt.set_branch(git.annex.uuid):
+    with dolt.set_branch(context.local_uuid.get()):
         assert is_submission_present(dolt.cursor, expected_submission_id)
 
 def test_import_csv(tmp_path):
@@ -176,21 +165,16 @@ SHA256E-s2134564--131cefbcb150edb19bb17be3c3bcba10cba207b5e580187d6caccec05b9b88
         "autocommit": True,
         "port": random.randint(20000, 21000),
     }
-    git = Git(base_config.git_dir)
-    commit_metadata = CommitMetadata()
-    git_annex_settings = GitAnnexSettings(commit_metadata, b'git-annex')
     with (
-        LocalRepo(bytes(base_config.git_dir, encoding='utf8')) as repo,
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
     ):
-        with AnnexCache(repo, dolt_server, git, git_annex_settings, base_config.auto_push, import_config.batch_size) as cache:
+        with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(
                 cache = cache,
-                git = git,
                 dolt_server = dolt_server,
             )
             ImportCsv.import_csv(downloader, StringIO(test_csv))
         assert os.path.exists("git/annex")
         for key, url in expected_urls.items():
-            assert_key(downloader.git, downloader.dolt_server, key, url, skip_exists_check=True)
+            assert_key(downloader.dolt_server, key, url, skip_exists_check=True)
 

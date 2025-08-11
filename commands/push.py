@@ -6,20 +6,24 @@ from typing_extensions import Iterable, Optional, Generator, Tuple
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
+import context
 from annex import SubmissionId
 from application import Application, Downloader
+from config import get_config
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
-from git import Git
+from git import get_old_relative_annex_key_path, get_relative_annex_key_path
 import move_functions
 from move_functions import MoveFunction
+from remote import Remote
 from type_hints import UUID, AnnexKey, PathLike
 from logger import logger
 
 class FileMover:
     local_cwd: str
     remote_cwd: str
-    move_function: MoveFunction
+    put_function: MoveFunction
+    get_function: MoveFunction
 
     def __init__(self, put_function: MoveFunction, get_function: MoveFunction, remote_cwd: str, local_cwd = None) -> None:
         if local_cwd is None:
@@ -61,32 +65,28 @@ class FileMover:
         self.remote_cwd = old_remote_cwd
 
 @contextmanager
-def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Generator[FileMover, None, None]:
-    remote_path = git.get_remote_url(remote)
-    local_path = os.path.join(os.getcwd(), git.git_dir)
-    if '@' in remote_path:
-        if os.path.exists(os.path.join(local_path, '.git')):
-            local_path = os.path.join(local_path, '.git')
-        local_path = os.path.join(local_path, 'annex/objects')
-        user, rest = remote_path.split('@', maxsplit=1)
+def file_mover(remote: Remote, ssh_config: str, known_hosts: Optional[str]) -> Generator[FileMover, None, None]:
+    base_config = get_config()
+    local_path = os.path.abspath(base_config.files_dir)
+    if '@' in remote.url:
+        user, rest = remote.url.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
         cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
         cnopts.log_level = 'error'
         with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
-            if sftp.exists('.git'):
-                sftp.chdir('.git')
-            sftp.mkdir_p('annex/objects')
-            sftp.chdir('annex/objects')
             def sftp_put(
                 local_path: PathLike,
                 remote_path: PathLike,
-            ) -> None:
+            ) -> bool:
                 """Move a file from the local filesystem to the remote filesystem using SFTP"""
+                if not os.path.exists(local_path):
+                    return False
                 sftp.mkdir_p(os.path.dirname(remote_path))
                 if sftp.exists(remote_path):
                     logger.info(f"File {remote_path} already exists, skipping")
-                    return
+                    return True
                 sftp.put(local_path, remote_path)
+                return True
             def sftp_get(
                 remote_path: PathLike,
                 local_path: PathLike,
@@ -97,21 +97,16 @@ def file_mover(git: Git, remote: str, ssh_config: str, known_hosts: str) -> Gene
                     return False
                 if os.path.exists(local_path):
                     logger.info(f"File {local_path} already exists, skipping")
-                    return False
+                    return True
                 sftp.get(remote_path, local_path)
                 return True
             yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
-    else:
+    elif remote.url.startswith("file://"):
         # Remote path may be relative to the local git directory
-        remote_path = os.path.join(local_path, remote_path)
-        if os.path.exists(os.path.join(remote_path, '.git')):
-            remote_path = os.path.join(remote_path, '.git')
-        remote_path = os.path.join(remote_path, 'annex/objects')
-        if os.path.exists(os.path.join(local_path, '.git')):
-            local_path = os.path.join(local_path, '.git')
-        local_path = os.path.join(local_path, 'annex/objects')
-        yield FileMover(move_functions.copy, move_functions.copy, remote_path, local_path)
-
+        yield FileMover(move_functions.copy, move_functions.copy, remote.url[7:], local_path)
+    else:
+        raise ValueError(f"Unknown remote URL format: {remote.url}")
+    
 class Push(cli.Application):
     """Push imported files to a remote repository"""
 
@@ -145,16 +140,10 @@ class Push(cli.Application):
         default = None,
     )
 
-    git_remote = cli.SwitchAttr(
-        "--git-remote",
+    remote = cli.SwitchAttr(
+        "--remote",
         str,
-        help="The name of the git remote",
-    )
-
-    dolt_remote = cli.SwitchAttr(
-        "--dolt-remote",
-        str,
-        help="The name of the dolt remote",
+        help="The name of the dolt-annex remote",
     )
 
     source = cli.SwitchAttr(
@@ -166,83 +155,73 @@ class Push(cli.Application):
     def main(self, *args) -> int:
         """Entrypoint for push command"""
         with Downloader(self.parent.config, self.batch_size) as downloader:
-            git_remote = self.git_remote or self.parent.config.git_remote
-            dolt_remote = self.dolt_remote or self.parent.config.dolt_remote
-            do_push(downloader, git_remote, dolt_remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
+            remote_name = self.remote or self.parent.config.dolt_remote
+            remote = Remote.from_name(remote_name)
+            do_push(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, git_remote: str, dolt_remote: str, args, ssh_config: str, known_hosts: str, source: Optional[str], limit: Optional[int] = None) -> int:
-    git = downloader.git
+def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_config: str, known_hosts: Optional[str], source: Optional[str], limit: Optional[int] = None) -> int:
     dolt = downloader.dolt_server
     files_pushed = 0
-    remote_uuid = git.annex.get_remote_uuid(git_remote)
-    local_uuid = downloader.local_uuid
+    remote_uuid = file_remote.uuid
+    local_uuid = get_config().local_uuid
 
-    dolt.pull_branch(remote_uuid, dolt_remote)
-    # TODO: Fast forward if you can
-    if downloader.cache.write_git_annex:
-        git.fetch(git_remote, "git-annex")
-        git.merge_branch("refs/heads/git-annex", "refs/heads/git-annex", f"refs/remotes/{git_remote}/git-annex")
+    # TODO: Dolt remote not necessarily the same as file remote, know when pull is necessary
+    # dolt.pull_branch(remote_uuid, dolt_remote)
 
-    with file_mover(git, git_remote, ssh_config, known_hosts) as mover:
+    with file_mover(file_remote, ssh_config, known_hosts) as mover:
         if len(args) == 0:
             total_files_pushed = 0
             while True:
                 if source is not None:
                     keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
-                    files_pushed = push_submissions_and_keys(keys_and_submissions, git, downloader, mover, remote_uuid)
+                    files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
                 else:
-                    keys = list(diff_keys(dolt, local_uuid, remote_uuid, limit))
-                    files_pushed = push_keys(keys, git, downloader, mover, local_uuid)
+                    keys_and_submissions = list(diff_keys(dolt, local_uuid, remote_uuid, limit))
+                    files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
                 if files_pushed == 0:
                     break
                 total_files_pushed += files_pushed
-            return total_files_pushed
         else:
-            return push_keys(args, git, downloader, mover, local_uuid)
+            total_files_pushed = push_keys(args, downloader, mover, local_uuid)
     downloader.flush()
 
-    # with dolt.set_branch(remote_uuid):
-    #    dolt.commit(False, amend=True)
-
-    # Push the git branch
-    if downloader.cache.write_git_annex and downloader.cache.auto_push:
-        git.push_branch(git_remote, "git-annex")
     # Push the dolt branch
     if downloader.cache.auto_push:
-        dolt.push_branch("main", dolt_remote)
-        dolt.push_branch(git.annex.uuid, dolt_remote)
-        dolt.push_branch(remote_uuid, dolt_remote)
-    return files_pushed
+        dolt.push_branch("files", file_remote)
+        dolt.push_branch(local_uuid, file_remote)
+        dolt.push_branch(remote_uuid, file_remote)
+    return total_files_pushed
 
-def push_keys(keys: Iterable[AnnexKey], git: Git, downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
+def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
     files_pushed = 0
     for key in keys:
-        rel_key_path = git.annex.get_relative_annex_key_path(key)
-        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        rel_key_path = get_relative_annex_key_path(key)
+        old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
         downloader.cache.insert_key_source(key, remote_uuid)
         files_pushed += 1
+    downloader.flush()
     return files_pushed
 
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], git: Git, downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
     files_pushed = 0
     for key, submission in keys_and_submissions:
-        rel_key_path = git.annex.get_relative_annex_key_path(key)
-        old_rel_key_path = git.annex.get_old_relative_annex_key_path(key)
+        rel_key_path = get_relative_annex_key_path(key)
+        old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
         downloader.cache.insert_submission_source(submission, remote_uuid)
         files_pushed += 1
+    downloader.flush()
     return files_pushed
 
-def pull_personal_branch(git: Git, dolt: DoltSqlServer, remote: str) -> None:
+def pull_personal_branch(dolt: DoltSqlServer, remote: Remote) -> None:
     """Fetch the personal branch for the remote"""
-    remote_uuid = git.annex.get_remote_uuid(remote)
-    dolt.pull_branch(remote_uuid, remote)
+    dolt.pull_branch(remote.uuid, remote)
 
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[AnnexKey]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
     """
     Return each key that is in the first ref but not in the second ref.
 
@@ -263,8 +242,11 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
         dolt.merge(in_ref)
         dolt.merge(not_in_ref)
         query = """
-        SELECT `to_annex-key`
-        FROM dolt_commit_diff_local_keys
+        SELECT
+            `file_key`, `to_source`, `to_id`, `to_updated`, `to_part`
+        FROM dolt_commit_diff_local_submissions
+        JOIN file_keys AS OF files
+            ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
         WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND diff_type = 'added'
         """
         if limit is not None:
@@ -272,29 +254,24 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -
             query_results = dolt.query(query, (not_in_ref, union_branch_name, limit))
         else:
             query_results = dolt.query(query, (not_in_ref, union_branch_name))
-        for (annex_key,) in query_results:
-            yield AnnexKey(annex_key)
+        for (annex_key, to_source, to_sid, to_updated, to_part) in query_results:
+            yield (AnnexKey(annex_key), SubmissionId(to_source, to_sid, to_updated, to_part))
 
 def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}"
     # Create the union branch if it doesn't exist
-    with dolt.set_branch(in_ref):
-        dolt.commit(amend = True)
-    with dolt.set_branch(not_in_ref):
-        dolt.commit(amend = True)
+
     with dolt.maybe_create_branch(union_branch_name, in_ref):
         dolt.merge(in_ref)
         dolt.merge(not_in_ref)
         query = """
         SELECT
-            `annex-key`, `to_source`, `to_id`, `to_updated`, `to_part`
+            `file_key`, `to_source`, `to_id`, `to_updated`, `to_part`
         FROM dolt_commit_diff_local_submissions
-        JOIN filenames AS OF submissions
+        JOIN file_keys AS OF files
             ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
-        JOIN `annex-keys` AS OF files
-            ON `annex-keys`.url = filenames.url
         WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s AND diff_type = 'added'
         """
         if limit is not None:
