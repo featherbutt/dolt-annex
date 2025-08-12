@@ -1,10 +1,10 @@
-# git-annex, at scale
+# dolt-annex: Distributed File Store at Scale
 
-git-annex-archive is a tool for replicating large datasets between multiple repositories, without requiring each repository to contain a copy of every file. Instead, git-annex-archive maintains tracking information about which repositories contain copies of which files, allowing files to be retrieved on demand.
+dolt-annex is a tool for replicating large datasets between multiple repositories, without requiring each repository to contain a copy of every file. Instead, dolt-annex maintains tracking information about which repositories contain copies of which files, allowing files to be retrieved on demand.
 
 ## How is this different from git-annex?
 
-git-annex has scaling issues that make them unsuitable for extremely large datasets:
+git-annex has scaling issues that make it unsuitable for extremely large datasets:
 
 - git-annex stores metadata about annexed files but this metadata is not indexed. [There's an experiment to store metadata in a sqlite database](https://git-annex.branchable.com/design/caching_database/), but the database needs to be generated locally.
 - git-annex syncing operations (get, push, pull, sync) scale with the number of annexed files in the branches being synced. It's not possible to efficiently identify only the set of the annexed files that need to be transferred. These commands also rely on normal git branches containing symlinks to annexed files as a measure of liveness/reachability.
@@ -14,30 +14,19 @@ Ideally, we want to be able to store all tracking information in a database that
 
 [Dolt](https://www.dolthub.com/) does exactly what we need.
 
-git-annex-archive attempts to tackle these scaling issues by pairing a git-annex repo with a Dolt repo. Each combined git-annex + Dolt tracks the known locations of annexed files, and updates this information whenever it syncs with its remotes.
+dolt-annex attempts to tackle these scaling issues by replacing the git-annex repo with a Dolt repo. Dolt tracks the known locations of annexed files, and updates this information whenever it syncs with its remotes.
 
-An unrelated scaling issue is the standard git client is not optimized for large-scale data imports because it initially creates a new file for every git object. To work around this, git-annex-archive writes git packfiles directly, using [bup](https://bup.github.io/)
+An unrelated scaling issue for git-annex is that the standard git client creates a new file for every git object. By using a running Dolt server, we can more intelligently batch writes to the file system.
 
 ## Requirements
 
-git-annex-archive depends on git-annex and bup. Both of these have only partial Windows support. If you need to use Windows, I recommend using WSL.
-
-git-annex-archive needs to connect to a locally running Dolt server in order to work, but the code itself does not depend on Dolt.
+dolt-annex needs to connect to a locally running Dolt server in order to work, but the code itself does not depend on Dolt.
 
 Python 3.7+ is required. I've tested on both 3.10 and 3.13 and haven't encountered any obvious issues.
 
 ## Installation
 
-git-annex-archive is written mostly in Python, but it includes bup as a submodule, which contains both Python and C code. Before using git-annex-archive, the bup submodule must be initialized and built using `make`:
-
-```bash
-git submodule init   # Instead of running these commands, you can use the
-git submodule update # --recurse-submodules flag when running `git clone`
-cd bup_submodule
-make
-```
-
-In addition to building bup, this will produce a file `bup_submodule/config/config.vars`, which contains a variable `bup_python_config` indicating which version of Python was used to build bup. Make sure that you use the same version when running git-annex-archive, otherwise you might get confusing errors.
+While dolt-annex used to depend on git-annex and bup, it's now pure python. Installation and running is as simple as downloading the source and running main.py
 
 ## Running
 
