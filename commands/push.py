@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import os
+from typing import List
 
 from typing_extensions import Iterable, Optional, Generator, Tuple
 
@@ -160,9 +161,8 @@ class Push(cli.Application):
             do_push(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_config: str, known_hosts: Optional[str], source: Optional[str], limit: Optional[int] = None) -> int:
+def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_config: str, known_hosts: Optional[str], source: Optional[str], limit: Optional[int] = None) -> List[AnnexKey]:
     dolt = downloader.dolt_server
-    files_pushed = 0
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
 
@@ -171,7 +171,7 @@ def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_confi
 
     with file_mover(file_remote, ssh_config, known_hosts) as mover:
         if len(args) == 0:
-            total_files_pushed = 0
+            total_files_pushed = []
             while True:
                 if source is not None:
                     keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
@@ -179,41 +179,36 @@ def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_confi
                 else:
                     keys_and_submissions = list(diff_keys(dolt, local_uuid, remote_uuid, limit))
                     files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
-                if files_pushed == 0:
+                if len(files_pushed) == 0:
                     break
                 total_files_pushed += files_pushed
         else:
             total_files_pushed = push_keys(args, downloader, mover, local_uuid)
     downloader.flush()
 
-    # Push the dolt branch
-    if downloader.cache.auto_push:
-        dolt.push_branch("files", file_remote)
-        dolt.push_branch(local_uuid, file_remote)
-        dolt.push_branch(remote_uuid, file_remote)
     return total_files_pushed
 
-def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
-    files_pushed = 0
+def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
+    files_pushed = []
     for key in keys:
         rel_key_path = get_relative_annex_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
         downloader.cache.insert_key_source(key, remote_uuid)
-        files_pushed += 1
+        files_pushed.append(key)
     downloader.flush()
     return files_pushed
 
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> int:
-    files_pushed = 0
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
+    files_pushed = []
     for key, submission in keys_and_submissions:
         rel_key_path = get_relative_annex_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
         downloader.cache.insert_submission_source(submission, remote_uuid)
-        files_pushed += 1
+        files_pushed.append(key)
     downloader.flush()
     return files_pushed
 

@@ -18,6 +18,7 @@ from config import config
 import context
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
+from git import get_absolute_file_path, get_relative_annex_key_path
 import importers
 import move_functions
 from remote import Remote
@@ -52,7 +53,7 @@ def test_push_server(tmp_path):
     ssh_port = random.randint(21000, 22000)
     setup(tmp_path, origin_uuid)
     remote = Remote(
-        url=f"file://{tmp_path}/files",
+        url=f"file://{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )
@@ -108,11 +109,11 @@ def do_test_push(tmp_path, remote: Remote):
             with downloader.dolt_server.set_branch(context.local_uuid.get()):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, dolt_server, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
             assert files_pushed == 2
             # Pushing again should have no effect
 
-            files_pushed = push_and_verify(downloader, remote, dolt_server, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
             assert files_pushed == 0
 
             # But if we add more files, it should push them
@@ -123,20 +124,28 @@ def do_test_push(tmp_path, remote: Remote):
             with downloader.dolt_server.set_branch(context.local_uuid.get()):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, dolt_server, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
             assert files_pushed == 1
 
 
-def push_and_verify(downloader: GitAnnexDownloader, file_remote: Remote, dolt_server: DoltSqlServer, ssh_config: str, known_hosts: Optional[str]):
+def push_and_verify(downloader: GitAnnexDownloader, file_remote: Remote, ssh_config: str, known_hosts: Optional[str]):
 
     files_pushed = do_push(downloader, file_remote, [], ssh_config, known_hosts, None)
     downloader.flush()
 
-    # Check that the dolt branches were pushed.
-    remote_uuid = file_remote.uuid
-    # TODO: Test that files are actually moved to the remote and that the branches are correct.
-    assert dolt_server.get_revision("origin/files") == dolt_server.get_revision("files")
-    assert dolt_server.get_revision(f"origin/{context.local_uuid.get()}") == dolt_server.get_revision(context.local_uuid.get())
-    assert dolt_server.get_revision(f"origin/{remote_uuid}") == dolt_server.get_revision(remote_uuid)
+    if file_remote.url.startswith("file://"):
+        pushed_files_dir = Path(file_remote.url[7:]).absolute()
+    elif '@' in file_remote.url:
+        user, rest = file_remote.url.split('@', maxsplit=1)
+        host, path = rest.split(':', maxsplit=1)
+        pushed_files_dir = Path(path).absolute()
+    else:
+        raise ValueError(f"Unsupported remote URL format: {file_remote.url}")
+        
+    for key in files_pushed:
+        
+        key_path = pushed_files_dir / get_relative_annex_key_path(key)
+        assert Path(key_path).exists()
+    # TODO: Test that the branches are correct.
 
-    return files_pushed
+    return len(files_pushed)
