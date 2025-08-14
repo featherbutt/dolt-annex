@@ -20,7 +20,7 @@ class DoltSqlServer:
     cursor: pymysql.cursors.Cursor
     active_branch: str
 
-    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool, gc: bool):
+    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
         self.db_config = db_config
 
         if spawn_dolt_server:
@@ -30,8 +30,6 @@ class DoltSqlServer:
             self.connection = pymysql.connect(**db_config)
 
         self.cursor = self.connection.cursor()
-        self.gc = gc
-        self.garbage_collect()
 
         self.cursor.execute("SELECT ACTIVE_BRANCH()")
         res = self.cursor.fetchone()
@@ -59,18 +57,6 @@ class DoltSqlServer:
             except Exception as e:
                 logger.info(f"Waiting for SQL server: {str(e)}")
                 time.sleep(1)
-
-    @dry_run("Would run garbage collection")
-    def garbage_collect(self):
-        if not self.gc:
-            return
-        try:
-            self.cursor.execute("call DOLT_GC();")
-        except pymysql.err.OperationalError as e:
-            if "no changes since last gc" not in str(e):
-                raise
-        self.connection = pymysql.connect(**self.db_config)
-        self.cursor = self.connection.cursor()
 
     @dry_run("Would execute {sql} with values {values}")
     def executemany(self, sql: str, values):

@@ -22,7 +22,6 @@ class Env:
     NAME = "DA_NAME"
     ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
     AUTO_PUSH = "DA_AUTO_PUSH"
-    NO_GC = "DA_NO_GC"
 
 class Application(cli.Application):
     """The top level CLI command"""
@@ -75,8 +74,6 @@ class Application(cli.Application):
 
     auto_push = cli.Flag("--auto-push", envname=Env.AUTO_PUSH, help = "If set, automatically push annexed files to origin.")
 
-    no_gc = cli.Flag("--no-gc", envname=Env.NO_GC, help = "If set, automatically push annexed files to origin.")
-
     def main(self, *args):
         # Set each config parameter in order of preference:
         # 1. Command line argument or environment variable
@@ -92,9 +89,7 @@ class Application(cli.Application):
         self.config.email = self.email or self.config.email or "user@localhost"
         self.config.name = self.name or self.config.name or "user"
         self.config.annexcommitmessage = self.annexcommitmessage or self.config.annexcommitmessage or "update git-annex"
-        if self.no_gc is not None:
-            self.config.gc = (not self.no_gc)
-
+       
         if self.auto_push is not None:
             self.config.auto_push = self.auto_push
         elif self.config.auto_push is None:
@@ -118,7 +113,7 @@ def Downloader(base_config: Config, db_batch_size):
         "port": 3306,
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
         AnnexCache(None, dolt_server, base_config.auto_push, db_batch_size) as cache
     ):
         downloader = GitAnnexDownloader(

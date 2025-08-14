@@ -20,7 +20,6 @@ class Config:
     dolt_server_socket: str = "/tmp/mysql.sock"
     annexcommitmessage: str = "update git-annex"
     auto_push: bool = False
-    gc: bool = True
 
     @property
     def local_uuid(self) -> UUID:

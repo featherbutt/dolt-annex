@@ -93,7 +93,7 @@ def do_test_import(tmp_path, importer_factory, expected_urls, expected_submissio
         "port": random.randint(20000, 21000),
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
         with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(
@@ -166,7 +166,7 @@ SHA256E-s2134564--131cefbcb150edb19bb17be3c3bcba10cba207b5e580187d6caccec05b9b88
         "port": random.randint(20000, 21000),
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
         with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(

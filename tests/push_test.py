@@ -93,7 +93,7 @@ def do_test_push(tmp_path, remote: Remote):
         "port": random.randint(20000, 21000),
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server, base_config.gc) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
         with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
             downloader = GitAnnexDownloader(

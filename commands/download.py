@@ -52,7 +52,6 @@ class DownloadBatch(cli.Application):
                 for url in urls:
                     with logger.section(f"processing {url}"):
                         self.download_file(downloader, url)
-                downloader.dolt_server.garbage_collect()
         return 0
 
     def download_file(self, downloader: GitAnnexDownloader, url: str) -> Optional[str]:
