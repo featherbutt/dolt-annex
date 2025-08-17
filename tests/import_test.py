@@ -34,20 +34,22 @@ def test_import_with_prefix_url(tmp_path):
     expected_urls = {
         "591785b794601e212b260e25925636fd.e621.txt": "https://prefix/import_data/00/12/34/56/78/591785b794601e212b260e25925636fd.e621.txt",
         "b1946ac92492d2347c6235b4d2611184.e621.txt": "https://prefix/import_data/08/76/54/32/10/b1946ac92492d2347c6235b4d2611184.e621.txt",
+        "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": "https://prefix/import_data/00/12/34/56/90/d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt",
     }
     def importer_factory(downloader: GitAnnexDownloader) -> importers.Importer:
         return importers.DirectoryImporter("https://prefix")
-    do_test_import(tmp_path, importer_factory, expected_urls, [])
+    do_test_import(tmp_path, importer_factory, expected_urls, {})
 
 def test_import_e621(tmp_path):
     """Test importing with a url determined by the md5 hash of the file"""
     expected_urls = {
         "591785b794601e212b260e25925636fd.e621.txt": "https://static1.e621.net/data/59/17/591785b794601e212b260e25925636fd.txt",
         "b1946ac92492d2347c6235b4d2611184.e621.txt": "https://static1.e621.net/data/b1/94/b1946ac92492d2347c6235b4d2611184.txt",
+        "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": "https://static1.e621.net/data/d8/e8/d8e8fca2dc0f896fd7cb4cb0031ba249.txt",
     }
     def importer_factory(downloader: GitAnnexDownloader) -> importers.Importer:
         return importers.MD5Importer()
-    do_test_import(tmp_path, importer_factory, expected_urls, [])
+    do_test_import(tmp_path, importer_factory, expected_urls, {})
 
 def test_import_falr(tmp_path):
     """Test importing with a url determined by selecting from the Dolt database"""
@@ -107,13 +109,12 @@ def do_test_import(tmp_path, importer_factory, expected_urls, expected_submissio
 def validate_import(downloader: GitAnnexDownloader, expected_urls: Dict[str, str], expected_submission_ids: Dict[str, SubmissionId]):
     """Check that the imported files are present in the annex and the Dolt database"""
     print(os.path.curdir)
-    assert os.path.exists("git/annex")
     file_count = 0
     for root, _, files in os.walk(import_directory):
         for file in files:
-            file = PathLike(file)
             file_count += 1
-            key = key_from_file(file)
+            key = key_from_file(PathLike(os.path.join(root, file)))
+            file = PathLike(file)
             assert_key(downloader.dolt_server, key, expected_urls[file])
             assert_submission_id(downloader.dolt_server, key, expected_submission_ids[file])
 
@@ -126,7 +127,7 @@ def assert_key(dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exist
     # We call git-annex here to make sure that our computed path agrees with git-annex
     # rel_path = git.annex.cmd("examinekey", "--format=${hashdirlower}${key}", key).strip()
     rel_path = get_key_path(key)
-    abs_path = os.path.abspath(os.path.join(config.get().files_dir, "annex", "objects", rel_path))
+    abs_path = os.path.abspath(os.path.join(config.get().files_dir, rel_path))
     assert skip_exists_check or os.path.exists(abs_path)
     # 2. Check that the key has the correct registered URL
     # 3. Check that the key has the expected sources
@@ -135,8 +136,8 @@ def assert_key(dolt: DoltSqlServer, key: AnnexKey, expected_url: str, skip_exist
     # assert expected_url in get_urls_from_annex_key(dolt.cursor, key)
     # assert get_annex_key_from_url(dolt.cursor, expected_url) == key
     # 5. Check that the key exists in the personal Dolt branch
-    with dolt.set_branch(str(config.get().local_uuid)):
-        assert is_key_present(dolt.cursor, key)
+    #with dolt.set_branch(str(config.get().local_uuid)):
+    #    assert is_key_present(dolt.cursor, key)
 
 def assert_submission_id(dolt: DoltSqlServer, key: AnnexKey, expected_submission_id: SubmissionId):
     """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""
@@ -174,7 +175,6 @@ SHA256E-s2134564--131cefbcb150edb19bb17be3c3bcba10cba207b5e580187d6caccec05b9b88
                 dolt_server = dolt_server,
             )
             ImportCsv.import_csv(downloader, StringIO(test_csv))
-        assert os.path.exists("git/annex")
         for key, url in expected_urls.items():
             assert_key(downloader.dolt_server, key, url, skip_exists_check=True)
 

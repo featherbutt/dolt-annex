@@ -31,7 +31,7 @@ class GitAnnexDownloader:
         logger.info(f"Local UUID: {local_uuid}")
         self.dolt_server = dolt_server
         # Initialize the local branch if it doesn't exist
-        with self.dolt_server.maybe_create_branch(local_uuid.hex):
+        with self.dolt_server.maybe_create_branch(str(local_uuid)):
             for query in db.PERSONAL_BRANCH_INIT_SQL:
                 self.dolt_server.execute(query, [])
             self.dolt_server.commit(False)
@@ -56,11 +56,6 @@ class GitAnnexDownloader:
         """Record that we have a copy of a key from a URL"""
         # self.cache.insert_url(key, url)
         # self.cache.insert_key_source(key, WEB_UUID)
-
-    @dry_run("Would record that key {key} has md5 {md5}")
-    def record_md5(self, md5: str, key: str):
-        md5bytes = bytes.fromhex(md5)
-        self.cache.insert_md5(key, md5bytes)
 
     def mark_present_keys(self):
         """Record the keys that are present in the annex"""
