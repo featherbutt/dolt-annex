@@ -35,3 +35,6 @@ config = ContextVar[Config]('config')
 
 def get_config() -> Config:
     return config.get()
+
+def set_config(new_config: Config):
+    config.set(new_config)

@@ -3,8 +3,7 @@ import json
 
 from plumbum import cli # type: ignore
 
-import context
-from config import Config
+from config import Config, set_config
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 import dry_run
@@ -87,6 +86,7 @@ class Application(cli.Application):
             print(f"Unknown command: {args[0]}")
             return 1
         self.config.validate()
+        set_config(self.config)
 
 @contextmanager
 def Downloader(base_config: Config, db_batch_size):
