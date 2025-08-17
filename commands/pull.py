@@ -4,7 +4,8 @@ from typing_extensions import Iterable, Optional, Tuple
 from plumbum import cli # type: ignore
 
 from annex import SubmissionId
-from application import Application, Downloader, get_config
+from config import get_config
+from application import Application, Downloader
 from commands.push import FileMover, file_mover, diff_keys, diff_keys_from_source
 from downloader import GitAnnexDownloader
 from git import get_old_relative_annex_key_path, get_relative_annex_key_path
