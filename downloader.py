@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+from uuid import UUID
 
 from typing_extensions import Dict
 
@@ -11,10 +12,10 @@ from config import config
 import db
 from dolt import DoltSqlServer
 from dry_run import dry_run
-from git import get_annex_key_path
+from git import get_key_path
 from logger import logger
 from move_functions import MoveFunction
-from type_hints import UUID, AnnexKey, PathLike
+from type_hints import AnnexKey, PathLike
 
 class GitAnnexDownloader:
 
@@ -30,7 +31,7 @@ class GitAnnexDownloader:
         logger.info(f"Local UUID: {local_uuid}")
         self.dolt_server = dolt_server
         # Initialize the local branch if it doesn't exist
-        with self.dolt_server.maybe_create_branch(local_uuid):
+        with self.dolt_server.maybe_create_branch(local_uuid.hex):
             for query in db.PERSONAL_BRANCH_INIT_SQL:
                 self.dolt_server.execute(query, [])
             self.dolt_server.commit(False)
@@ -80,6 +81,6 @@ def move_files(move: MoveFunction, files: Dict[AnnexKey, PathLike]):
     base_config = config.get()
     files_dir = os.path.abspath(base_config.files_dir)
     for key, file_path in files.items():
-        key_path = PathLike(os.path.join(files_dir, get_annex_key_path(key)))
+        key_path = PathLike(os.path.join(files_dir, get_key_path(key)))
         move(file_path, key_path)
     files.clear()

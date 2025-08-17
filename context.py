@@ -3,7 +3,7 @@
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Dict, TypeVar
+from typing_extensions import Dict, TypeVar
 
 from type_hints import UUID, PathLike
 

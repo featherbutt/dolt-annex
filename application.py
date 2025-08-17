@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from contextlib import contextmanager
 import json
 
@@ -8,7 +11,6 @@ from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
 import dry_run
 from annex import AnnexCache
-from type_hints import UUID
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"

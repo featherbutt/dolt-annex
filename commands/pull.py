@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from uuid import UUID
 
 from typing_extensions import Iterable, Optional, Tuple
 
@@ -8,9 +12,9 @@ from config import get_config
 from application import Application, Downloader
 from commands.push import FileMover, file_mover, diff_keys, diff_keys_from_source
 from downloader import GitAnnexDownloader
-from git import get_old_relative_annex_key_path, get_relative_annex_key_path
+from git import get_old_relative_annex_key_path, get_key_path
 from remote import Remote
-from type_hints import UUID, AnnexKey
+from type_hints import AnnexKey
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
@@ -68,7 +72,7 @@ class Pull(cli.Application):
 def pull_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
     files_pulled = 0
     for key in keys:
-        rel_key_path = get_relative_annex_key_path(key)
+        rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.get(rel_key_path, old_rel_key_path):
             mover.get(rel_key_path, rel_key_path)
@@ -79,7 +83,7 @@ def pull_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: F
 def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
     files_pulled = 0
     for key, submission in keys_and_submissions:
-        rel_key_path = get_relative_annex_key_path(key)
+        rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.get(rel_key_path, old_rel_key_path):
             mover.get(rel_key_path, rel_key_path)
@@ -94,18 +98,18 @@ def do_pull(downloader: GitAnnexDownloader, remote: Remote, args, ssh_config: st
     local_uuid = get_config().local_uuid
     remote_uuid = remote.uuid
 
-    dolt.pull_branch(remote_uuid, remote)
+    dolt.pull_branch(str(remote_uuid), remote)
 
     with file_mover(remote, ssh_config, known_hosts) as mover:
         if len(args) == 0:
             total_files_pulled = 0
             while True:
                 if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
+                    keys_and_submissions = diff_keys_from_source(dolt, str(local_uuid), str(remote_uuid), source, limit)
                     files_pulled = pull_submissions_and_keys(keys_and_submissions, downloader, mover, local_uuid)
                 else:
-                    keys = list(diff_keys(dolt, remote_uuid, downloader.local_uuid, limit))
-                    files_pulled = pull_keys(keys, downloader, mover, local_uuid)
+                    keys = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), limit))
+                    files_pulled = pull_submissions_and_keys(keys, downloader, mover, local_uuid)
                 if files_pulled == 0:
                     break
                 total_files_pulled += files_pulled

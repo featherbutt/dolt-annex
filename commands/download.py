@@ -13,6 +13,7 @@ import sql
 from logger import logger
 from application import Application, Downloader
 from type_hints import AnnexKey, PathLike
+from git import key_from_file
 
 class DownloadBatch(cli.Application):
     """Download missing files and add them to the annex"""
@@ -69,9 +70,9 @@ class DownloadBatch(cli.Application):
                     temp_file.write(chunk)
                 temp_file.flush()
                 
-                abs_path = os.path.abspath(temp_file.name) 
-                key = downloader.git.annex.calckey(abs_path)
-                move_files(downloader, shutil.move, {AnnexKey(key): PathLike(abs_path)})  
+                abs_path = PathLike(os.path.abspath(temp_file.name))
+                key = key_from_file(abs_path)
+                move_files(shutil.move, {AnnexKey(key): PathLike(abs_path)})  
                 
                 downloader.add_local_source(key)
                 downloader.update_database(url, key)

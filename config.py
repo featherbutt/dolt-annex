@@ -3,9 +3,8 @@
 
 from contextvars import ContextVar
 from dataclasses import dataclass
-
-import context
-from type_hints import UUID
+from typing_extensions import Optional
+from uuid import UUID
 
 @dataclass
 class Config:
@@ -20,10 +19,14 @@ class Config:
     dolt_server_socket: str = "/tmp/mysql.sock"
     annexcommitmessage: str = "update git-annex"
     auto_push: bool = False
+    uuid: Optional[UUID] = None
 
     @property
     def local_uuid(self) -> UUID:
-        return context.local_uuid.get()
+        if self.uuid is None:
+            with open("uuid", encoding="utf-8") as fd:
+                self.uuid = UUID(fd.read().strip())
+        return self.uuid
 
     def validate(self):
         """Ensure that all required fields are set"""

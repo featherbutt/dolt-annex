@@ -5,7 +5,8 @@ import os
 from pathlib import Path
 import random
 import shutil
-from typing import Optional, List
+from typing_extensions import Optional, List
+from uuid import UUID
 import uuid
 
 import paramiko 
@@ -18,12 +19,11 @@ from config import config
 import context
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
-from git import get_absolute_file_path, get_relative_annex_key_path
+from git import get_absolute_file_path, get_key_path
 import importers
 import move_functions
 from remote import Remote
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
-from type_hints import UUID
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -144,7 +144,7 @@ def push_and_verify(downloader: GitAnnexDownloader, file_remote: Remote, ssh_con
         
     for key in files_pushed:
         
-        key_path = pushed_files_dir / get_relative_annex_key_path(key)
+        key_path = pushed_files_dir / get_key_path(key)
         assert Path(key_path).exists()
     # TODO: Test that the branches are correct.
 

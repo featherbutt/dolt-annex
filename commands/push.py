@@ -1,23 +1,25 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from contextlib import contextmanager
 import os
-from typing import List
+from uuid import UUID
 
-from typing_extensions import Iterable, Optional, Generator, Tuple
+from typing_extensions import List, Iterable, Optional, Generator, Tuple
 
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
-import context
 from annex import SubmissionId
 from application import Application, Downloader
 from config import get_config
 from dolt import DoltSqlServer
 from downloader import GitAnnexDownloader
-from git import get_old_relative_annex_key_path, get_relative_annex_key_path
+from git import get_old_relative_annex_key_path, get_key_path
 import move_functions
 from move_functions import MoveFunction
 from remote import Remote
-from type_hints import UUID, AnnexKey, PathLike
+from type_hints import AnnexKey, PathLike
 from logger import logger
 
 class FileMover:
@@ -174,10 +176,10 @@ def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_confi
             total_files_pushed = []
             while True:
                 if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, local_uuid, remote_uuid, source, limit)
+                    keys_and_submissions = diff_keys_from_source(dolt, str(local_uuid), str(remote_uuid), source, limit)
                     files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
                 else:
-                    keys_and_submissions = list(diff_keys(dolt, local_uuid, remote_uuid, limit))
+                    keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), limit))
                     files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
                 if len(files_pushed) == 0:
                     break
@@ -191,7 +193,7 @@ def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_confi
 def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
     files_pushed = []
     for key in keys:
-        rel_key_path = get_relative_annex_key_path(key)
+        rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
@@ -203,7 +205,7 @@ def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: F
 def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
     files_pushed = []
     for key, submission in keys_and_submissions:
-        rel_key_path = get_relative_annex_key_path(key)
+        rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
@@ -214,7 +216,7 @@ def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Sub
 
 def pull_personal_branch(dolt: DoltSqlServer, remote: Remote) -> None:
     """Fetch the personal branch for the remote"""
-    dolt.pull_branch(remote.uuid, remote)
+    dolt.pull_branch(str(remote.uuid), remote)
 
 def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
     """

@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from contextvars import ContextVar
 from dataclasses import dataclass
 import json
 import os
-from typing import Dict
-from type_hints import UUID
+from typing_extensions import Dict
+from uuid import UUID
 
 @dataclass
 class Remote:

@@ -11,7 +11,7 @@ from paramiko import SFTPServerInterface, SFTPServer, SFTPAttributes, \
     ServerInterface
 import paramiko
 
-from git import get_annex_key_path
+from git import get_key_path
 from type_hints import AnnexKey, PathLike
 
 CHUNK_SIZE = 8092
@@ -53,7 +53,7 @@ class AnnexSftpServer (SFTPServerInterface):
         key = key_from_path(path)
         try:
             if flags & os.O_CREAT:
-                annex_file_location = get_annex_key_path(key)
+                annex_file_location = get_key_path(key)
                 if pathlib.Path(annex_file_location).exists():
                     raise FileExistsError(f"File {key} already exists, and overwriting existing files is not supported")
                 return NewFileHandle(flags, key)
@@ -117,7 +117,7 @@ class NewFileHandle(paramiko.SFTPHandle):
         super().close()
 
         # Move the file to the annex location
-        annex_file_location = get_annex_key_path(self.key)
+        annex_file_location = get_key_path(self.key)
         pathlib.Path(annex_file_location).parent.mkdir(parents=True, exist_ok=True)
         os.rename(self.writefile.name, annex_file_location)
 
@@ -127,7 +127,7 @@ def key_from_path(path: PathLike) -> AnnexKey:
 
 def real_path_from_key(key: AnnexKey) -> PathLike:
     """Compute the filesystem path for a key"""
-    return get_annex_key_path(key)
+    return get_key_path(key)
 
 def real_path(path: PathLike) -> PathLike:
     """Given a user-supplied path to a key, return the real path where the corresponding file is stored"""

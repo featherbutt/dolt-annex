@@ -6,13 +6,15 @@
 from dataclasses import dataclass
 import json
 import time
+from uuid import UUID
 
 from typing_extensions import Callable, Dict, List, Set
 
 import sql
 from dolt import DoltSqlServer
 from logger import logger
-from type_hints import UUID, AnnexKey
+from type_hints import AnnexKey
+
 
 # reserved git-annex UUID for the web special remote
 WEB_UUID = '00000000-0000-0000-0000-000000000001'
@@ -120,7 +122,7 @@ class AnnexCache:
     def insert_key_source(self, key: AnnexKey, source: UUID):
         if key not in self.sources:
             self.sources[key] = []
-        self.sources[key].append(source)
+        self.sources[key].append(str(source))
         if source != WEB_UUID:
             if source not in self.remote_keys:
                 self.remote_keys[source] = set()
@@ -171,12 +173,12 @@ class AnnexCache:
 
         if self.remote_keys:
             for remote_uuid, keys in self.remote_keys.items():
-                with self.dolt.set_branch(remote_uuid):
+                with self.dolt.set_branch(str(remote_uuid)):
                     self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in keys])
         
         if self.remote_submissions:
             for remote_uuid, submissions in self.remote_submissions.items():
-                with self.dolt.set_branch(remote_uuid):
+                with self.dolt.set_branch(str(remote_uuid)):
                     self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [(submission.source, submission.sid, submission.updated, submission.part) for submission in submissions])
 
         if self.submission_keys:
