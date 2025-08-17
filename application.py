@@ -16,8 +16,6 @@ class Env:
     DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
     DOLT_DB = "DA_DOLT_DB"
     DOLT_REMOTE = "DA_DOLT_REMOTE"
-    GIT_DIR = "DA_GIT_DIR"
-    GIT_REMOTE = "DA_GIT_REMOTE"
     EMAIL = "DA_EMAIL"
     NAME = "DA_NAME"
     ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
@@ -62,17 +60,11 @@ class Application(cli.Application):
 
     dolt_remote = cli.SwitchAttr("--dolt-remote", str, envname=Env.DOLT_REMOTE)
 
-    git_dir = cli.SwitchAttr("--git-dir", cli.ExistingDirectory, envname=Env.GIT_DIR)
-
-    git_remote = cli.SwitchAttr("--git-remote", str, envname=Env.GIT_REMOTE)
-
     email = cli.SwitchAttr("--email", str, envname=Env.EMAIL)
 
     name = cli.SwitchAttr("--name", str, envname=Env.NAME)
 
     annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
-
-    auto_push = cli.Flag("--auto-push", envname=Env.AUTO_PUSH, help = "If set, automatically push annexed files to origin.")
 
     def main(self, *args):
         # Set each config parameter in order of preference:
@@ -84,17 +76,10 @@ class Application(cli.Application):
         self.config.dolt_server_socket = self.dolt_server_socket or self.config.dolt_server_socket
         self.config.dolt_db = self.dolt_db or self.config.dolt_db
         self.config.dolt_remote = self.dolt_remote or self.config.dolt_remote or "origin"
-        self.config.git_dir = self.git_dir or self.config.git_dir or "./git"
-        self.config.git_remote = self.git_remote or self.config.git_remote or "origin"
         self.config.email = self.email or self.config.email or "user@localhost"
         self.config.name = self.name or self.config.name or "user"
         self.config.annexcommitmessage = self.annexcommitmessage or self.config.annexcommitmessage or "update git-annex"
        
-        if self.auto_push is not None:
-            self.config.auto_push = self.auto_push
-        elif self.config.auto_push is None:
-            self.config.auto_push = False
-
         if self.nested_command is None:
             self.help()
             return 0
@@ -114,7 +99,7 @@ def Downloader(base_config: Config, db_batch_size):
     }
     with (
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
-        AnnexCache(None, dolt_server, base_config.auto_push, db_batch_size) as cache
+        AnnexCache(dolt_server, base_config.auto_push, db_batch_size) as cache
     ):
         downloader = GitAnnexDownloader(
                 cache = cache,
