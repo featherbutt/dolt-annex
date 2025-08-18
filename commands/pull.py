@@ -87,6 +87,7 @@ def pull_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: F
 def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
     files_pulled = 0
     for key, submission in keys_and_submissions:
+        logger.info(f"pulling {submission}: {key}")
         rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.get(rel_key_path, old_rel_key_path):

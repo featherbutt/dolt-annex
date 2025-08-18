@@ -215,6 +215,7 @@ def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: F
 def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
     files_pushed = []
     for key, submission in keys_and_submissions:
+        logger.info(f"pushing {submission}: {key}")
         rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
