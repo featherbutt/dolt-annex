@@ -46,9 +46,13 @@ class Application(cli.Application):
     @cli.switch(['-c', '--config'], cli.ExistingFile)
     def set_config(self, path):
         with open(path) as f:
-            config_json = json.load(f)
-            for key, value in config_json.items():
-                setattr(self.config, key, value)
+            try:
+                config_json = json.load(f)
+                for key, value in config_json.items():
+                    setattr(self.config, key, value)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing config file {path}: {e}")
+                raise
 
     dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname=Env.DOLT_DIR)
 
