@@ -73,12 +73,13 @@ class DoltSqlServer:
     
     @dry_run("Would execute {sql} with values {values}")
     def query(self, sql: str, values):
-        self.cursor.execute(sql, values)
-        res = self.cursor.fetchmany()
+        cursor = self.connection.cursor()
+        cursor.execute(sql, values)
+        res = cursor.fetchmany()
         while res:
             yield from res
-            res = self.cursor.fetchmany()
-        self.cursor.execute("COMMIT;")
+            res = cursor.fetchmany()
+        cursor.execute("COMMIT;")
         self.connection.commit()
 
     def commit(self, amend: bool = False):
