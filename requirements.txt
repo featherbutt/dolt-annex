@@ -2,3 +2,4 @@ requests
 pymysql
 plumbum
 sftpretty
+typing-extensions
