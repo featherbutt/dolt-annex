@@ -83,7 +83,7 @@ def file_mover(remote: Remote, ssh_config: str, known_hosts: Optional[str]) -> G
         if base_config.encrypted_ssh_key:
             extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
 
-        with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
+        with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path, **extra_opts) as sftp:
             def sftp_put(
                 local_path: PathLike,
                 remote_path: PathLike,
