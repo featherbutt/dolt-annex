@@ -40,7 +40,7 @@ class FileMover:
     def put(self, local_path: str, remote_path: str) -> bool:
         """Move a file from the local filesystem to the remote filesystem"""
         abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
-        abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
+        abs_remote_path = PathLike('/'.join([self.remote_cwd, remote_path]))
         logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
         return self.put_function(
             abs_local_path,
