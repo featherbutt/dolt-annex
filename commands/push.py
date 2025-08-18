@@ -160,6 +160,9 @@ class Push(cli.Application):
         with Downloader(self.parent.config, self.batch_size) as downloader:
             remote_name = self.remote or self.parent.config.dolt_remote
             remote = Remote.from_name(remote_name)
+            if not remote:
+                logger.error(f"Remote {remote_name} not found")
+                return 1
             do_push(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
 

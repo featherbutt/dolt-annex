@@ -13,6 +13,7 @@ from application import Application, Downloader
 from commands.push import FileMover, file_mover, diff_keys, diff_keys_from_source
 from downloader import GitAnnexDownloader
 from git import get_old_relative_annex_key_path, get_key_path
+from logger import logger
 from remote import Remote
 from type_hints import AnnexKey
 
@@ -66,6 +67,9 @@ class Pull(cli.Application):
         with Downloader(self.parent.config, self.batch_size) as downloader:
             remote_name = self.remote or self.parent.config.dolt_remote
             remote = Remote.from_name(remote_name)
+            if not remote:
+                logger.error(f"Remote {remote_name} not found")
+                return 1
             do_pull(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
         return 0
     
