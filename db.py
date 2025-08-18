@@ -31,7 +31,7 @@ def get_annex_key_from_submission_id(cursor, submission_id: SubmissionId, db: st
 
 PERSONAL_BRANCH_INIT_SQL = [
     "create table if not exists `local_keys` (`annex-key` varchar(1000) primary key);",
-    "create table if not exists `local_submissions` (`source` enum('archiveofourown.org','furaffinity.net','e621.net','gelbooru.com','rule34.us','danbooru.donmai.us','e6ai.net') NOT NULL, `id` int NOT NULL, `updated` date NOT NULL, `part` int NOT NULL, PRIMARY KEY (`source`,`id`,`updated`,`part`));",
+    "create table if not exists `local_submissions` (`source` varchar(100) NOT NULL, `id` int NOT NULL, `updated` date NOT NULL, `part` int NOT NULL, PRIMARY KEY (`source`,`id`,`updated`,`part`));",
 ]
 
 def is_key_present(cursor, key: str) -> bool:
