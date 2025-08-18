@@ -91,7 +91,6 @@ def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Sub
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.get(rel_key_path, old_rel_key_path):
             mover.get(rel_key_path, rel_key_path)
-        downloader.cache.insert_key_source(key, local_uuid)
         downloader.cache.insert_submission_source(submission, local_uuid)
         files_pulled += 1
     return files_pulled
@@ -109,7 +108,7 @@ def do_pull(downloader: GitAnnexDownloader, remote: Remote, args, ssh_config: st
             total_files_pulled = 0
             while True:
                 if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, str(local_uuid), str(remote_uuid), source, limit)
+                    keys_and_submissions = diff_keys_from_source(dolt, str(remote_uuid), str(local_uuid), source, limit)
                     files_pulled = pull_submissions_and_keys(keys_and_submissions, downloader, mover, local_uuid)
                 else:
                     keys = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), limit))
