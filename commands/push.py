@@ -33,7 +33,7 @@ class FileMover:
         if local_cwd is None:
             local_cwd = os.getcwd()
         self.local_cwd = os.path.abspath(local_cwd)
-        self.remote_cwd = os.path.abspath(remote_cwd)
+        self.remote_cwd = remote_cwd
         self.put_function = put_function
         self.get_function = get_function
 
