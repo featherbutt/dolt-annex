@@ -31,7 +31,7 @@ class Config:
 
     def validate(self):
         """Ensure that all required fields are set"""
-        for field in ["dolt_dir", "dolt_db", "dolt_remote", "git_dir", "git_remote", "email", "name", "annexcommitmessage"]:
+        for field in ["dolt_dir", "dolt_db", "dolt_remote", "email", "name", "annexcommitmessage"]:
             if getattr(self, field) is None:
                 raise ValueError(f"Missing configuration: {field}")
 

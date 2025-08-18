@@ -12,17 +12,8 @@ class Sync(cli.Application):
         help = "Don't sync the dolt branch",
     )
 
-    dont_sync_git = cli.Flag(
-        "--dont-sync-git",
-        help = "Don't sync the git-annex branch",
-    )
-
     def main(self):
         config = self.parent.config
-        if not self.dont_sync_git:
-            git = local.cmd.git["-C", config.git_dir]
-            git_annex = git["annex"]
-            git_annex("sync", "origin", "--no-content")
 
         if not self.dont_sync_dolt:
             dolt = local.cmd.dolt.with_cwd(config.dolt_dir)        
