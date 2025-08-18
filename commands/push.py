@@ -4,6 +4,7 @@
 from contextlib import contextmanager
 import os
 from uuid import UUID
+import getpass
 
 from typing_extensions import List, Iterable, Optional, Generator, Tuple
 
@@ -74,8 +75,14 @@ def file_mover(remote: Remote, ssh_config: str, known_hosts: Optional[str]) -> G
     if '@' in remote.url:
         user, rest = remote.url.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
+
         cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
         cnopts.log_level = 'error'
+
+        extra_opts = {}
+        if base_config.encrypted_ssh_key:
+            extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
+
         with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path) as sftp:
             def sftp_put(
                 local_path: PathLike,

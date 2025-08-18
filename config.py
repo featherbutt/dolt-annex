@@ -21,6 +21,7 @@ class Config:
     annexcommitmessage: str = "update git-annex"
     auto_push: bool = False
     uuid: Optional[UUID] = None
+    encrypted_ssh_key: bool = False
 
     @property
     def local_uuid(self) -> UUID:
@@ -31,7 +32,7 @@ class Config:
 
     def validate(self):
         """Ensure that all required fields are set"""
-        for field in ["dolt_dir", "dolt_db", "dolt_remote", "email", "name", "annexcommitmessage"]:
+        for field in ["dolt_dir", "dolt_db", "dolt_remote", "email", "name", "annexcommitmessage", "files_dir"]:
             if getattr(self, field) is None:
                 raise ValueError(f"Missing configuration: {field}")
 
