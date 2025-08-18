@@ -3,6 +3,7 @@
 
 from contextlib import contextmanager
 import json
+import os
 
 from plumbum import cli # type: ignore
 
@@ -93,12 +94,16 @@ class Application(cli.Application):
 @contextmanager
 def Downloader(base_config: Config, db_batch_size):
     db_config = {
-        "unix_socket": base_config.dolt_server_socket,
         "user": "root",
         "database": base_config.dolt_db,
         "autocommit": True,
         "port": 3306,
     }
+    if os.name == 'nt':
+        db_config["host"] = base_config.dolt_host
+    else:
+        db_config["unix_socket"] = base_config.dolt_server_socket
+
     with (
         DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
         AnnexCache(dolt_server, base_config.auto_push, db_batch_size) as cache

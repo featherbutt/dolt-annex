@@ -16,6 +16,7 @@ class Config:
     email: str
     name: str
     spawn_dolt_server: bool = False
+    dolt_host: str = "localhost"
     dolt_server_socket: str = "/tmp/mysql.sock"
     annexcommitmessage: str = "update git-annex"
     auto_push: bool = False
