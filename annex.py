@@ -90,6 +90,7 @@ class AnnexCache:
     def __init__(self, dolt: DoltSqlServer, auto_push: bool, batch_size: int):
         self.dolt = dolt
         self.urls = {}
+        self.md5s = {}
         self.sources = {}
         self.flush_hooks = []
         self.remote_keys = {}
@@ -176,9 +177,10 @@ class AnnexCache:
             for remote_uuid, submissions in self.remote_submissions.items():
                 with self.dolt.set_branch(str(remote_uuid)):
                     self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [(submission.source, submission.sid, submission.updated, submission.part) for submission in submissions])
-
-        if self.submission_keys:
-            self.dolt.executemany(sql.SUBMISSION_KEYS_SQL, [(submission.source, submission.sid, submission.updated, submission.part, key) for submission, key in self.submission_keys.items()])
+        with self.dolt.set_branch("files"):
+            print(self.submission_keys)
+            if self.submission_keys:
+                self.dolt.executemany(sql.SUBMISSION_KEYS_SQL, [(submission.source, submission.sid, submission.updated, submission.part, key) for submission, key in self.submission_keys.items()])
 
         # 3. Move the annex files to the annex directory.
 

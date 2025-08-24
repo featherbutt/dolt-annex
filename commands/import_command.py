@@ -67,20 +67,20 @@ class Import(cli.Application):
         "--from-csv",
         str,
         help="Import annex keys and urls from CSV. File must contain the following fields: f{ImportCsv.KEYS}",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
+        excludes = ["--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
     )
 
 
     from_md5 = cli.Flag(
         "--from-md5",
         help="Import, assuming the filename is the md5 hash",
-        excludes = ["--from-other-annex", "--url-prefix"],
+        excludes = [],
     )
 
     from_falr = cli.Flag(
         "--from-falr",
         help="Import, assuming the file path is a FALR id",
-        excludes = ["--from-other-annex", "--url-prefix", "--from-md5"],
+        excludes = ["--from-md5"],
     )
 
     move = cli.Flag(
@@ -142,17 +142,17 @@ class Import(cli.Application):
                 with open(self.from_csv) as csv_file:
                     ImportCsv.import_csv(downloader, csv_file)
             else:
-                importer = get_importer(*self.importer)
+                importer = get_importer(*self.importer.split())
                 do_import(import_config, downloader, importer, files_or_directories)
 
-def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.Importer, files_or_directories: Iterable[str]):
+def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, PathLike] = {}
     downloader.cache.add_flush_hook(lambda: move_files(import_config.move_function, key_paths))
     
     for file_or_directory in files_or_directories:
         import_path(import_config, downloader, file_or_directory, importer, key_paths)
 
-def import_path(config: ImportConfig, downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
+def import_path(config: ImportConfig, downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
     """Import a file or directory into the annex"""
     if os.path.isfile(file_or_directory):
         import_file(config, downloader, file_or_directory, importer, key_paths)
@@ -161,14 +161,14 @@ def import_path(config: ImportConfig, downloader: GitAnnexDownloader, file_or_di
     else:
         raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
-def import_directory(config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
+def import_directory(config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
     """Import a directory into the annex"""
     logger.debug(f"Importing directory {path}")
     for root, _, files in os.walk(path):
         for file in files:
             import_file(config, downloader, os.path.join(root, file), importer, key_paths)
 
-def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.Importer, key_paths: Dict[AnnexKey, PathLike]):
+def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
     """Import a file into the annex"""
     extension = os.path.splitext(path)[1]
     if len(extension) > downloader.max_extension_length+1:
@@ -185,7 +185,7 @@ def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, pat
         return
     logger.debug(f"Importing file {path}")
     abs_path = PathLike(os.path.abspath(path))
-    key = key_from_file(abs_path)
+    key = key_from_file(abs_path, importer.extension(path))
 
     if importer:
         urls = importer.url(original_path, path)

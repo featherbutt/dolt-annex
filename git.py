@@ -3,13 +3,16 @@ import hashlib
 import os
 import pathlib
 
+from typing_extensions import Optional
+
 from config import config
 
 from type_hints import AnnexKey, PathLike
 
-def key_from_file(key_path: PathLike) -> AnnexKey:
+def key_from_file(key_path: PathLike, extension: Optional[str] = None) -> AnnexKey:
     path = pathlib.Path(key_path)
-    extension = path.suffix[1:]  # Get the file extension without the dot
+    if extension is None:
+        extension = path.suffix[1:]  # Get the file extension without the dot
     with open(key_path, 'rb') as f:
         data = f.read()
     data_hash = hashlib.sha256(data).hexdigest()

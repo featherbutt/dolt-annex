@@ -37,8 +37,7 @@ def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
             pass
         case _:
             raise ImportError(f"Invalid importer name: {importerName}")
-    
-    importer_module = importlib.import_module(f".{module_name.lower()}", package=__name__)
+    importer_module = importlib.import_module(f"..{module_name.lower()}", package=__name__)
     if class_name in dir(importer_module):
         return getattr(importer_module, class_name)(*args, **kwargs)
     return getattr(importer_module, "Importer")(*args, **kwargs)

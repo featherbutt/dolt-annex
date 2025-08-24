@@ -19,6 +19,23 @@ class SoFurry(ImporterBase):
 
     def md5(self, path: str) -> str | None:
         return None
+
+    def extension(self, path: str) -> str | None:
+        match magic.from_file(path, mime=True):
+            case "image/png":
+                return "png"
+            case "image/jpeg":
+                return "jpeg"
+            case "text/plain":
+                return "txt"
+            case "image/gif":
+                return "gif"
+            case "audio/mpeg":
+                return "mp3"
+            case "video/mp4":
+                return "mp4"
+            case x:
+                raise Exception(f"Unknown mime type {x}")
     
     def skip(self, path: str) -> bool:
         return magic.from_file(path, mime=True) == 'text/html'
