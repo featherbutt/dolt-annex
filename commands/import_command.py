@@ -211,5 +211,9 @@ def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, pat
         if sid:
             downloader.cache.insert_submission_source(sid, config.get().local_uuid)
             downloader.cache.insert_submission_key(sid, key)
+        if (md5 := importer.md5(original_path)):
+            downloader.record_md5(md5, key)
+        if not sid and not md5:
+            raise ImportError("Importer did not produce an md5 or an sid, it is not safe to import")
 
     key_paths[AnnexKey(key)] = PathLike(abs_path)

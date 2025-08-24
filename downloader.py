@@ -67,6 +67,10 @@ class GitAnnexDownloader:
                 logger.debug(f"marking {key} as present")
                 self.cache.mark_present(key)
 
+    def record_md5(self, md5: str, key: str):
+            md5bytes = bytes.fromhex(md5)
+            self.cache.insert_md5(key, md5bytes)
+
     def flush(self):
         self.cache.flush()
 

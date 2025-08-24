@@ -74,6 +74,7 @@ class AnnexCache:
     """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
     urls: Dict[str, List[str]]
     sources: Dict[AnnexKey, List[str]]
+    md5s: Dict[str, bytes]
     remote_keys: Dict[UUID, Set[AnnexKey]]
     remote_submissions: Dict[UUID, List[SubmissionId]]
     submission_keys: Dict[SubmissionId, AnnexKey]
@@ -110,6 +111,10 @@ class AnnexCache:
         if key not in self.urls:
             self.urls[key] = []
         self.urls[key].append(url)
+        self.increment_count()
+
+    def insert_md5(self, key: str, md5: bytes):
+        self.md5s[key] = md5
         self.increment_count()
 
     def insert_key_source(self, key: AnnexKey, source: UUID):
@@ -159,6 +164,8 @@ class AnnexCache:
             self.dolt.executemany(sql.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
         if self.urls:
             self.dolt.executemany(sql.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
+        if self.md5s:
+            self.dolt.executemany(sql.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
 
         if self.remote_keys:
             for remote_uuid, keys in self.remote_keys.items():
@@ -180,6 +187,7 @@ class AnnexCache:
 
         num_keys = max(len(self.urls), len(self.sources))
         self.urls.clear()
+        self.md5s.clear()
         self.sources.clear()
         self.remote_keys.clear()
         self.remote_submissions.clear()
