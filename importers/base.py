@@ -1,7 +1,7 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import os
 
-from typing_extensions import List, Optional
+from typing_extensions import List, Optional, Type, Dict
 
 from plumbum import local # type: ignore
 
@@ -24,6 +24,20 @@ class Importer(AbstractBaseClass):
     @abstractmethod
     def skip(self, path: str) -> bool:
         ...
+   
+
+importers: Dict[str, Type[Importer]] = {}
+
+class DuplicateImporter(Exception):
+    pass
+    
+def declare_importer(importerClass: Type[Importer]):
+    if importerClass.__name__ in importers:
+        raise DuplicateImporter(f"Duplicate importer declared: {importerClass.__name__}")
+    importers[importerClass.__name__] = importerClass
+
+def get_importer(importerName: str, *args, **kwargs) -> Importer:
+    return importers[importerName](*args, **kwargs)
     
 class OtherAnnexImporter(Importer):
     def __init__(self, other_annex_path: str):

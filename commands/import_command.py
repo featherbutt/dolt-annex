@@ -12,10 +12,14 @@ from git import key_from_file
 import importers
 from application import Application, Downloader
 from downloader import GitAnnexDownloader, move_files
+from importers.base import get_importer
 from logger import logger
 import move_functions
 from move_functions import MoveFunction
 from type_hints import AnnexKey, PathLike
+
+class ImportError(Exception):
+    pass
 
 class ImportCsv:
     KEY_ANNEX_KEY = 'annex_key'
@@ -66,19 +70,6 @@ class Import(cli.Application):
         excludes = ["--from-other-annex", "--url-prefix", "--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
     )
 
-    from_other_annex = cli.SwitchAttr(
-        "--from-other-annex",
-        cli.ExistingDirectory,
-        help="The path of another git-annex repository to import from",
-        excludes = ["--url-prefix"],
-    )
-
-    url_prefix = cli.SwitchAttr(
-        "--url-prefix",
-        str,
-        help="Prepend this to the relative path of each imported file to get the url",
-        excludes = ["--from-other-annex"],
-    )
 
     from_md5 = cli.Flag(
         "--from-md5",
@@ -117,6 +108,11 @@ class Import(cli.Application):
         default = "skip",
     )
 
+    importer = cli.SwitchAttr(
+        "--importer",
+        str,
+    )
+
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
         print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
@@ -126,18 +122,6 @@ class Import(cli.Application):
             return move_functions.move_and_symlink
         else:
             return move_functions.move
-        
-    def get_importer(self, downloader: GitAnnexDownloader) -> importers.Importer:
-        if self.from_other_annex:
-            return importers.OtherAnnexImporter(self.from_other_annex)
-        elif self.url_prefix:
-            return importers.DirectoryImporter(self.url_prefix)
-        elif self.from_md5:
-            return importers.MD5Importer()
-        elif self.from_falr:
-            return importers.FALRImporter(downloader.dolt_server, "gallery-archive", "main")
-        else:
-            return importers.NullImporter()
         
     def main(self, *files_or_directories: str):
         self.files = {}
@@ -158,7 +142,7 @@ class Import(cli.Application):
                 with open(self.from_csv) as csv_file:
                     ImportCsv.import_csv(downloader, csv_file)
             else:
-                importer = self.get_importer(downloader)
+                importer = get_importer(*self.importer)
                 do_import(import_config, downloader, importer, files_or_directories)
 
 def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.Importer, files_or_directories: Iterable[str]):
