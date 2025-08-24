@@ -2,22 +2,23 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
+import magic
+
 from typing_extensions import List, Optional
-import hashlib
 
 import annex
 from .base import ImporterBase
 
-class InkbunnyData(ImporterBase):
+class SoFurry(ImporterBase):
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         return []
     
     def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+        sid = int(Path(abs_path).name)
+        return annex.SubmissionId("sofurry.com", sid, "0", 1)
+
+    def md5(self, path: str) -> str | None:
         return None
     
-    def md5(self, path: str) -> str | None:
-        with open(path, 'rb') as fd:
-            return hashlib.md5(fd.read()).hexdigest()
-    
     def skip(self, path: str) -> bool:
-        return Path(path).suffix == '.json'
+        return magic.from_file(path, mime=True) == 'text/html'

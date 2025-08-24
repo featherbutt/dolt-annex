@@ -7,9 +7,9 @@ from typing_extensions import List, Optional
 from bs4 import BeautifulSoup
 
 import annex
-from .base import Importer
+from .base import ImporterBase
 
-class AO3Importer(Importer):
+class AO3Importer(ImporterBase):
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         stem = Path(rel_path).stem
         num = stem.split()[0]

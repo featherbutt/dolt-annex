@@ -1,5 +1,6 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import os
+import importlib
 
 from typing_extensions import List, Optional, Type, Dict
 
@@ -8,7 +9,7 @@ from plumbum import local # type: ignore
 import annex
 from dolt import DoltSqlServer
 
-class Importer(AbstractBaseClass):
+class ImporterBase(AbstractBaseClass):
     @abstractmethod
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         ...
@@ -26,20 +27,23 @@ class Importer(AbstractBaseClass):
         ...
    
 
-importers: Dict[str, Type[Importer]] = {}
+importers: Dict[str, Type[ImporterBase]] = {}
 
-class DuplicateImporter(Exception):
-    pass
+def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
+    match importerName.split('.'):
+        case [module_name]:
+            class_name = module_name
+        case [module_name, class_name]:
+            pass
+        case _:
+            raise ImportError(f"Invalid importer name: {importerName}")
     
-def declare_importer(importerClass: Type[Importer]):
-    if importerClass.__name__ in importers:
-        raise DuplicateImporter(f"Duplicate importer declared: {importerClass.__name__}")
-    importers[importerClass.__name__] = importerClass
+    importer_module = importlib.import_module(f".{module_name.lower()}", package=__name__)
+    if class_name in dir(importer_module):
+        return getattr(importer_module, class_name)(*args, **kwargs)
+    return getattr(importer_module, "Importer")(*args, **kwargs)
 
-def get_importer(importerName: str, *args, **kwargs) -> Importer:
-    return importers[importerName](*args, **kwargs)
-    
-class OtherAnnexImporter(Importer):
+class OtherAnnexImporter(ImporterBase):
     def __init__(self, other_annex_path: str):
         self.other_annex_path = other_annex_path
 
@@ -62,7 +66,7 @@ class OtherAnnexImporter(Importer):
     def skip(self, path: str) -> bool:
         return False
     
-class DirectoryImporter(Importer):
+class DirectoryImporter(ImporterBase):
     def __init__(self, prefix_url: str):
         self.prefix_url = prefix_url
 
@@ -78,7 +82,7 @@ class DirectoryImporter(Importer):
     def skip(self, path: str) -> bool:
         return False
 
-class FALRImporter(Importer):
+class FALRImporter(ImporterBase):
     def __init__(self, dolt_sql_server: DoltSqlServer, other_dolt_db: str, other_dolt_branch: str):
         self.dolt_sql_server = dolt_sql_server
         self.other_dolt_db = other_dolt_db
@@ -106,7 +110,7 @@ class FALRImporter(Importer):
     def skip(self, path: str) -> bool:
         return 'ubmission' not in path.split('/')[-1]
 
-class MD5Importer(Importer):
+class MD5Importer(ImporterBase):
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         basename = os.path.basename(abs_path)
         basename_parts = basename.split('.')
@@ -138,7 +142,7 @@ class MD5Importer(Importer):
     def skip(self, path: str) -> bool:
         return False
     
-class NullImporter(Importer):
+class NullImporter(ImporterBase):
     """An importer that does nothing."""
     def url(self, abs_path: str, rel_path: str) -> List[str]:
         return []
