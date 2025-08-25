@@ -1,4 +1,4 @@
-[project]
+[tool.poetry]
 name = "dolt-annex"
 version = "0.1.0"
 description = ""

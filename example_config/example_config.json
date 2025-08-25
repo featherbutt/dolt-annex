@@ -1,6 +1,7 @@
 {
     "dolt_dir": "./annex-locations",
     "dolt_db": "annex-locations",
+    "files_dir": "./file-store",
     "dolt_remote": "origin",
     "email": "author@example.com",
     "name": "A U Thor",

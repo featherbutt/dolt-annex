@@ -43,7 +43,7 @@ class Application(cli.Application):
     def set_dry_run(self):
         dry_run.is_dry_run = True
 
-    @cli.switch(['-c', '--config'], cli.ExistingFile)
+    @cli.switch(['-c', '--config'], cli.ExistingFile, help="Path to your dolt-annex JSON config.")
     def set_config(self, path):
         with open(path) as f:
             try:

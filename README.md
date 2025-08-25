@@ -30,7 +30,7 @@ While dolt-annex used to depend on git-annex and bup, it's now pure python. Inst
 
 ## Running
 
-git-annex-archive requires a configuration, which can be specified via command line flags, environment variables, or a JSON config file. I reccomend the JSON config file, which can be supplied to every command with the `-c` flag. An example config file is included for reference.
+git-annex-archive requires a configuration, which can be specified via command line flags, environment variables, or a JSON config file. I recommend the JSON config file, which can be supplied to every command with the `-c` flag. An example config file is included for reference; feel free to copy it to `~/.config/dolt-annex-config.json` or such.
 
 Currently, you need to run `main.py` with your command line flags.
 
