@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from commands import init, server_command, sync, push, pull, scan_annex, download, import_command
 from application import Application
 
