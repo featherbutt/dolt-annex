@@ -40,39 +40,11 @@ SUBMISSION_KEYS_SQL = """
     VALUES (%s, %s, %s, %s, %s);
 """
 
-# What follows is a hack. Ideally we'd like to get a page of urls by simply executing a query like:
-#
-# SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL OFFSET X LIMIT 1000;
-# 
-# Unfortunately, Dolt doesn't currently optimize OFFSET. So instead, we need to generate a random value
-# to use as a lower bound for the `url` column.
-
-def random_string_key(min_key, max_key: str) -> str:
-    '''Generate a random string key between min_key and max_key'''
-    prefix = os.path.commonprefix([min_key, max_key])
-    next_choices = []
-    if len(prefix) == len(min_key):
-        next_choices.append("")
-    lower = ord(min_key[len(prefix)])
-    if lower < ord('a'):
-        next_choices.append(chr(lower))
-        lower = ord('a')
-    upper = ord(max_key[len(prefix)])
-    if upper > ord('z'):
-        next_choices.append(chr(upper))
-        upper = ord('z')
-    next_choices.extend(map(chr, range(lower, upper+1)))
-
-    print(next_choices)
-    return prefix + random.choice(next_choices)
-
-
-def random_batch(url_prefix: str, cursor, batch_size: int) -> Tuple[Iterable[str], int]:
-    '''Get a random batch of urls with a given prefix'''
-
-    cursor.execute("SELECT MIN(`url`), MAX(`url`) FROM `annex-keys` WHERE `annex-key` IS NULL and url LIKE %s;", (url_prefix+"%",))
-    min_key, max_key = cursor.fetchone()
-    pivot_key = random_string_key(min_key, max_key)
-    # TODO: This query isn't using the full index.
-    num_results = cursor.execute("SELECT url FROM `annex-keys` WHERE `annex-key` <=> NULL AND url >= %s LIMIT %s", (pivot_key, batch_size))
-    return (row[0] for row in cursor.fetchall()), num_results
+DIFF_SQL = """
+SELECT
+    `file_key`, `diff_type`, `to_source`, `to_id`, `to_updated`, `to_part`
+FROM dolt_commit_diff_local_submissions
+JOIN file_keys AS OF files
+    ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
+WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s
+"""

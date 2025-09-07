@@ -71,7 +71,7 @@ class SubmissionId:
 class GitAnnexSettings:
     ref: bytes
 class AnnexCache:
-    """The AnnexCache allows for batched operations against the git-annex branch and the Dolt database."""
+    """The AnnexCache allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
     sources: Dict[AnnexKey, List[str]]
     md5s: Dict[str, bytes]
@@ -199,11 +199,6 @@ class AnnexCache:
         elapsed_time = new_now - self.time
         logger.debug(f"added {num_keys} keys in {elapsed_time:.2f} seconds")
         self.time = new_now
-
-        # TODO: Only auto-push content to server if we can do it efficiently.
-        # ie. git-annex won't make a commit per-file.
-        # if self.auto_push:
-        # self.git.annex.push_content(key)
 
     def __enter__(self):
         return self
