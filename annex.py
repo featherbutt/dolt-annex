@@ -8,7 +8,7 @@ import json
 import time
 from uuid import UUID
 
-from typing_extensions import Callable, Dict, List, Set
+from typing_extensions import Callable, Dict, List, Set, NamedTuple
 
 import sql
 from dolt import DoltSqlServer
@@ -60,8 +60,7 @@ def parse_web_log(content: str) -> List[str]:
 # - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
-@dataclass(frozen=True)
-class SubmissionId:
+class SubmissionId(NamedTuple):
     source: str
     sid: int
     updated: str
@@ -176,7 +175,7 @@ class AnnexCache:
         if self.remote_submissions:
             for remote_uuid, submissions in self.remote_submissions.items():
                 with self.dolt.set_branch(str(remote_uuid)):
-                    self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [(submission.source, submission.sid, submission.updated, submission.part) for submission in submissions])
+                    self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [submission for submission in submissions])
         with self.dolt.set_branch("files"):
             print(self.submission_keys)
             if self.submission_keys:
