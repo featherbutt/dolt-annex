@@ -16,9 +16,10 @@ from importers.base import get_importer
 from logger import logger
 import move_functions
 from move_functions import MoveFunction
+from remote import Remote
 from tables import FileKeyTable
 from type_hints import AnnexKey
-import config
+import context
 from annex import AnnexCache
 
 class ImportError(Exception):
@@ -154,56 +155,60 @@ class Import(cli.Application):
                     ImportCsv.import_csv(downloader, csv_file)
             else:
                 importer = get_importer(*self.importer.split())
-                do_import(import_config, downloader, importer, files_or_directories)
+                local_remote = Remote(
+                    name="local",
+                    uuid=self.parent.config.local_uuid,
+                    url=self.parent.config.files_dir.as_posix(),
+                )
+                do_import(local_remote, import_config, downloader, importer, files_or_directories)
 
-def do_import(import_config: ImportConfig, downloader: AnnexCache, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+def do_import(remote: Remote, import_config: ImportConfig, downloader: AnnexCache, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, Path] = {}
-    downloader.add_flush_hook(lambda: move_files(import_config.move_function, key_paths))
+    downloader.add_flush_hook(lambda: move_files(remote, import_config.move_function, key_paths))
     
-    for file_or_directory in files_or_directories:
-        import_path(import_config, downloader, Path(file_or_directory), importer, key_paths)
-
-def import_path(config: ImportConfig, downloader: AnnexCache, file_or_directory: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
-    """Import a file or directory into the annex"""
-    if file_or_directory.is_file():
-        import_file(config, downloader, file_or_directory, importer, key_paths)
-    elif file_or_directory.is_dir():
-        import_directory(config, downloader, file_or_directory, importer, key_paths)
-    else:
-        raise ValueError(f"Path {file_or_directory} is not a file or directory")
-
-def import_directory(config: ImportConfig, downloader: AnnexCache, path: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
-    """Import a directory into the annex"""
-    logger.debug(f"Importing directory {path}")
-    for root, _, files in os.walk(path):
-        root_path = Path(root)
-        for file in files:
-            import_file(config, downloader, root_path / file, importer, key_paths)
-
-def import_file(import_config: ImportConfig, downloader: AnnexCache, path: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
-    """Import a file into the annex"""
-    extension = path.suffix[1:]
-    if len(extension) > downloader.MAX_EXTENSION_LENGTH+1:
-        return
-    # catch both regular symlinks and windows shortcuts
-    is_symlink = path.is_symlink() or extension == '.lnk'
-    original_path = path.resolve()
-    if is_symlink:
-        if not import_config.follow_symlinks:
-            return
+    def import_path(file_or_directory: Path):
+        """Import a file or directory into the annex"""
+        if file_or_directory.is_file():
+            import_file(file_or_directory)
+        elif file_or_directory.is_dir():
+            import_directory(file_or_directory)
         else:
-            path = path.readlink()
-    if importer and importer.skip(path):
-        return
-    logger.debug(f"Importing file {path}")
-    abs_path = Path(path)
-    key = key_from_file(abs_path, importer.extension(path))
+            raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
-    if importer:
-        key_columns = importer.key_columns(path)
-        if key_columns:
-            downloader.insert_file_source(key_columns, key, config.get_config().local_uuid)
-        if not key_columns:
-            raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
+    def import_directory(path: Path):
+        """Import a directory into the annex"""
+        logger.debug(f"Importing directory {path}")
+        for root, _, files in os.walk(path):
+            root_path = Path(root)
+            for file in files:
+                import_file(root_path / file)
 
-    key_paths[AnnexKey(key)] = abs_path
+    def import_file(path: Path):
+        """Import a file into the annex"""
+        extension = path.suffix[1:]
+        if len(extension) > downloader.MAX_EXTENSION_LENGTH+1:
+            return
+        # catch both regular symlinks and windows shortcuts
+        is_symlink = path.is_symlink() or extension == '.lnk'
+        if is_symlink:
+            if not import_config.follow_symlinks:
+                return
+            else:
+                path = path.readlink()
+        if importer and importer.skip(path):
+            return
+        logger.debug(f"Importing file {path}")
+        abs_path = Path(path)
+        key = key_from_file(abs_path, importer.extension(path))
+
+        if importer:
+            key_columns = importer.key_columns(path)
+            if key_columns:
+                downloader.insert_file_source(key_columns, key, remote.uuid)
+            if not key_columns:
+                raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
+
+        key_paths[AnnexKey(key)] = abs_path
+
+    for file_or_directory in files_or_directories:
+        import_path(Path(file_or_directory))

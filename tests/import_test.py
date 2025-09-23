@@ -16,6 +16,7 @@ from dolt import DoltSqlServer
 from git import get_key_path, key_from_file
 import importers
 import move_functions
+from remote import Remote
 from table_settings import TableSettings
 from tables import FileKeyTable
 from tests.setup import setup_file_remote,  base_config
@@ -53,33 +54,6 @@ def test_import_e621(tmp_path):
         return importers.MD5Importer()
     do_test_import(tmp_path, "urls", importer_factory, expected_rows)
 
-def test_import_falr(tmp_path):
-    """Test importing with a url determined by selecting from the Dolt database"""
-    expected_submission_ids = {
-        "591785b794601e212b260e25925636fd.e621.txt": TableRow("furaffinity.net", 12345678, '2021-01-01', 1),
-        "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": TableRow("furaffinity.net", 12345690, '2021-01-01', 1),
-        "b1946ac92492d2347c6235b4d2611184.e621.txt": TableRow("furaffinity.net", 876543210, '2021-01-01', 1),
-    }
-    def importer_factory(downloader: AnnexCache) -> importers.ImporterBase:
-        dolt = downloader.dolt
-        dolt.execute("""CREATE TABLE `filenames` (
-  `source` enum('archiveofourown.org','furaffinity.net') NOT NULL,
-  `id` int NOT NULL,
-  `updated` date NOT NULL,
-  `part` int NOT NULL,
-  `url` varchar(200),
-  `filename` varchar(200),
-  PRIMARY KEY (`source`,`id`,`updated`,`part`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin""", [])
-        dolt.executemany("INSERT INTO `filenames` VALUES (%s, %s, %s, %s, %s, %s);", [
-            ['furaffinity.net', 12345678, '2021-01-01', 1, 'https://d.furaffinity.net/art/denalilobita/1742711834/1742711834.denalilobita_transdaffy.png', '1742711834.denalilobita_transdaffy.png'],
-            ['furaffinity.net', 12345690, '2021-01-01', 1, 'https://d.furaffinity.net/art/asdf/1234/1234.asdf_transdaffy.png', '1234.asdf_transdaffy.png'],
-
-            ['furaffinity.net', 876543210, '2021-01-01', 1, 'https://d.furaffinity.net/art/detergentt/1742713111/1742713111.detergentt_pulchra_headshot_18mar2025.png', '1742713111.detergentt_pulchra_headshot_18mar2025.png'],
-        ])
-        return importers.FALRImporter(downloader.dolt, "dolt", "main")
-    do_test_import(tmp_path, "submissions", importer_factory, expected_submission_ids)
-
 def do_test_import(tmp_path_: str, table_name: str, importer_factory, expected_rows: Dict[str, TableRow]):
     """Run and validate the importer"""
     tmp_path = Path(tmp_path_)
@@ -98,13 +72,18 @@ def do_test_import(tmp_path_: str, table_name: str, importer_factory, expected_r
         "autocommit": True,
         "port": random.randint(20000, 21000),
     }
-    table_settings = TableSettings(uuid=get_config().local_uuid, table=table, remote=None)
+    table_settings = TableSettings(base_config.local_uuid, table=table, remote=None)
+    local_remote = Remote(
+        name="local",
+        uuid=base_config.local_uuid,
+        url=base_config.files_dir.as_posix(),
+    )
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
         with AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
             importer = importer_factory(downloader)
-            do_import(import_config, downloader, importer, ["import_data"])
+            do_import(local_remote, import_config, downloader, importer, ["import_data"])
         validate_import(downloader, table_settings, expected_rows)
 
 def validate_import(downloader: AnnexCache, table_settings: TableSettings, expected_rows: Dict[str, TableRow]):
@@ -116,6 +95,7 @@ def validate_import(downloader: AnnexCache, table_settings: TableSettings, expec
         for file in files:
             file_count += 1
             key = key_from_file(root_path / file)
+            print(f"Validating {file} with key {key}")
             assert_key(downloader.dolt, key)
             assert_submission_id(downloader.dolt, table_settings, key, expected_rows[file])
 

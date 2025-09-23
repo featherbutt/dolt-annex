@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextvars import ContextVar
 from dataclasses import dataclass
 import json
 import os
-from typing_extensions import Dict
+from pathlib import Path
 from uuid import UUID
 
 @dataclass
@@ -13,6 +12,14 @@ class Remote:
     name: str
     uuid: UUID
     url: str
+
+    def files_dir(self) -> Path:
+        if self.url.startswith("file://"):
+            return Path(self.url[7:])
+        elif self.url.startswith("ssh://"):
+            return Path(self.url.split(":", 2)[2])
+        else:
+            return Path(self.url)
 
     @staticmethod
     def from_name(name: str):
