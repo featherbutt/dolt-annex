@@ -50,24 +50,6 @@ class DirectoryImporter(ImporterBase):
 
     def skip(self, path: Path) -> bool:
         return False
-
-class FALRImporter(ImporterBase):
-    def __init__(self, dolt_sql_server: DoltSqlServer, other_dolt_db: str, other_dolt_branch: str):
-        self.dolt_sql_server = dolt_sql_server
-        self.other_dolt_db = other_dolt_db
-        self.other_dolt_branch = other_dolt_branch
-
-    def key_columns(self, path: Path) -> Optional[TableRow]:
-        sid = int(''.join(path.parts[-6:-1]))
-        query = f"SELECT DISTINCT updated, part FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
-        res = self.dolt_sql_server.query(query, (sid,))
-        for row in res:
-            return TableRow(("furaffinity.net", sid, row[0], row[1]))
-        return None
-    
-    def skip(self, path: Path) -> bool:
-        return 'ubmission' not in path.name
-
 class MD5Importer(ImporterBase):
 
     def key_columns(self, path: Path):

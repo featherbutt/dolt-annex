@@ -5,12 +5,12 @@ import os
 from pathlib import Path
 import random
 import shutil
-from typing_extensions import Optional, List
+from typing_extensions import Optional
 import uuid
 
 import paramiko 
 
-from annex import AnnexCache, SubmissionId
+from annex import AnnexCache
 from commands.import_command import ImportConfig, do_import
 from commands.push import do_push
 from commands.server_command import server_context
@@ -34,8 +34,6 @@ import_config = ImportConfig(
 
 import_directory = os.path.join(os.path.dirname(__file__), "import_data")
 config_directory = Path(__file__).parent / "config"
-
-batch_size = 10
 
 def test_push_local(tmp_path):
     remote = setup_file_remote(tmp_path)
@@ -89,17 +87,16 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
     ):
         with AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
             ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
-            file_key_table = FileKeyTable.from_name("submissions")
             do_import(import_config, downloader, importer, ["import_data/00"])
             downloader.flush()
             with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, table)
             assert files_pushed == 2
             # Pushing again should have no effect
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, table)
             assert files_pushed == 0
 
             # But if we add more files, it should push them
@@ -108,7 +105,7 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
             with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, table)
             assert files_pushed == 1
 
 

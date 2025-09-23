@@ -8,9 +8,8 @@ from typing_extensions import Iterable, Optional, Tuple, List
 
 from plumbum import cli # type: ignore
 
-from annex import AnnexCache, SubmissionId
+from annex import AnnexCache
 from commands.sync import SshSettings, TableFilter
-from config import get_config
 from application import Application, Downloader
 from commands.push import FileMover, file_mover, diff_keys
 from git import get_old_relative_annex_key_path, get_key_path
@@ -18,6 +17,7 @@ from logger import logger
 from remote import Remote
 from tables import FileKeyTable
 from type_hints import AnnexKey, TableRow
+import context
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
@@ -113,10 +113,11 @@ def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Tab
 
 def do_pull(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
     dolt = downloader.dolt
-    local_uuid = get_config().local_uuid
+    local_uuid = context.local_uuid.get()
     remote_uuid = file_remote.uuid
 
-    dolt.pull_branch(str(remote_uuid), file_remote)
+    dolt.pull_branch(f"{remote_uuid}-{file_key_table.name}", file_remote)
+    dolt.maybe_create_branch(f"{local_uuid}-{file_key_table.name}", file_key_table.name)
 
     with file_mover(file_remote, ssh_settings) as mover:
         total_files_pulled: List[AnnexKey] = []
