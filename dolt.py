@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from contextlib import contextmanager
+from pathlib import Path
 import time
 
 from typing_extensions import Any, Dict, Tuple
@@ -19,9 +20,11 @@ class DoltSqlServer:
     connection: pymysql.connections.Connection
     cursor: pymysql.cursors.Cursor
     active_branch: str
+    db_name: str
 
-    def __init__(self, dolt_dir: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
+    def __init__(self, dolt_dir: Path, dolt_db_name: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
         self.db_config = db_config
+        self.db_name = dolt_db_name
 
         if spawn_dolt_server:
             self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_dir)
@@ -43,7 +46,7 @@ class DoltSqlServer:
         if self.dolt_server_process:
             self.dolt_server_process.terminate()
 
-    def spawn_dolt_server(self, dolt_dir: str) -> Tuple[Any, pymysql.connections.Connection]:
+    def spawn_dolt_server(self, dolt_dir: Path) -> Tuple[Any, pymysql.connections.Connection]:
         dolt = local.cmd.dolt.with_cwd(dolt_dir)
         args = []
         if "port" in self.db_config:
@@ -72,7 +75,7 @@ class DoltSqlServer:
         self.connection.commit()
     
     @dry_run("Would execute {sql} with values {values}")
-    def query(self, sql: str, values):
+    def query(self, sql: str, values = ()):
         cursor = self.connection.cursor()
         cursor.execute(sql, values)
         res = cursor.fetchmany()
@@ -102,6 +105,14 @@ class DoltSqlServer:
         The returned branch can be used as a context manager to switch back to the original branch
         when done. This is useful for creating a branch and then switching to it.
         """
+        # Kind of a hack, but we may need to pull the start point branch from upstream if it doesn't exist locally.
+        # But the start point may also not be a branch, so...
+        try:
+            with DoltBranch(self, start_point):
+                pass
+        except pymysql.err.OperationalError as e:
+            raise DoltException(f"Failed to find start point {start_point}") from e
+
         try:
             self.cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
         except pymysql.err.OperationalError as e:
@@ -179,11 +190,11 @@ class DoltBranch:
 
     def __enter__(self):
         self.previous_branches.append(self.dolt.active_branch)
-        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s)", self.branch)
+        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s, '--')", self.branch)
         self.dolt.active_branch = self.branch
         return self.dolt.set_branch(self.branch)
 
     def __exit__(self, exc_type, exc_value, traceback):
         active_branch = self.previous_branches.pop()
-        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s)", active_branch)
+        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s, '--')", active_branch)
         self.dolt.active_branch = active_branch

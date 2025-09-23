@@ -1,18 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from pathlib import Path
 from typing_extensions import Optional
 from uuid import UUID
 
 @dataclass
 class Config:
     """Global configuration settings"""
-    dolt_dir: str
+    dolt_dir: Path
     dolt_db: str
     dolt_remote: str
-    files_dir: str
+    files_dir: Path
     email: str
     name: str
     spawn_dolt_server: bool = False
@@ -42,4 +44,12 @@ def get_config() -> Config:
     return config.get()
 
 def set_config(new_config: Config):
-    config.set(new_config)
+    return config.set(new_config)
+
+@contextmanager
+def config_context(new_config: Config):
+    token = config.set(new_config)
+    try:
+        yield
+    finally:
+        config.reset(token)

@@ -3,9 +3,9 @@
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing_extensions import Dict, TypeVar
+from uuid import UUID
 
-from type_hints import UUID, PathLike
+from typing_extensions import TypeVar
 
 T = TypeVar('T')
 

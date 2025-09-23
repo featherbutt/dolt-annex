@@ -15,13 +15,12 @@ from application import Config
 from commands.init import InitConfig, do_init, read_uuid
 from config import config
 from context import local_uuid
-from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
 from remote import Remote
 
 base_config = Config(
-    dolt_dir = "./dolt",
+    dolt_dir = Path("./dolt"),
     dolt_db = "dolt",
-    files_dir= "./files",
+    files_dir= Path("./files"),
     dolt_remote = "origin",
     email = "user@localhost",
     name = "user",
@@ -66,23 +65,25 @@ def setup(tmp_path, origin_uuid: UUID):
     # Dolt remotes are slightly different than local repos, so we make a temp repo and push it.
     Path("./dolt_tmp").mkdir()
     dolt = local.cmd.dolt.with_cwd("./dolt_tmp")
-    dolt("init", "-b", "files")
-    
-    dolt("checkout", "-b", origin_uuid)
-    for query in PERSONAL_BRANCH_INIT_SQL:
-        dolt("sql", "-q", query)
+    dolt("init")
+
+    dolt("branch", "urls")
+    dolt("checkout", "-b", "submissions")
+    dolt("sql", "-q", "CREATE TABLE IF NOT EXISTS `submissions` ( source VARCHAR(100), id int, updated DATETIME, part int, annex_key VARCHAR(100), PRIMARY KEY(source, id, updated, part) )")
     dolt("add", ".")
-    dolt("commit", "-m", "init personal branch")
-    dolt("checkout", "-b", "new")
-    dolt("checkout", "files")
-    dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
+    dolt("commit", "-m", "init submissions table")
+    dolt("checkout", "-b", f"{origin_uuid}-submissions")
+    dolt("checkout", "urls")   
+    dolt("sql", "-q", "CREATE TABLE IF NOT EXISTS `urls` ( url VARCHAR(1000) primary key, annex_key VARCHAR(100))")
     dolt("add", ".")
-    dolt("commit", "-m", "init shared branch")
+    dolt("commit", "-m", "init urls table")
+    dolt("checkout", "-b", f"{origin_uuid}-urls")
     dolt("remote", "add", "origin", "file://../dolt_origin/")
-    dolt("push", "origin", "files")
-    dolt("push", "origin", "new")
-    dolt("push", "origin", origin_uuid)
-    
+    dolt("push", "origin", "submissions")
+    dolt("push", "origin", "urls")
+    dolt("push", "origin", f"{origin_uuid}-submissions")
+    dolt("push", "origin", f"{origin_uuid}-urls")
+
 def init():
     init_config = InitConfig(
         init_dolt = True,

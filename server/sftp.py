@@ -4,7 +4,7 @@
 import hashlib
 from io import BufferedReader, BufferedWriter
 import os
-import pathlib
+from pathlib import Path
 import tempfile
 
 from paramiko import SFTPServerInterface, SFTPServer, SFTPAttributes, \
@@ -12,7 +12,7 @@ from paramiko import SFTPServerInterface, SFTPServer, SFTPAttributes, \
 import paramiko
 
 from git import get_key_path
-from type_hints import AnnexKey, PathLike
+from type_hints import AnnexKey
 
 CHUNK_SIZE = 8092
 
@@ -54,7 +54,7 @@ class AnnexSftpServer (SFTPServerInterface):
         try:
             if flags & os.O_CREAT:
                 annex_file_location = get_key_path(key)
-                if pathlib.Path(annex_file_location).exists():
+                if annex_file_location.exists():
                     raise FileExistsError(f"File {key} already exists, and overwriting existing files is not supported")
                 return NewFileHandle(flags, key)
             else:
@@ -97,7 +97,7 @@ class NewFileHandle(paramiko.SFTPHandle):
     def __init__(self, flags, key: AnnexKey):
         super().__init__(flags)
         self.key = key
-        self.suffix = pathlib.Path(key).suffix
+        self.suffix = Path(key).suffix
         self.writefile = tempfile.NamedTemporaryFile(delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
         
     def close(self):
@@ -118,18 +118,18 @@ class NewFileHandle(paramiko.SFTPHandle):
 
         # Move the file to the annex location
         annex_file_location = get_key_path(self.key)
-        pathlib.Path(annex_file_location).parent.mkdir(parents=True, exist_ok=True)
+        annex_file_location.parent.mkdir(parents=True, exist_ok=True)
         os.rename(self.writefile.name, annex_file_location)
 
-def key_from_path(path: PathLike) -> AnnexKey:
+def key_from_path(path: Path) -> AnnexKey:
     """Extract the key from a user-supplied path"""
-    return AnnexKey(os.path.basename(path))
+    return AnnexKey(path.name)
 
-def real_path_from_key(key: AnnexKey) -> PathLike:
+def real_path_from_key(key: AnnexKey) -> Path:
     """Compute the filesystem path for a key"""
     return get_key_path(key)
 
-def real_path(path: PathLike) -> PathLike:
+def real_path(path: Path) -> Path:
     """Given a user-supplied path to a key, return the real path where the corresponding file is stored"""
     return real_path_from_key(key_from_path(path))
 

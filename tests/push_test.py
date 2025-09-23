@@ -6,7 +6,6 @@ from pathlib import Path
 import random
 import shutil
 from typing_extensions import Optional, List
-from uuid import UUID
 import uuid
 
 import paramiko 
@@ -15,15 +14,17 @@ from annex import AnnexCache, SubmissionId
 from commands.import_command import ImportConfig, do_import
 from commands.push import do_push
 from commands.server_command import server_context
-from config import config
 import context
 from dolt import DoltSqlServer
-from downloader import GitAnnexDownloader
-from git import get_absolute_file_path, get_key_path
+from git import get_key_path
 import importers
 import move_functions
 from remote import Remote
+from commands.sync import SshSettings
+
+from tables import FileKeyTable
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
+from type_hints import TableRow
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -32,16 +33,17 @@ import_config = ImportConfig(
 )
 
 import_directory = os.path.join(os.path.dirname(__file__), "import_data")
+config_directory = Path(__file__).parent / "config"
 
 batch_size = 10
 
 def test_push_local(tmp_path):
     remote = setup_file_remote(tmp_path)
-    do_test_push(tmp_path, remote)
+    do_test_push(tmp_path, "submissions", remote)
 
 def test_push_sftp(tmp_path):
     with setup_ssh_remote(tmp_path) as remote:
-        do_test_push(tmp_path, remote)
+        do_test_push(tmp_path, "submissions", remote)
 
 def test_push_server(tmp_path):
     print(tmp_path)
@@ -61,29 +63,19 @@ def test_push_server(tmp_path):
     # setup server, then create server context, then setup client.
     with server_context(host, ssh_port, server_key, str(Path(__file__).parent / "test_client_keys")):
         init()
-        do_test_push(tmp_path, remote)
+        do_test_push(tmp_path, "submissions", remote)
 
-class TestImporter(importers.Importer):
-    def __init__(self, prefix_url: str):
-        self.prefix_url = prefix_url
+class TestImporter(importers.ImporterBase):
+    def key_columns(self, path: Path) -> Optional[TableRow]:
+        sid = int(''.join(path.parts[-6:-1]))
+        return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
 
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        return [f"{self.prefix_url}/{rel_path}"]
-    
-    def md5(self, path: str) -> str | None:
-        return None
-    
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[SubmissionId]:
-        parts = abs_path.split(os.path.sep)
-        sid = int(''.join(parts[-6:-1]))
-        return SubmissionId("furaffinity.net", sid, '2021-01-01', 1)
-
-    def skip(self, path: str) -> bool:
-        return False
-
-def do_test_push(tmp_path, remote: Remote):
+def do_test_push(tmp_path, table_name: str, remote: Remote):
     """Run and validate pushing content files to a remote"""
-    importer = TestImporter("https://prefix")
+    importer = TestImporter()
+    shutil.copy(config_directory / "submissions.table", tmp_path / "submissions.table")
+    shutil.copy(config_directory / "urls.table", tmp_path / "urls.table")
+    table = FileKeyTable.from_name(table_name)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -93,44 +85,36 @@ def do_test_push(tmp_path, remote: Remote):
         "port": random.randint(20000, 21000),
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
-        with AnnexCache(dolt_server, base_config.auto_push, import_config.batch_size) as cache:
-            downloader = GitAnnexDownloader(
-                cache = cache,
-                dolt_server = dolt_server,
-            )
-            ssh_config = os.path.join(os.path.dirname(__file__), "config/ssh_config")
-            known_hosts = None
+        with AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
+            ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
+            file_key_table = FileKeyTable.from_name("submissions")
             do_import(import_config, downloader, importer, ["import_data/00"])
             downloader.flush()
-            with downloader.dolt_server.set_branch("files"):
-                dolt_server.commit(amend=True)
-            with downloader.dolt_server.set_branch(context.local_uuid.get()):
+            with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
             assert files_pushed == 2
             # Pushing again should have no effect
 
-            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
             assert files_pushed == 0
 
             # But if we add more files, it should push them
             do_import(import_config, downloader, importer, ["import_data/08"])
             downloader.flush()
-            with downloader.dolt_server.set_branch("files"):
-                dolt_server.commit(amend=True)
-            with downloader.dolt_server.set_branch(context.local_uuid.get()):
+            with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, ssh_config, known_hosts)
+            files_pushed = push_and_verify(downloader, remote, ssh_settings, file_key_table)
             assert files_pushed == 1
 
 
-def push_and_verify(downloader: GitAnnexDownloader, file_remote: Remote, ssh_config: str, known_hosts: Optional[str]):
+def push_and_verify(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable):
 
-    files_pushed = do_push(downloader, file_remote, [], ssh_config, known_hosts, None)
+    files_pushed = do_push(downloader, file_remote, ssh_settings, file_key_table, [], limit=None)
     downloader.flush()
 
     if file_remote.url.startswith("file://"):

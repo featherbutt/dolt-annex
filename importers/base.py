@@ -1,30 +1,30 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import os
 import importlib
+from pathlib import Path
 
-from typing_extensions import List, Optional, Type, Dict
+from typing_extensions import List, Optional, Type, Dict, Tuple
 
 from plumbum import local # type: ignore
 
 import annex
 from dolt import DoltSqlServer
+from type_hints import TableRow
 
 class ImporterBase(AbstractBaseClass):
-    @abstractmethod
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        ...
 
     @abstractmethod
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
+    def key_columns(self, path: Path) -> Optional[TableRow]:
         ...
 
-    @abstractmethod
-    def md5(self, path: str) -> str | None:
-        ...
+    def skip(self, path: Path) -> bool:
+        return False
 
-    @abstractmethod
-    def skip(self, path: str) -> bool:
-        ...
+    def extension(self, path: Path) -> str | None:
+        return path.suffix[1:]  # Get the file extension without the dot
+    
+    def url(self, path: Path) -> List[str]:
+        return []
    
 
 importers: Dict[str, Type[ImporterBase]] = {}
@@ -41,44 +41,14 @@ def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
     if class_name in dir(importer_module):
         return getattr(importer_module, class_name)(*args, **kwargs)
     return getattr(importer_module, "Importer")(*args, **kwargs)
-
-class OtherAnnexImporter(ImporterBase):
-    def __init__(self, other_annex_path: str):
-        self.other_annex_path = other_annex_path
-
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        parts = abs_path.split(os.path.sep)
-        annex_object_path = '/'.join(parts[-4:-1])
-        other_git = local.cmd.git["-C", self.other_annex_path]
-        web_log = other_git('show', f'git-annex:{annex_object_path}.log.web', retcode=None)
-        if web_log:
-            return annex.parse_web_log(web_log)
-        return []
-    
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
-        return None
-
-    
-    def md5(self, path: str) -> str | None:
-        return None
-    
-    def skip(self, path: str) -> bool:
-        return False
-    
 class DirectoryImporter(ImporterBase):
-    def __init__(self, prefix_url: str):
-        self.prefix_url = prefix_url
+    def __init__(self, prefix: str = ""):
+        self.prefix = prefix
 
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        return [f"{self.prefix_url}/{rel_path}"]
-    
-    def md5(self, path: str) -> str | None:
-        return None
-    
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
-        return None
-    
-    def skip(self, path: str) -> bool:
+    def key_columns(self, path: Path) -> Optional[TableRow]:
+        return TableRow((self.prefix + '/' + '/'.join(path.parts),))
+
+    def skip(self, path: Path) -> bool:
         return False
 
 class FALRImporter(ImporterBase):
@@ -87,31 +57,24 @@ class FALRImporter(ImporterBase):
         self.other_dolt_db = other_dolt_db
         self.other_dolt_branch = other_dolt_branch
 
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        parts = abs_path.split(os.path.sep)
-        sid = int(''.join(parts[-6:-1]))
-        query = f"SELECT DISTINCT url FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
-        res = self.dolt_sql_server.query(query, (sid,))
-        return [row[0] for row in res]
-    
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
-        parts = abs_path.split(os.path.sep)
-        sid = int(''.join(parts[-6:-1]))
+    def key_columns(self, path: Path) -> Optional[TableRow]:
+        sid = int(''.join(path.parts[-6:-1]))
         query = f"SELECT DISTINCT updated, part FROM `{self.other_dolt_db}/{self.other_dolt_branch}`.filenames WHERE source = 'furaffinity.net' and id = %s;"
         res = self.dolt_sql_server.query(query, (sid,))
         for row in res:
-            return annex.SubmissionId("furaffinity.net", sid, row[0], row[1])
-        return None
-
-    def md5(self, path: str) -> str | None:
+            return TableRow(("furaffinity.net", sid, row[0], row[1]))
         return None
     
-    def skip(self, path: str) -> bool:
-        return 'ubmission' not in path.split('/')[-1]
+    def skip(self, path: Path) -> bool:
+        return 'ubmission' not in path.name
 
 class MD5Importer(ImporterBase):
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        basename = os.path.basename(abs_path)
+
+    def key_columns(self, path: Path):
+        return (path.stem.split('.')[0],)
+
+    def url(self, path: Path) -> List[str]:
+        basename = path.name
         basename_parts = basename.split('.')
         if len(basename_parts) < 3:
             raise ValueError(f"Invalid filename: {basename}")
@@ -130,27 +93,5 @@ class MD5Importer(ImporterBase):
             return [f"https://cdn.donmai.us/original/{md5[:2]}/{md5[2:4]}/{md5}.{ext}"]
         else:
             raise ValueError(f"Unknown source: {basename}")
-        
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
-        return None
     
-    def md5(self, path: str) -> str | None:
-        basename = os.path.basename(path)
-        return basename.split('.')[0]
     
-    def skip(self, path: str) -> bool:
-        return False
-    
-class NullImporter(ImporterBase):
-    """An importer that does nothing."""
-    def url(self, abs_path: str, rel_path: str) -> List[str]:
-        return []
-    
-    def submission_id(self, abs_path: str, rel_path: str) -> Optional[annex.SubmissionId]:
-        return None
-    
-    def md5(self, path: str) -> str | None:
-        return None
-    
-    def skip(self, path: str) -> bool:
-        return False

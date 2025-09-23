@@ -1,122 +1,26 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
-import os
 from uuid import UUID
-import getpass
+from pathlib import Path
 
-from typing_extensions import List, Iterable, Optional, Generator, Tuple
+from typing_extensions import List, Iterable, Optional, Tuple
 
-import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
 from annex import SubmissionId
 from application import Application, Downloader
 from config import get_config
 from dolt import DoltSqlServer
-from downloader import GitAnnexDownloader
+from annex import AnnexCache
 from git import get_old_relative_annex_key_path, get_key_path
-import move_functions
-from move_functions import MoveFunction
 from remote import Remote
-from type_hints import AnnexKey, PathLike
+from type_hints import AnnexKey, TableRow
 from logger import logger
+from commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query
+from tables import FileKeyTable
 
-class FileMover:
-    local_cwd: str
-    remote_cwd: str
-    put_function: MoveFunction
-    get_function: MoveFunction
 
-    def __init__(self, put_function: MoveFunction, get_function: MoveFunction, remote_cwd: str, local_cwd = None) -> None:
-        if local_cwd is None:
-            local_cwd = os.getcwd()
-        self.local_cwd = os.path.abspath(local_cwd)
-        self.remote_cwd = remote_cwd
-        self.put_function = put_function
-        self.get_function = get_function
-
-    def put(self, local_path: str, remote_path: str) -> bool:
-        """Move a file from the local filesystem to the remote filesystem"""
-        abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
-        abs_remote_path = PathLike('/'.join([self.remote_cwd, remote_path]))
-        logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        return self.put_function(
-            abs_local_path,
-            abs_remote_path)
-        
-    def get(self, local_path: str, remote_path: str) -> bool:
-        """Move a file from the local filesystem to the remote filesystem"""
-        abs_local_path = PathLike(os.path.join(self.local_cwd, local_path))
-        abs_remote_path = PathLike(os.path.join(self.remote_cwd, remote_path))
-        logger.info(f"Moving {abs_remote_path} to {abs_local_path}")
-        return self.get_function(
-            abs_remote_path,
-            abs_local_path)
-
-    @contextmanager
-    def cd(self, local_path: Optional[str] = None, remote_path: Optional[str] = None):
-        """Change the remote directory"""
-        old_local_cwd = self.local_cwd
-        old_remote_cwd = self.remote_cwd
-        if local_path is not None:
-            self.local_cwd = os.path.abspath(os.path.join(self.local_cwd, local_path))
-        if remote_path is not None:
-            self.remote_cwd = os.path.abspath(os.path.join(self.remote_cwd, remote_path))
-        yield
-        self.local_cwd = old_local_cwd
-        self.remote_cwd = old_remote_cwd
-
-@contextmanager
-def file_mover(remote: Remote, ssh_config: str, known_hosts: Optional[str]) -> Generator[FileMover, None, None]:
-    base_config = get_config()
-    local_path = os.path.abspath(base_config.files_dir)
-    if '@' in remote.url:
-        user, rest = remote.url.split('@', maxsplit=1)
-        host, path = rest.split(':', maxsplit=1)
-
-        cnopts = sftpretty.CnOpts(config = ssh_config, knownhosts = known_hosts)
-        cnopts.log_level = 'error'
-
-        extra_opts = {}
-        if base_config.encrypted_ssh_key:
-            extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
-
-        with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path, **extra_opts) as sftp:
-            def sftp_put(
-                local_path: PathLike,
-                remote_path: PathLike,
-            ) -> bool:
-                """Move a file from the local filesystem to the remote filesystem using SFTP"""
-                if not os.path.exists(local_path):
-                    return False
-                sftp.mkdir_p(os.path.dirname(remote_path))
-                if sftp.exists(remote_path):
-                    logger.info(f"File {remote_path} already exists, skipping")
-                    return True
-                sftp.put(local_path, remote_path)
-                return True
-            def sftp_get(
-                remote_path: PathLike,
-                local_path: PathLike,
-            ) -> bool:
-                """Move a file from the remote filesystem to the local filesystem using SFTP"""
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                if not sftp.exists(remote_path):
-                    return False
-                if os.path.exists(local_path):
-                    logger.info(f"File {local_path} already exists, skipping")
-                    return True
-                sftp.get(remote_path, local_path)
-                return True
-            yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
-    elif remote.url.startswith("file://"):
-        # Remote path may be relative to the local git directory
-        yield FileMover(move_functions.copy, move_functions.copy, remote.url[7:], local_path)
-    else:
-        raise ValueError(f"Unknown remote URL format: {remote.url}")
-    
 class Push(cli.Application):
     """Push imported files to a remote repository"""
 
@@ -131,14 +35,14 @@ class Push(cli.Application):
 
     ssh_config = cli.SwitchAttr(
         "--ssh-config",
-        str,
+        cli.ExistingFile,
         help="The path to the ssh config file",
         default = "~/.ssh/config",
     )
 
     known_hosts = cli.SwitchAttr(
         "--known-hosts",
-        str,
+        cli.ExistingFile,
         help="The path to the known hosts file",
         default = None,
     )
@@ -156,137 +60,93 @@ class Push(cli.Application):
         help="The name of the dolt-annex remote",
     )
 
-    source = cli.SwitchAttr(
-        "--source",
+    table = cli.SwitchAttr(
+        "--table",
         str,
-        help="Filter pushed files to those from a specific original source",
+        help="The name of the table being pushed",
     )
+
+    @cli.switch(
+        "--where",
+        str,
+        list = True,
+        help="A filter condition on the table rows to be pushed",
+    )
+    def where(self, filter_strings: List[str]):
+        for filter_string in filter_strings:
+            if '=' not in filter_string:
+                raise ValueError(f"Invalid filter string: {filter_string}")
+            column_name, column_value = filter_string.split('=', maxsplit=1)
+            self.filters.append(TableFilter(column_name, column_value))
+
+    filters: List[TableFilter] = []
 
     def main(self, *args) -> int:
         """Entrypoint for push command"""
-        with Downloader(self.parent.config, self.batch_size) as downloader:
-            remote_name = self.remote or self.parent.config.dolt_remote
-            remote = Remote.from_name(remote_name)
-            if not remote:
-                logger.error(f"Remote {remote_name} not found")
-                return 1
-            do_push(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
+        table = FileKeyTable.from_name(self.table)
+        if not table:
+            logger.error(f"Table {self.table} not found")
+            return 1
+        remote_name = self.remote or self.parent.config.dolt_remote
+        remote = Remote.from_name(remote_name)
+        if not remote:
+            logger.error(f"Remote {remote_name} not found")
+            return 1
+        with Downloader(self.parent.config, self.batch_size, table) as downloader:
+            ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
+
+            do_push(downloader, remote, ssh_settings, self.table, self.filters, self.limit)
         return 0
 
-def do_push(downloader: GitAnnexDownloader, file_remote: Remote, args, ssh_config: str, known_hosts: Optional[str], source: Optional[str], limit: Optional[int] = None) -> List[AnnexKey]:
-    dolt = downloader.dolt_server
+def do_push(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
+    dolt = downloader.dolt
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
 
     # TODO: Dolt remote not necessarily the same as file remote, know when pull is necessary
     # dolt.pull_branch(remote_uuid, dolt_remote)
 
-    with file_mover(file_remote, ssh_config, known_hosts) as mover:
-        if len(args) == 0:
-            total_files_pushed = []
-            while True:
-                if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, str(local_uuid), str(remote_uuid), source, limit)
-                    files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
-                else:
-                    keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), limit))
-                    files_pushed = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid)
-                if len(files_pushed) == 0:
-                    break
-                total_files_pushed += files_pushed
-        else:
-            total_files_pushed = push_keys(args, downloader, mover, local_uuid)
+    with file_mover(file_remote, ssh_settings) as mover:
+        total_files_pushed: List[AnnexKey] = []
+        while True:
+            keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), file_key_table, where, limit))
+            has_more = push_submissions_and_keys(keys_and_submissions, downloader, mover, remote_uuid, total_files_pushed)
+            if not has_more:
+                break
     downloader.flush()
 
     return total_files_pushed
 
-def push_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
-    files_pushed = []
-    for key in keys:
-        rel_key_path = get_key_path(key)
-        old_rel_key_path = get_old_relative_annex_key_path(key)
-        if not mover.put(old_rel_key_path, rel_key_path):
-            mover.put(rel_key_path, rel_key_path)
-        downloader.cache.insert_key_source(key, remote_uuid)
-        files_pushed.append(key)
-    downloader.flush()
-    return files_pushed
-
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, remote_uuid: UUID) -> List[AnnexKey]:
-    files_pushed = []
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: AnnexCache, mover: FileMover, remote_uuid: UUID, files_pushed: List[AnnexKey]) -> bool:
+    has_more = False
     for key, submission in keys_and_submissions:
+        has_more = True
         logger.info(f"pushing {submission}: {key}")
         rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
         if not mover.put(old_rel_key_path, rel_key_path):
             mover.put(rel_key_path, rel_key_path)
-        downloader.cache.insert_submission_source(submission, remote_uuid)
+        downloader.insert_file_source(submission, key, remote_uuid)
         files_pushed.append(key)
     downloader.flush()
-    return files_pushed
+    return has_more
 
-def pull_personal_branch(dolt: DoltSqlServer, remote: Remote) -> None:
-    """Fetch the personal branch for the remote"""
-    dolt.pull_branch(str(remote.uuid), remote)
-
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
-    """
-    Return each key that is in the first ref but not in the second ref.
-
-    This is more complicated than just selecting from dolt_commit_diff_local_keys, because
-    a simple diff returns all changes, including keys that are in the second ref but not the first.
-    If multiple clients are pushing to the same server, most of these keys won't be keys the client can send.
-
-    Instead, we create a third branch containing the union of both branch's keys, then compute which keys
-    are in the union but not in the second branch. This union branch only needs to be created once in order
-    to push or pull annexed files, because the union doesn't change as files are copied to/from the server.
-    """
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, file_key_table: FileKeyTable, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
-    union_branch_name = f"union-{refs[0]}-{refs[1]}"
-    # Create the union branch if it doesn't exist
+    union_branch_name = f"union-{refs[0]}-{refs[1]}-{file_key_table.name}"
     
-    with dolt.maybe_create_branch(union_branch_name, in_ref):
-        dolt.merge(in_ref)
-        dolt.merge(not_in_ref)
-        query = """
-        SELECT
-            `file_key`, `to_source`, `to_id`, `to_updated`, `to_part`
-        FROM dolt_commit_diff_local_submissions
-        JOIN file_keys AS OF files
-            ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
-        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND diff_type = 'added'
-        """
-        if limit is not None:
-            query += " LIMIT %s"
-            query_results = dolt.query(query, (not_in_ref, union_branch_name, limit))
-        else:
-            query_results = dolt.query(query, (not_in_ref, union_branch_name))
-        for (annex_key, to_source, to_sid, to_updated, to_part) in query_results:
-            yield (AnnexKey(annex_key), SubmissionId(to_source, to_sid, to_updated, to_part))
-
-def diff_keys_from_source(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, source: str, limit = None) -> Iterable[Tuple[AnnexKey, SubmissionId]]:
-    refs = [in_ref, not_in_ref]
-    refs.sort()
-    union_branch_name = f"union-{refs[0]}-{refs[1]}"
+    in_ref_branch = f"{in_ref}-{file_key_table.name}"
+    not_in_ref_branch = f"{not_in_ref}-{file_key_table.name}"
     # Create the union branch if it doesn't exist
-
-    with dolt.maybe_create_branch(union_branch_name, in_ref):
-        dolt.merge(in_ref)
-        dolt.merge(not_in_ref)
-        query = """
-        SELECT
-            `file_key`, `to_source`, `to_id`, `to_updated`, `to_part`
-        FROM dolt_commit_diff_local_submissions
-        JOIN file_keys AS OF files
-            ON source = to_source AND id = to_id AND updated = to_updated AND part = to_part
-        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s) AND to_source = %s AND diff_type = 'added'
-        """
+    with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
+        dolt.merge(in_ref_branch)
+        dolt.merge(not_in_ref_branch)
+        query = diff_query(file_key_table, filters)
         if limit is not None:
             query += " LIMIT %s"
-            query_results = dolt.query(query, (not_in_ref, union_branch_name, source, limit))
+            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
         else:
-            query_results = dolt.query(query, (not_in_ref, union_branch_name, source))
-        for (annex_key, to_source, to_sid, to_updated, to_part) in query_results:
-            assert to_source == source
-            yield (AnnexKey(annex_key), SubmissionId(to_source, to_sid, to_updated, to_part))
+            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
+        for (annex_key, _, *key_parts) in query_results:
+            yield (AnnexKey(annex_key), TableRow(key_parts))

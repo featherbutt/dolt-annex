@@ -2,21 +2,24 @@ from dataclasses import dataclass
 import csv
 from io import TextIOWrapper
 import os
+from pathlib import Path
 
 from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
-from config import config
 from git import key_from_file
 import importers
 from application import Application, Downloader
-from downloader import GitAnnexDownloader, move_files
+from downloader import move_files
 from importers.base import get_importer
 from logger import logger
 import move_functions
 from move_functions import MoveFunction
-from type_hints import AnnexKey, PathLike
+from tables import FileKeyTable
+from type_hints import AnnexKey
+import config
+from annex import AnnexCache
 
 class ImportError(Exception):
     pass
@@ -27,7 +30,7 @@ class ImportCsv:
     KEYS = {KEY_ANNEX_KEY, KEY_URL}
 
     @classmethod
-    def import_csv(cls, downloader: GitAnnexDownloader, csv_file: TextIOWrapper):
+    def import_csv(cls, downloader: AnnexCache, csv_file: TextIOWrapper):
         """Import annex keys from CSV file"""
         fields_checked = False
         for row in csv.DictReader(csv_file):
@@ -40,8 +43,7 @@ class ImportCsv:
             annex_key = row[cls.KEY_ANNEX_KEY]
             url = row[cls.KEY_URL]
 
-            downloader.add_local_source(annex_key)
-            downloader.update_database(url, annex_key)
+            # downloader.update_database(url, annex_key)
 
 @dataclass
 class ImportConfig:
@@ -54,7 +56,6 @@ class Import(cli.Application):
     """Import a file or directory into the annex and database"""
 
     parent: Application
-    files: Dict[AnnexKey, PathLike]
 
     batch_size = cli.SwitchAttr(
         "--batch_size",
@@ -113,6 +114,12 @@ class Import(cli.Application):
         str,
     )
 
+    table = cli.SwitchAttr(
+        "--table",
+        str,
+        help="The name of the table being written to",
+    )
+
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
         print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
@@ -124,7 +131,6 @@ class Import(cli.Application):
             return move_functions.move
         
     def main(self, *files_or_directories: str):
-        self.files = {}
 
         if not self.from_csv and not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
@@ -137,7 +143,12 @@ class Import(cli.Application):
             move_function = move_function,
             follow_symlinks = follow_symlinks,
         )
-        with Downloader(self.parent.config, import_config.batch_size) as downloader:
+        table = FileKeyTable.from_name(self.table)
+        if not table:
+            logger.error(f"Table {self.table} not found")
+            return 1
+
+        with Downloader(self.parent.config, import_config.batch_size, table) as downloader:
             if self.from_csv:
                 with open(self.from_csv) as csv_file:
                     ImportCsv.import_csv(downloader, csv_file)
@@ -145,59 +156,54 @@ class Import(cli.Application):
                 importer = get_importer(*self.importer.split())
                 do_import(import_config, downloader, importer, files_or_directories)
 
-def do_import(import_config: ImportConfig, downloader: GitAnnexDownloader, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
-    key_paths: Dict[AnnexKey, PathLike] = {}
-    downloader.cache.add_flush_hook(lambda: move_files(import_config.move_function, key_paths))
+def do_import(import_config: ImportConfig, downloader: AnnexCache, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+    key_paths: Dict[AnnexKey, Path] = {}
+    downloader.add_flush_hook(lambda: move_files(import_config.move_function, key_paths))
     
     for file_or_directory in files_or_directories:
-        import_path(import_config, downloader, file_or_directory, importer, key_paths)
+        import_path(import_config, downloader, Path(file_or_directory), importer, key_paths)
 
-def import_path(config: ImportConfig, downloader: GitAnnexDownloader, file_or_directory: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
+def import_path(config: ImportConfig, downloader: AnnexCache, file_or_directory: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
     """Import a file or directory into the annex"""
-    if os.path.isfile(file_or_directory):
+    if file_or_directory.is_file():
         import_file(config, downloader, file_or_directory, importer, key_paths)
-    elif os.path.isdir(file_or_directory):
+    elif file_or_directory.is_dir():
         import_directory(config, downloader, file_or_directory, importer, key_paths)
     else:
         raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
-def import_directory(config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
+def import_directory(config: ImportConfig, downloader: AnnexCache, path: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
     """Import a directory into the annex"""
     logger.debug(f"Importing directory {path}")
     for root, _, files in os.walk(path):
+        root_path = Path(root)
         for file in files:
-            import_file(config, downloader, os.path.join(root, file), importer, key_paths)
+            import_file(config, downloader, root_path / file, importer, key_paths)
 
-def import_file(import_config: ImportConfig, downloader: GitAnnexDownloader, path: str, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, PathLike]):
+def import_file(import_config: ImportConfig, downloader: AnnexCache, path: Path, importer: importers.ImporterBase, key_paths: Dict[AnnexKey, Path]):
     """Import a file into the annex"""
-    extension = os.path.splitext(path)[1]
-    if len(extension) > downloader.max_extension_length+1:
+    extension = path.suffix[1:]
+    if len(extension) > downloader.MAX_EXTENSION_LENGTH+1:
         return
     # catch both regular symlinks and windows shortcuts
-    is_symlink = os.path.islink(path) or extension == '.lnk'
-    original_path = os.path.abspath(path)
+    is_symlink = path.is_symlink() or extension == '.lnk'
+    original_path = path.resolve()
     if is_symlink:
         if not import_config.follow_symlinks:
             return
         else:
-            path = os.path.realpath(path)
+            path = path.readlink()
     if importer and importer.skip(path):
         return
     logger.debug(f"Importing file {path}")
-    abs_path = PathLike(os.path.abspath(path))
+    abs_path = Path(path)
     key = key_from_file(abs_path, importer.extension(path))
 
     if importer:
-        urls = importer.url(original_path, path)
-        for url in urls:
-            downloader.update_database(url, key)
-        sid = importer.submission_id(original_path, path)
-        if sid:
-            downloader.cache.insert_submission_source(sid, config.get().local_uuid)
-            downloader.cache.insert_submission_key(sid, key)
-        if (md5 := importer.md5(original_path)):
-            downloader.record_md5(md5, key)
-        if not sid and not md5:
-            raise ImportError("Importer did not produce an md5 or an sid, it is not safe to import")
+        key_columns = importer.key_columns(path)
+        if key_columns:
+            downloader.insert_file_source(key_columns, key, config.get_config().local_uuid)
+        if not key_columns:
+            raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
 
-    key_paths[AnnexKey(key)] = PathLike(abs_path)
+    key_paths[AnnexKey(key)] = abs_path

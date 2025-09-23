@@ -1,21 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
 from uuid import UUID
 
-from typing_extensions import Iterable, Optional, Tuple
+from typing_extensions import Iterable, Optional, Tuple, List
 
 from plumbum import cli # type: ignore
 
-from annex import SubmissionId
+from annex import AnnexCache, SubmissionId
+from commands.sync import SshSettings, TableFilter
 from config import get_config
 from application import Application, Downloader
-from commands.push import FileMover, file_mover, diff_keys, diff_keys_from_source
-from downloader import GitAnnexDownloader
+from commands.push import FileMover, file_mover, diff_keys
 from git import get_old_relative_annex_key_path, get_key_path
 from logger import logger
 from remote import Remote
-from type_hints import AnnexKey
+from tables import FileKeyTable
+from type_hints import AnnexKey, TableRow
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
@@ -56,68 +58,72 @@ class Pull(cli.Application):
         help="The name of the dolt-annex remote",
     )
 
-    source = cli.SwitchAttr(
-        "--source",
+    table = cli.SwitchAttr(
+        "--table",
         str,
-        help="Filter pulled files to those from a specific original source",
+        help="The name of the table being pushed",
     )
+
+    @cli.switch(
+        "--where",
+        str,
+        list = True,
+        help="A filter condition on the table rows to be pushed",
+    )
+    def where(self, filter_strings: List[str]):
+        for filter_string in filter_strings:
+            if '=' not in filter_string:
+                raise ValueError(f"Invalid filter string: {filter_string}")
+            column_name, column_value = filter_string.split('=', maxsplit=1)
+            self.filters.append(TableFilter(column_name, column_value))
+
+    filters: List[TableFilter] = []
 
     def main(self, *args) -> int:
         """Entrypoint for pull command"""
-        with Downloader(self.parent.config, self.batch_size) as downloader:
-            remote_name = self.remote or self.parent.config.dolt_remote
-            remote = Remote.from_name(remote_name)
-            if not remote:
-                logger.error(f"Remote {remote_name} not found")
-                return 1
-            do_pull(downloader, remote, args, self.ssh_config, self.known_hosts, self.source, self.limit)
+        table = FileKeyTable.from_name(self.table)
+        if not table:
+            logger.error(f"Table {self.table} not found")
+            return 1
+        remote_name = self.remote or self.parent.config.dolt_remote
+        remote = Remote.from_name(remote_name)
+        if not remote:
+            logger.error(f"Remote {remote_name} not found")
+            return 1
+        ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
+        
+
+        with Downloader(self.parent.config, self.batch_size, table) as downloader:
+            do_pull(downloader, remote, ssh_settings, table, self.filters, self.limit)
         return 0
     
-def pull_keys(keys: Iterable[AnnexKey], downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
-    files_pulled = 0
-    for key in keys:
+def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: AnnexCache, mover: FileMover, local_uuid: UUID, files_pulled: List[AnnexKey]) -> bool:
+    has_more = False
+    for key, table_row in keys_and_submissions:
+        has_more = True
+        logger.info(f"pulling {table_row}: {key}")
         rel_key_path = get_key_path(key)
         old_rel_key_path = get_old_relative_annex_key_path(key)
-        if not mover.get(rel_key_path, old_rel_key_path):
+        if not mover.get(old_rel_key_path, rel_key_path):
             mover.get(rel_key_path, rel_key_path)
-        downloader.cache.insert_key_source(key, local_uuid)
-        files_pulled += 1
-    return files_pulled
+        downloader.insert_file_source(table_row, key, local_uuid)
+        files_pulled.append(key)
+    downloader.flush()
+    return has_more
 
-def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, SubmissionId]], downloader: GitAnnexDownloader, mover: FileMover, local_uuid: UUID) -> int:
-    files_pulled = 0
-    for key, submission in keys_and_submissions:
-        logger.info(f"pulling {submission}: {key}")
-        rel_key_path = get_key_path(key)
-        old_rel_key_path = get_old_relative_annex_key_path(key)
-        if not mover.get(rel_key_path, old_rel_key_path):
-            mover.get(rel_key_path, rel_key_path)
-        downloader.cache.insert_submission_source(submission, local_uuid)
-        files_pulled += 1
-    return files_pulled
-
-def do_pull(downloader: GitAnnexDownloader, remote: Remote, args, ssh_config: str, known_hosts: str, source: Optional[str], limit: Optional[int] = None) -> int:
-    dolt = downloader.dolt_server
-    files_pulled = 0
+def do_pull(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
+    dolt = downloader.dolt
     local_uuid = get_config().local_uuid
-    remote_uuid = remote.uuid
+    remote_uuid = file_remote.uuid
 
-    dolt.pull_branch(str(remote_uuid), remote)
+    dolt.pull_branch(str(remote_uuid), file_remote)
 
-    with file_mover(remote, ssh_config, known_hosts) as mover:
-        if len(args) == 0:
-            total_files_pulled = 0
-            while True:
-                if source is not None:
-                    keys_and_submissions = diff_keys_from_source(dolt, str(remote_uuid), str(local_uuid), source, limit)
-                    files_pulled = pull_submissions_and_keys(keys_and_submissions, downloader, mover, local_uuid)
-                else:
-                    keys = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), limit))
-                    files_pulled = pull_submissions_and_keys(keys, downloader, mover, local_uuid)
-                if files_pulled == 0:
-                    break
-                total_files_pulled += files_pulled
-            return total_files_pulled
-        else:
-            return pull_keys(args, downloader, mover, local_uuid)
+    with file_mover(file_remote, ssh_settings) as mover:
+        total_files_pulled: List[AnnexKey] = []
+        while True:
+            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), file_key_table, where, limit))
+            has_more = pull_submissions_and_keys(keys_and_submissions, downloader, mover, local_uuid, total_files_pulled)
+            if not has_more:
+                break
+    return total_files_pulled
 

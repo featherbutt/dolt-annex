@@ -1,34 +1,33 @@
 from dataclasses import dataclass
 import hashlib
 import os
-import pathlib
+from pathlib import Path
 
 from typing_extensions import Optional
 
-from config import config
+import config
 
-from type_hints import AnnexKey, PathLike
+from type_hints import AnnexKey
 
-def key_from_file(key_path: PathLike, extension: Optional[str] = None) -> AnnexKey:
-    path = pathlib.Path(key_path)
+def key_from_file(key_path: Path, extension: Optional[str] = None) -> AnnexKey:
     if extension is None:
-        extension = path.suffix[1:]  # Get the file extension without the dot
+        extension = key_path.suffix[1:]  # Get the file extension without the dot
     with open(key_path, 'rb') as f:
         data = f.read()
     data_hash = hashlib.sha256(data).hexdigest()
     return AnnexKey(f"SHA256E-s{len(data)}--{data_hash}.{extension}")
 
-def get_key_path(key: AnnexKey) -> PathLike:
+def get_key_path(key: AnnexKey) -> Path:
     md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
-    return PathLike(f"{md5[:3]}/{md5[3:6]}/{key}")
+    return Path(f"{md5[:3]}/{md5[3:6]}/{key}")
         
-def get_old_relative_annex_key_path(key: AnnexKey) -> PathLike:
+def get_old_relative_annex_key_path(key: AnnexKey) -> Path:
     md5 = hashlib.md5(key.encode('utf-8')).hexdigest()
-    return PathLike(f"{md5[:3]}/{md5[3:6]}/{key}/{key}")
+    return Path(f"{md5[:3]}/{md5[3:6]}/{key}/{key}")
 
-def get_absolute_file_path(path: PathLike) -> PathLike:
-    if not os.path.isabs(path):
-        return PathLike(os.path.abspath(os.path.join(config.get().files_dir, path)))
+def get_absolute_file_path(path: Path) -> Path:
+    if not path.is_absolute():
+        return (Path(config.get_config().files_dir) / path).resolve()
 
     return path
 

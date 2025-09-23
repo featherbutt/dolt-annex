@@ -5,7 +5,6 @@ import uuid
 from plumbum import cli, local # type: ignore
 
 from application import Application, Config
-from db import PERSONAL_BRANCH_INIT_SQL, SHARED_BRANCH_INIT_SQL
 
 def is_wsl():
     """Check if running in Windows Subsystem for Linux"""
@@ -80,18 +79,5 @@ def do_init(base_config: Config, init_config: InitConfig):
         else:
             dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
             dolt("init", "--name", base_config.name, "--email", base_config.email)
-            dolt("sql", "-q", SHARED_BRANCH_INIT_SQL)
-            dolt("add", ".")
-            dolt("commit", "-m", "init shared branch")
         dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-        dolt("checkout", "new")
-        dolt("checkout", '-b', local_uuid)
-        for query in PERSONAL_BRANCH_INIT_SQL:
-            dolt("sql", "-q", query)
-        dolt("add", ".")
-        try:
-            dolt("commit", "-m", "init personal branch")
-        except Exception:
-            pass
-        dolt("checkout", "files")
         dolt("config", "--local", "--add", "push.autoSetupRemote", "true")

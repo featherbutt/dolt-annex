@@ -3,17 +3,15 @@
 
 """This file contains functions for interacting with git-annex"""
 
-from dataclasses import dataclass
-import json
 import time
 from uuid import UUID
 
-from typing_extensions import Callable, Dict, List, Set, NamedTuple
+from typing_extensions import Callable, Dict, List, Set, NamedTuple, Tuple
 
-import sql
 from dolt import DoltSqlServer
 from logger import logger
-from type_hints import AnnexKey
+from tables import FileKeyTable
+from type_hints import AnnexKey, TableRow
 
 
 # reserved git-annex UUID for the web special remote
@@ -66,17 +64,12 @@ class SubmissionId(NamedTuple):
     updated: str
     part: int
 
-@dataclass
-class GitAnnexSettings:
-    ref: bytes
 class AnnexCache:
     """The AnnexCache allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
     sources: Dict[AnnexKey, List[str]]
     md5s: Dict[str, bytes]
-    remote_keys: Dict[UUID, Set[AnnexKey]]
-    remote_submissions: Dict[UUID, List[SubmissionId]]
-    submission_keys: Dict[SubmissionId, AnnexKey]
+    added_rows: Dict[UUID, List[Tuple[AnnexKey, TableRow]]]
     dolt: DoltSqlServer
     auto_push: bool
     batch_size: int
@@ -86,15 +79,16 @@ class AnnexCache:
     write_sources_table: bool = False
     write_git_annex: bool = False
 
-    def __init__(self, dolt: DoltSqlServer, auto_push: bool, batch_size: int):
+    MAX_EXTENSION_LENGTH = 4
+
+    def __init__(self, dolt: DoltSqlServer, table: FileKeyTable, auto_push: bool, batch_size: int):
+        self.table = table
         self.dolt = dolt
         self.urls = {}
         self.md5s = {}
         self.sources = {}
         self.flush_hooks = []
-        self.remote_keys = {}
-        self.remote_submissions = {}
-        self.submission_keys = {}
+        self.added_rows = {}
         self.batch_size = batch_size
         self.count = 0
         self.time = time.time()
@@ -107,37 +101,10 @@ class AnnexCache:
             self.flush()
             self.count = 0
 
-    def insert_url(self, key: str, url: str):
-        if key not in self.urls:
-            self.urls[key] = []
-        self.urls[key].append(url)
-        self.increment_count()
-
-    def insert_md5(self, key: str, md5: bytes):
-        self.md5s[key] = md5
-        self.increment_count()
-
-    def insert_key_source(self, key: AnnexKey, source: UUID):
-        if key not in self.sources:
-            self.sources[key] = []
-        self.sources[key].append(str(source))
-        if source != WEB_UUID:
-            if source not in self.remote_keys:
-                self.remote_keys[source] = set()
-            self.remote_keys[source].add(key)
-
-        self.increment_count()
-
-    def insert_submission_source(self, submission: SubmissionId, source: UUID):
-        if source != WEB_UUID:
-            if source not in self.remote_submissions:
-                self.remote_submissions[source] = []
-            self.remote_submissions[source].append(submission)
-
-        self.increment_count()
-
-    def insert_submission_key(self, submission: SubmissionId, key: AnnexKey):
-        self.submission_keys[submission] = key
+    def insert_file_source(self, table_row: TableRow, key: AnnexKey, source: UUID):
+        if source not in self.added_rows:
+            self.added_rows[source] = []
+        self.added_rows[source].append((key, table_row))
 
         self.increment_count()
 
@@ -160,26 +127,11 @@ class AnnexCache:
         # 2. Update the Dolt database to match the git-annex branch.
 
         logger.debug("flushing dolt database")
-        if self.write_sources_table and self.sources:
-            self.dolt.executemany(sql.SOURCES_SQL, [(key, json.dumps({source: 1 for source in sources})) for key, sources in self.sources.items()])
-        if self.urls:
-            self.dolt.executemany(sql.ANNEX_KEYS_SQL, [(url, key) for key, urls in self.urls.items() for url in urls])
-        if self.md5s:
-            self.dolt.executemany(sql.HASHES_SQL, [(md5, 'md5', key) for key, md5 in self.md5s.items()])
 
-        if self.remote_keys:
-            for remote_uuid, keys in self.remote_keys.items():
-                with self.dolt.set_branch(str(remote_uuid)):
-                    self.dolt.executemany(sql.LOCAL_KEYS_SQL, [(key,) for key in keys])
-        
-        if self.remote_submissions:
-            for remote_uuid, submissions in self.remote_submissions.items():
-                with self.dolt.set_branch(str(remote_uuid)):
-                    self.dolt.executemany(sql.LOCAL_SUBMISSIONS_SQL, [submission for submission in submissions])
-        with self.dolt.set_branch("files"):
-            print(self.submission_keys)
-            if self.submission_keys:
-                self.dolt.executemany(sql.SUBMISSION_KEYS_SQL, [(submission.source, submission.sid, submission.updated, submission.part, key) for submission, key in self.submission_keys.items()])
+        for source, rows in self.added_rows.items():
+            branch = f"{source}-{self.table.name}"
+            with self.dolt.maybe_create_branch(branch, self.table.name):
+                 self.dolt.executemany(self.table.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         # 3. Move the annex files to the annex directory.
 
@@ -190,9 +142,7 @@ class AnnexCache:
         self.urls.clear()
         self.md5s.clear()
         self.sources.clear()
-        self.remote_keys.clear()
-        self.remote_submissions.clear()
-        self.submission_keys.clear()
+        self.added_rows.clear()
 
         new_now = time.time()
         elapsed_time = new_now - self.time
