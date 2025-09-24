@@ -14,7 +14,7 @@ def copy(src: Path, dst: Path):
     try:
         shutil.copy(src, dst)
         return True
-    except (FileNotFoundError, NotADirectoryError):
+    except (FileNotFoundError, NotADirectoryError, shutil.Error):
         return False
 
 def move_and_symlink(src: Path, dst: Path):
@@ -23,7 +23,7 @@ def move_and_symlink(src: Path, dst: Path):
         shutil.move(src, dst)
         os.symlink(dst, src)
         return True
-    except (FileNotFoundError, NotADirectoryError):
+    except (FileNotFoundError, NotADirectoryError, shutil.Error):
         return False
 
 def move(src: Path, dst: Path):
@@ -31,5 +31,5 @@ def move(src: Path, dst: Path):
     try:
         shutil.move(src, dst)
         return True
-    except (FileNotFoundError, NotADirectoryError):
+    except (FileNotFoundError, NotADirectoryError, shutil.Error):
         return False
