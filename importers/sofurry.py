@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import magic
+import os
 
 from typing_extensions import List, Optional
 
@@ -34,8 +35,39 @@ class SoFurry(ImporterBase):
                 return "mp3"
             case "video/mp4":
                 return "mp4"
+            case "video/webm":
+                return "webm"
+            case "audio/x-wav":
+                return "wav"
+            case "image/webp":
+                return "webp"
+            case "video/x-m4v":
+                return "m4v"
+            case "video/quicktime":
+                return "mov"
+            case "video/3gpp":
+                return "3gp"
+            case "audio/x-m4a":
+                return "m4a"
+            case "application/x-shockwave-flash":
+                return "swf"
+            case "text/x-c":
+                # false positive
+                return "txt"
+            case "application/javascript":
+                # false positive
+                return "txt"
+            case "text/x-makefile":
+                # false
+                return "txt"
+            case "text/csv":
+                # false
+                return "txt"
             case x:
-                raise Exception(f"Unknown mime type {x}")
+                raise Exception(f"Unknown mime type {x} in {path}")
     
     def skip(self, path: str) -> bool:
-        return magic.from_file(path, mime=True) == 'text/html'
+        mime = magic.from_file(path, mime=True)
+        if mime == 'text/html' or mime == 'inode/x-empty':
+            return True
+        return os.path.getsize(path) == 1
