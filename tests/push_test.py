@@ -10,21 +10,17 @@ import uuid
 
 import paramiko 
 
-from annex import AnnexCache
-from commands.import_command import ImportConfig, do_import
-from commands.push import do_push
-from commands.server_command import server_context
-import context
-from dolt import DoltSqlServer
-from git import get_key_path
-import importers
-import move_functions
-from remote import Remote
-from commands.sync import SshSettings
+from dolt_annex import importers, move_functions, context 
+from dolt_annex.annex import AnnexCache
+from dolt_annex.commands.import_command import ImportConfig, do_import
+from dolt_annex.commands.push import do_push
+from dolt_annex.commands.server_command import server_context
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.filestore import get_key_path
+from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
+from dolt_annex.commands.sync import SshSettings
 
-from tables import FileKeyTable
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
-from type_hints import TableRow
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -87,7 +83,12 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
     ):
         with AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
             ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
-            do_import(import_config, downloader, importer, ["import_data/00"])
+            local_remote = Remote(
+                name="local",
+                uuid=context.local_uuid.get(),
+                url=base_config.files_dir.as_posix(),
+            )
+            do_import(local_remote, import_config, downloader, importer, ["import_data/00"])
             downloader.flush()
             with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)
@@ -100,7 +101,7 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
             assert files_pushed == 0
 
             # But if we add more files, it should push them
-            do_import(import_config, downloader, importer, ["import_data/08"])
+            do_import(local_remote, import_config, downloader, importer, ["import_data/08"])
             downloader.flush()
             with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{table.name}"):
                 dolt_server.commit(amend=True)

@@ -6,22 +6,19 @@ import os
 from pathlib import Path
 import random
 import shutil
+from uuid import UUID
 
-from typing_extensions import Dict
+from typing_extensions import Dict, Optional
 
-from annex import AnnexCache, SubmissionId
-from commands.import_command import ImportConfig, ImportCsv, do_import
-from config import get_config
-from dolt import DoltSqlServer
-from git import get_key_path, key_from_file
-import importers
-import move_functions
-from remote import Remote
-from table_settings import TableSettings
-from tables import FileKeyTable
+from dolt_annex.annex import AnnexCache
+from dolt_annex.commands.import_command import ImportConfig, ImportCsv, do_import
+from dolt_annex.config import get_config
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.file_keys import key_from_file
+from dolt_annex.filestore import get_key_path
+from dolt_annex import importers, move_functions
 from tests.setup import setup_file_remote,  base_config
-from type_hints import AnnexKey, TableRow
-from db import get_annex_key_from_submission_id
+from dolt_annex.datatypes import AnnexKey, TableRow, FileKeyTable, TableSettings, Remote
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -118,6 +115,14 @@ def assert_key(dolt: DoltSqlServer, key: AnnexKey, skip_exists_check: bool = Fal
     # 5. Check that the key exists in the personal Dolt branch
     #with dolt.set_branch(str(config.get().local_uuid)):
     #    assert is_key_present(dolt.cursor, key)
+
+def get_annex_key_from_submission_id(dolt: DoltSqlServer, row: TableRow, uuid: UUID, table: FileKeyTable) -> Optional[str]:
+    '''Get the annex key for a given submission ID'''
+    res = dolt.query(f"SELECT `{table.file_column}` FROM `{dolt.db_name}/{uuid}-{table.name}`.{table.name} WHERE {' AND '.join(f'`{col}` = %s' for col in table.key_columns)}",
+                   row)
+    for row in res:
+        return row[0]
+    return None
 
 def assert_submission_id(dolt: DoltSqlServer, table_settings: TableSettings, key: AnnexKey, expected_submission_id: TableRow):
     """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""

@@ -5,26 +5,21 @@ import os
 from pathlib import Path
 import random
 import shutil
-from typing_extensions import Optional, List
 import uuid
 import copy
+from typing_extensions import Optional, List
 
 import paramiko 
 
-from annex import AnnexCache, SubmissionId
-from commands.import_command import ImportConfig, do_import
-from commands.server_command import server_context
-from commands.sync import SshSettings, SyncResults, TableFilter, do_sync
-import context
-from dolt import DoltSqlServer
-from git import get_key_path
-import importers
-import move_functions
-from remote import Remote
-from tables import FileKeyTable
+from dolt_annex import importers, move_functions, config, context
+from dolt_annex.annex import AnnexCache
+from dolt_annex.commands.import_command import ImportConfig, do_import
+from dolt_annex.commands.server_command import server_context
+from dolt_annex.commands.sync import SshSettings, SyncResults, TableFilter, do_sync
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.filestore import get_key_path
+from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
-import config
-from type_hints import TableRow
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -83,7 +78,7 @@ def do_test_sync(tmp_path, remote: Remote):
         "port": random.randint(20000, 21000),
     }
     with (
-        DoltSqlServer(base_config.dolt_dir, db_config, base_config.spawn_dolt_server) as dolt_server,
+        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
         AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as cache
     ):
             first_downloader = cache
@@ -100,7 +95,7 @@ def do_test_sync(tmp_path, remote: Remote):
                 ssh_config = Path(__file__).parent / "config" / "ssh_config",
                 known_hosts = None
             )
-            do_import(import_config, first_downloader, importer, ["import_data/00"])
+            do_import(local_remote, import_config, first_downloader, importer, ["import_data/00"])
             first_downloader.flush()
             with first_downloader.dolt.set_branch("files"):
                 dolt_server.commit(amend=True)
@@ -122,7 +117,7 @@ def do_test_sync(tmp_path, remote: Remote):
 
             # Sync second local repo with the remote, pushing and pulling files
 
-            do_import(import_config, second_downloader, importer, ["import_data/08"])
+            do_import(local_remote, import_config, second_downloader, importer, ["import_data/08"])
             second_downloader.flush()
             with second_downloader.dolt.set_branch("files"):
                 dolt_server.commit(amend=True)

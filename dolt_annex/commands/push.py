@@ -8,18 +8,14 @@ from typing_extensions import List, Iterable, Optional, Tuple
 
 from plumbum import cli # type: ignore
 
-from annex import SubmissionId
-from application import Application, Downloader
-from config import get_config
-from dolt import DoltSqlServer
-from annex import AnnexCache
-from git import get_old_relative_annex_key_path, get_key_path
-from dolt_annex.remote import Remote
-from type_hints import AnnexKey, TableRow
-from logger import logger
-from commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query
-from tables import FileKeyTable
-
+from dolt_annex.application import Application, Downloader
+from dolt_annex.config import get_config
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.annex import AnnexCache
+from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
+from dolt_annex.datatypes import AnnexKey, FileKeyTable, Remote, TableRow
+from dolt_annex.logger import logger
+from dolt_annex.commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query
 
 class Push(cli.Application):
     """Push imported files to a remote repository"""

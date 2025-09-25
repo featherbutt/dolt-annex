@@ -7,6 +7,14 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+typing-extensions = "^4.15.0"
+plumbum = "^1.9.0"
+pymysql = "^1.1.2"
+types-pymysql = "^1.1.0.20250916"
+requests = "^2.32.5"
+paramiko = "^4.0.0"
+sftpretty = "^1.1.9"
+types-paramiko = "^4.0.0.20250822"
 
 [tool.poetry.scripts]
 # command_name = module_for_handler : function_for_handler

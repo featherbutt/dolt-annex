@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""Functionality for interacting with the Dolt server."""
+
 from pathlib import Path
 import time
 
@@ -9,12 +11,11 @@ from typing_extensions import Any, Dict, Tuple
 from plumbum import local # type: ignore
 import pymysql
 
-from dry_run import dry_run
-from logger import logger
-from dolt_annex.remote import Remote
+from dolt_annex.logger import logger
+from dolt_annex.datatypes.remote import Remote
 
 class DoltSqlServer:
-
+    """A connection to a Dolt SQL server."""
     db_config: Dict[str, Any]
     connection: pymysql.connections.Connection
     cursor: pymysql.cursors.Cursor
@@ -60,20 +61,17 @@ class DoltSqlServer:
                 logger.info(f"Waiting for SQL server: {str(e)}")
                 time.sleep(1)
 
-    @dry_run("Would execute {sql} with values {values}")
     def executemany(self, sql: str, values):
         self.cursor.executemany(sql, values)
         self.cursor.execute("COMMIT;")
         self.connection.commit()
     
-    @dry_run("Would execute {sql} with values {values}")
     def execute(self, sql: str, values):
         self.cursor.execute(sql, values)
         self.cursor.fetchall()
         self.cursor.execute("COMMIT;")
         self.connection.commit()
     
-    @dry_run("Would execute {sql} with values {values}")
     def query(self, sql: str, values = ()):
         cursor = self.connection.cursor()
         cursor.execute(sql, values)

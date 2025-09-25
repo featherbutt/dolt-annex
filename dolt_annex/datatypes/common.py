@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Utility type declarations"""
-
 from typing_extensions import NewType
 
 AnnexKey = NewType('AnnexKey', str)

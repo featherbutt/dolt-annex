@@ -7,11 +7,10 @@ import os
 
 from plumbum import cli # type: ignore
 
-from config import Config, set_config
-from dolt import DoltSqlServer
-import dry_run
-from annex import AnnexCache
-from tables import FileKeyTable
+from .config import Config, set_config
+from .dolt import DoltSqlServer
+from .annex import AnnexCache
+from .datatypes import FileKeyTable
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
@@ -38,10 +37,6 @@ class Application(cli.Application):
             email = None,
             name = None,
         )
-
-    @cli.switch("--dry-run", help="Report what would be imported without actually importing")
-    def set_dry_run(self):
-        dry_run.is_dry_run = True
 
     @cli.switch(['-c', '--config'], cli.ExistingFile)
     def set_config(self, path):

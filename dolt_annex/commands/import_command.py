@@ -8,19 +8,15 @@ from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
-from git import key_from_file
-import importers
-from application import Application, Downloader
-from downloader import move_files
-from importers.base import get_importer
-from logger import logger
-import move_functions
-from move_functions import MoveFunction
-from dolt_annex.remote import Remote
-from tables import FileKeyTable
-from type_hints import AnnexKey
-import context
-from annex import AnnexCache
+from dolt_annex import importers, move_functions
+from dolt_annex.file_keys import key_from_file
+from dolt_annex.filestore import get_key_path
+from dolt_annex.application import Application, Downloader
+from dolt_annex.importers.base import get_importer
+from dolt_annex.logger import logger
+from dolt_annex.move_functions import MoveFunction
+from dolt_annex.datatypes import AnnexKey, FileKeyTable, Remote
+from dolt_annex.annex import AnnexCache
 
 class ImportError(Exception):
     pass
@@ -70,19 +66,6 @@ class Import(cli.Application):
         str,
         help="Import annex keys and urls from CSV. File must contain the following fields: f{ImportCsv.KEYS}",
         excludes = ["--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
-    )
-
-
-    from_md5 = cli.Flag(
-        "--from-md5",
-        help="Import, assuming the filename is the md5 hash",
-        excludes = [],
-    )
-
-    from_falr = cli.Flag(
-        "--from-falr",
-        help="Import, assuming the file path is a FALR id",
-        excludes = ["--from-md5"],
     )
 
     move = cli.Flag(
@@ -212,3 +195,11 @@ def do_import(remote: Remote, import_config: ImportConfig, downloader: AnnexCach
 
     for file_or_directory in files_or_directories:
         import_path(Path(file_or_directory))
+
+def move_files(remote: Remote, move: MoveFunction, files: Dict[AnnexKey, Path]):
+    """Move files to the annex"""
+    logger.debug("moving annex files")
+    for key, file_path in files.items():
+        key_path = remote.files_dir() / get_key_path(key)
+        move(file_path, key_path)
+    files.clear()

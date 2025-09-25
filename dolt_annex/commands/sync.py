@@ -14,18 +14,15 @@ from typing_extensions import List, Iterable, Optional, Generator, Tuple, Any
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
-from annex import SubmissionId
-from application import Application, Downloader
-from config import get_config
-from dolt import DoltSqlServer
-from annex import AnnexCache
-from git import get_old_relative_annex_key_path, get_key_path
-import move_functions
-from move_functions import MoveFunction
-from dolt_annex.remote import Remote
-from tables import FileKeyTable
-from type_hints import AnnexKey, TableRow
-from logger import logger
+from dolt_annex.application import Application, Downloader
+from dolt_annex.config import get_config
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.annex import AnnexCache
+from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
+from dolt_annex import move_functions
+from dolt_annex.move_functions import MoveFunction
+from dolt_annex.datatypes import Remote, AnnexKey, TableRow, FileKeyTable
+from dolt_annex.logger import logger
 
 @dataclass
 class TableFilter:

@@ -11,8 +11,8 @@ from paramiko import SFTPServerInterface, SFTPServer, SFTPAttributes, \
     ServerInterface
 import paramiko
 
-from git import get_key_path
-from type_hints import AnnexKey
+from dolt_annex.filestore import get_key_path
+from dolt_annex.datatypes import AnnexKey
 
 CHUNK_SIZE = 8092
 

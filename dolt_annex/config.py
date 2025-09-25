@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing_extensions import Optional
 from uuid import UUID
+from typing_extensions import Optional
 
 @dataclass
 class Config:

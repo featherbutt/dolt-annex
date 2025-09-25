@@ -7,6 +7,7 @@ import shutil
 
 from typing_extensions import Callable
 
+# MoveFunction is an interface for import and sync operations that attempts to move files and reports success or failure.
 MoveFunction = Callable[[Path, Path], bool]
 
 def copy(src: Path, dst: Path):

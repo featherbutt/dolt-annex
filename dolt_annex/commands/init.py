@@ -2,9 +2,10 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import uuid
+
 from plumbum import cli, local # type: ignore
 
-from application import Application, Config
+from dolt_annex.application import Application, Config
 
 def is_wsl():
     """Check if running in Windows Subsystem for Linux"""

@@ -11,20 +11,17 @@ import uuid
 
 import paramiko 
 
-from annex import AnnexCache
-from commands.import_command import ImportConfig, do_import
-from commands.pull import do_pull
-from commands.server_command import server_context
-from dolt import DoltSqlServer
-from git import get_key_path
-import importers
-import move_functions
-from remote import Remote
-from commands.sync import SshSettings
+from dolt_annex.annex import AnnexCache
+from dolt_annex.commands.import_command import ImportConfig, do_import
+from dolt_annex.commands.pull import do_pull
+from dolt_annex.commands.server_command import server_context
+from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.filestore import get_key_path
+from dolt_annex import move_functions, importers
+from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
+from dolt_annex.commands.sync import SshSettings
 
-from tables import FileKeyTable
 from tests.setup import setup, setup_ssh_remote, base_config, init
-from type_hints import TableRow
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -79,10 +76,6 @@ class TestImporter(importers.ImporterBase):
 def do_test_pull(tmp_path, table_name: str, remote: Remote):
     """Run and validate pulling content files from a remote"""
     importer = TestImporter()
-    local = {
-        "uuid": uuid.uuid4(),
-        "files_dir": base_config.files_dir,
-    }
     with contextlib.chdir(config_directory):
         table = FileKeyTable.from_name(table_name)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))

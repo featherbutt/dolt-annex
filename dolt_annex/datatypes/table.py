@@ -4,7 +4,10 @@
 from dataclasses import dataclass
 import json
 import os
+from uuid import UUID
 from typing_extensions import List
+
+from .remote import Remote
 
 @dataclass
 class FileKeyTable:
@@ -31,3 +34,9 @@ class FileKeyTable:
         cols = ", ".join([self.file_column] + self.key_columns)
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"INSERT INTO {self.name} ({cols}) VALUES ({placeholders})"
+
+@dataclass
+class TableSettings:
+    uuid: UUID
+    table: FileKeyTable
+    remote: Remote

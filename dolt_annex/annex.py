@@ -5,45 +5,11 @@
 
 import time
 from uuid import UUID
+from typing_extensions import Callable, Dict, List, Tuple
 
-from typing_extensions import Callable, Dict, List, Set, NamedTuple, Tuple
-
-from dolt import DoltSqlServer
-from logger import logger
-from tables import FileKeyTable
-from type_hints import AnnexKey, TableRow
-
-
-# reserved git-annex UUID for the web special remote
-WEB_UUID = '00000000-0000-0000-0000-000000000001'
-
-def parse_log_file(content: str) -> Set[UUID]:
-    """Parse a .log file and return a set of UUIDs that have the file"""
-    uuids: Set[UUID] = set()
-    for line in content.splitlines():
-        if not line.strip():
-            continue
-        try:
-            timestamp, present, uuid = line.split()
-            if present == "1" and uuid != WEB_UUID:
-                uuids.add(UUID(uuid))
-        except ValueError:
-            print(f"Warning: malformed log line: {line}")
-    return uuids
-
-def parse_web_log(content: str) -> List[str]:
-    """Parse a .log.web file and return a list of URLs"""
-    urls = []
-    for line in content.splitlines():
-        if not line.strip():
-            continue
-        try:
-            timestamp, present, url = line.split(maxsplit=2)
-            if present == "1":
-                urls.append(url)
-        except ValueError:
-            print(f"Warning: malformed web log line: {line}")
-    return urls
+from .dolt import DoltSqlServer
+from .logger import logger
+from .datatypes import AnnexKey, TableRow, FileKeyTable
 
 # We must prevent data loss in the event the process is interrupted:
 # - Original file names contain data that is lost when the file is added to the annex
@@ -58,17 +24,10 @@ def parse_web_log(content: str) -> List[str]:
 # - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
-class SubmissionId(NamedTuple):
-    source: str
-    sid: int
-    updated: str
-    part: int
-
 class AnnexCache:
     """The AnnexCache allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
     sources: Dict[AnnexKey, List[str]]
-    md5s: Dict[str, bytes]
     added_rows: Dict[UUID, List[Tuple[AnnexKey, TableRow]]]
     dolt: DoltSqlServer
     auto_push: bool
@@ -84,9 +43,6 @@ class AnnexCache:
     def __init__(self, dolt: DoltSqlServer, table: FileKeyTable, auto_push: bool, batch_size: int):
         self.table = table
         self.dolt = dolt
-        self.urls = {}
-        self.md5s = {}
-        self.sources = {}
         self.flush_hooks = []
         self.added_rows = {}
         self.batch_size = batch_size
@@ -112,7 +68,7 @@ class AnnexCache:
         """Add a hook to be called when the cache is flushed."""
         self.flush_hooks.append(hook)
 
-    def flush(self, update_annex: bool = False):
+    def flush(self):
         """Flush the cache to the git-annex branch and the Dolt database."""
         # Flushing the cache must be done in the following order:
         # 1. Update the git-annex branch to contain the new ownership records and registered urls.
@@ -138,10 +94,7 @@ class AnnexCache:
         for hook in self.flush_hooks:
             hook()
 
-        num_keys = max(len(self.urls), len(self.sources))
-        self.urls.clear()
-        self.md5s.clear()
-        self.sources.clear()
+        num_keys = len(self.added_rows)
         self.added_rows.clear()
 
         new_now = time.time()

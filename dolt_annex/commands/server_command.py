@@ -12,9 +12,9 @@ from typing_extensions import Optional
 from plumbum import cli # type: ignore
 import paramiko
 
-from application import Application
-from logger import logger
-from server import AnnexSftpServer, AnnexSshServer
+from dolt_annex.application import Application
+from dolt_annex.logger import logger
+from dolt_annex.server import AnnexSftpServer, AnnexSshServer
 
 class Server(cli.Application):
     """Starts a remote sandboxed SSH server"""

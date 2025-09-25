@@ -4,11 +4,11 @@
 import base64
 import pathlib
 from cryptography.hazmat.primitives import hashes, serialization
-
 from typing_extensions import Optional, override
-import paramiko
 
-from logger import logger
+import paramiko # type: ignore
+
+from dolt_annex.logger import logger
 
 CHUNK_SIZE = 4096
 
