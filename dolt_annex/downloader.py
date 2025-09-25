@@ -8,7 +8,7 @@ from typing_extensions import Dict
 from git import get_key_path
 from logger import logger
 from move_functions import MoveFunction
-from remote import Remote
+from dolt_annex.remote import Remote
 from type_hints import AnnexKey
 
 def move_files(remote: Remote, move: MoveFunction, files: Dict[AnnexKey, Path]):

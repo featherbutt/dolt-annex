@@ -14,7 +14,7 @@ from config import get_config
 from dolt import DoltSqlServer
 from annex import AnnexCache
 from git import get_old_relative_annex_key_path, get_key_path
-from remote import Remote
+from dolt_annex.remote import Remote
 from type_hints import AnnexKey, TableRow
 from logger import logger
 from commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query

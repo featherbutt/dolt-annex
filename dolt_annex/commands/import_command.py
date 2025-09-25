@@ -16,7 +16,7 @@ from importers.base import get_importer
 from logger import logger
 import move_functions
 from move_functions import MoveFunction
-from remote import Remote
+from dolt_annex.remote import Remote
 from tables import FileKeyTable
 from type_hints import AnnexKey
 import context

@@ -11,7 +11,7 @@ import pymysql
 
 from dry_run import dry_run
 from logger import logger
-from remote import Remote
+from dolt_annex.remote import Remote
 
 class DoltSqlServer:
 

@@ -14,7 +14,7 @@ from application import Application, Downloader
 from commands.push import FileMover, file_mover, diff_keys
 from git import get_old_relative_annex_key_path, get_key_path
 from logger import logger
-from remote import Remote
+from dolt_annex.remote import Remote
 from tables import FileKeyTable
 from type_hints import AnnexKey, TableRow
 import context

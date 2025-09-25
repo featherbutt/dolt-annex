@@ -1,15 +1,16 @@
-[project]
-name = "dolt-annex"
+[tool.poetry]
+name = "dolt_annex"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
+authors = ["Featherbutt <admin@featherbutt.com>"]
 readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-]
 
+[tool.poetry.dependencies]
+python = "^3.10"
+
+[tool.poetry.scripts]
+# command_name = module_for_handler : function_for_handler
+dolt-annex = 'dolt_annex:main'
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from tables import FileKeyTable
-from remote import Remote
+from dolt_annex.remote import Remote
 
 
 @dataclass

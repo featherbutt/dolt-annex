@@ -22,7 +22,7 @@ from annex import AnnexCache
 from git import get_old_relative_annex_key_path, get_key_path
 import move_functions
 from move_functions import MoveFunction
-from remote import Remote
+from dolt_annex.remote import Remote
 from tables import FileKeyTable
 from type_hints import AnnexKey, TableRow
 from logger import logger
