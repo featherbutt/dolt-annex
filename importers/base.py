@@ -1,14 +1,10 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
-import os
 import importlib
 from pathlib import Path
 
-from typing_extensions import List, Optional, Type, Dict, Tuple
+from typing_extensions import List, Optional, Type, Dict
 
-from plumbum import local # type: ignore
 
-import annex
-from dolt import DoltSqlServer
 from type_hints import TableRow
 
 class ImporterBase(AbstractBaseClass):
