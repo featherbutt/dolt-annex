@@ -1,6 +1,5 @@
 {
     "name": "submissions",
     "file_column": "annex_key",
-    "key_columns": ["source", "id", "updated", "part"],
-    "initial_commit": ""
+    "key_columns": ["source", "id", "updated", "part"]
 }
