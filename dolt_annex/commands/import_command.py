@@ -15,8 +15,8 @@ from dolt_annex.application import Application, Downloader
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import AnnexKey, FileKeyTable, Remote
-from dolt_annex.annex import AnnexCache
+from dolt_annex.datatypes import AnnexKey, FileTableSchema, Remote
+from dolt_annex.table import FileTable
 
 class ImportError(Exception):
     pass
@@ -27,7 +27,7 @@ class ImportCsv:
     KEYS = {KEY_ANNEX_KEY, KEY_URL}
 
     @classmethod
-    def import_csv(cls, downloader: AnnexCache, csv_file: TextIOWrapper):
+    def import_csv(cls, downloader: FileTable, csv_file: TextIOWrapper):
         """Import annex keys from CSV file"""
         fields_checked = False
         for row in csv.DictReader(csv_file):
@@ -127,7 +127,7 @@ class Import(cli.Application):
             move_function = move_function,
             follow_symlinks = follow_symlinks,
         )
-        table = FileKeyTable.from_name(self.table)
+        table = FileTableSchema.from_name(self.table)
         if not table:
             logger.error(f"Table {self.table} not found")
             return 1
@@ -145,7 +145,7 @@ class Import(cli.Application):
                 )
                 do_import(local_remote, import_config, downloader, importer, files_or_directories)
 
-def do_import(remote: Remote, import_config: ImportConfig, downloader: AnnexCache, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+def do_import(remote: Remote, import_config: ImportConfig, downloader: FileTable, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, Path] = {}
     downloader.add_flush_hook(lambda: move_files(remote, import_config.move_function, key_paths))
     

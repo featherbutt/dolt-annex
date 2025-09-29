@@ -11,9 +11,9 @@ from plumbum import cli # type: ignore
 from dolt_annex.application import Application, Downloader
 from dolt_annex.config import get_config
 from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.annex import AnnexCache
+from dolt_annex.table import FileTable
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
-from dolt_annex.datatypes import AnnexKey, FileKeyTable, Remote, TableRow
+from dolt_annex.datatypes import AnnexKey, FileTableSchema, Remote, TableRow
 from dolt_annex.logger import logger
 from dolt_annex.commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query
 
@@ -79,7 +79,7 @@ class Push(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for push command"""
-        table = FileKeyTable.from_name(self.table)
+        table = FileTableSchema.from_name(self.table)
         if not table:
             logger.error(f"Table {self.table} not found")
             return 1
@@ -94,7 +94,7 @@ class Push(cli.Application):
             do_push(downloader, remote, ssh_settings, self.table, self.filters, self.limit)
         return 0
 
-def do_push(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
+def do_push(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
     dolt = downloader.dolt
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
@@ -113,7 +113,7 @@ def do_push(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettin
 
     return total_files_pushed
 
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: AnnexCache, mover: FileMover, remote_uuid: UUID, files_pushed: List[AnnexKey]) -> bool:
+def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: FileTable, mover: FileMover, remote_uuid: UUID, files_pushed: List[AnnexKey]) -> bool:
     has_more = False
     for key, submission in keys_and_submissions:
         has_more = True
@@ -127,7 +127,7 @@ def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Tab
     downloader.flush()
     return has_more
 
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, file_key_table: FileKeyTable, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}-{file_key_table.name}"

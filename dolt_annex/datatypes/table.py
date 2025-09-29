@@ -10,9 +10,10 @@ from typing_extensions import List
 from .remote import Remote
 
 @dataclass
-class FileKeyTable:
+class FileTableSchema:
     """
-    All the information needed to diff file keys between two remotes.
+    The schema describing a table with a file column.
+    Contains all the information needed to diff file keys between two remotes.
     """
     name: str
     file_column: str
@@ -27,7 +28,7 @@ class FileKeyTable:
                 data = json.load(f)
                 if data.get("name") != name:
                     raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
-                return FileKeyTable(**data)
+                return FileTableSchema(**data)
         return None
 
     def insert_sql(self) -> str:
@@ -38,5 +39,5 @@ class FileKeyTable:
 @dataclass
 class TableSettings:
     uuid: UUID
-    table: FileKeyTable
+    table: FileTableSchema
     remote: Remote

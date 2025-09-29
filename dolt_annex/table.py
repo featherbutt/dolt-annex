@@ -9,7 +9,7 @@ from typing_extensions import Callable, Dict, List, Tuple
 
 from .dolt import DoltSqlServer
 from .logger import logger
-from .datatypes import AnnexKey, TableRow, FileKeyTable
+from .datatypes import AnnexKey, TableRow, FileTableSchema
 
 # We must prevent data loss in the event the process is interrupted:
 # - Original file names contain data that is lost when the file is added to the annex
@@ -24,8 +24,8 @@ from .datatypes import AnnexKey, TableRow, FileKeyTable
 # - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
-class AnnexCache:
-    """The AnnexCache allows for batched operations against the Dolt database."""
+class FileTable:
+    """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
     sources: Dict[AnnexKey, List[str]]
     added_rows: Dict[UUID, List[Tuple[AnnexKey, TableRow]]]
@@ -40,7 +40,7 @@ class AnnexCache:
 
     MAX_EXTENSION_LENGTH = 4
 
-    def __init__(self, dolt: DoltSqlServer, table: FileKeyTable, auto_push: bool, batch_size: int):
+    def __init__(self, dolt: DoltSqlServer, table: FileTableSchema, auto_push: bool, batch_size: int):
         self.table = table
         self.dolt = dolt
         self.flush_hooks = []

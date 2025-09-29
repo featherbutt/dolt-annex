@@ -17,11 +17,11 @@ from plumbum import cli # type: ignore
 from dolt_annex.application import Application, Downloader
 from dolt_annex.config import get_config
 from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.annex import AnnexCache
+from dolt_annex.table import FileTable
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
 from dolt_annex import move_functions
 from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import Remote, AnnexKey, TableRow, FileKeyTable
+from dolt_annex.datatypes import Remote, AnnexKey, TableRow, FileTableSchema
 from dolt_annex.logger import logger
 
 @dataclass
@@ -212,7 +212,7 @@ class Sync(cli.Application):
         """Entrypoint for sync command"""
         if len(args) > 0:
             print(f"Unexpected positional arguments provided to {sys.argv[0]} sync")
-        table = FileKeyTable.from_name(self.table)
+        table = FileTableSchema.from_name(self.table)
         if not table:
             logger.error(f"Table {self.table} not found")
             return 1
@@ -226,7 +226,7 @@ class Sync(cli.Application):
             do_sync(downloader, remote, ssh_settings, self.table, self.filters, self.limit)
         return 0
 
-def do_sync(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None) -> SyncResults:
+def do_sync(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None) -> SyncResults:
     dolt = downloader.dolt
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
@@ -242,7 +242,7 @@ def do_sync(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettin
 
     return total_files_synced
 
-def sync_keys(keys: Iterable[Tuple[AnnexKey, str, TableRow]], downloader: AnnexCache, mover: FileMover, remote_uuid: UUID, files_synced: SyncResults) -> bool:
+def sync_keys(keys: Iterable[Tuple[AnnexKey, str, TableRow]], downloader: FileTable, mover: FileMover, remote_uuid: UUID, files_synced: SyncResults) -> bool:
     has_more = False
     for key, diff_type, table_row in keys:
         has_more = True
@@ -269,7 +269,7 @@ def pull_personal_branch(dolt: DoltSqlServer, remote: Remote) -> None:
     """Fetch the personal branch for the remote"""
     dolt.pull_branch(str(remote.uuid), remote)
 
-def diff_keys(dolt: DoltSqlServer, local_ref: str, remote_ref: str, file_key_table: FileKeyTable, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, str, TableRow]]:
+def diff_keys(dolt: DoltSqlServer, local_ref: str, remote_ref: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, str, TableRow]]:
     query = diff_query(file_key_table, filters)
     
     if limit is not None:
@@ -281,7 +281,7 @@ def diff_keys(dolt: DoltSqlServer, local_ref: str, remote_ref: str, file_key_tab
         print(annex_key, diff_type, key_parts)
         yield (AnnexKey(annex_key), diff_type, TableRow(*key_parts))
 
-def diff_query(file_key_table: FileKeyTable, filters: List[TableFilter]) -> str:
+def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
     """
     Generates a SQL query to identify the files that exist on one remote but not another.
     Note that generating a SQL query this way is not safe from SQL injection, but SQL injection

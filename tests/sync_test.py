@@ -12,13 +12,13 @@ from typing_extensions import Optional, List
 import paramiko 
 
 from dolt_annex import importers, move_functions, config, context
-from dolt_annex.annex import AnnexCache
+from dolt_annex.table import FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.server_command import server_context
 from dolt_annex.commands.sync import SshSettings, SyncResults, TableFilter, do_sync
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
-from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
+from dolt_annex.datatypes import Remote, FileTableSchema, TableRow
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
 
 import_config = ImportConfig(
@@ -68,7 +68,7 @@ class TestImporter(importers.ImporterBase):
 def do_test_sync(tmp_path, remote: Remote):
     """Run and validate syncing content files to a remote"""
     importer = TestImporter()
-    table = FileKeyTable.from_name("submissions")
+    table = FileTableSchema.from_name("submissions")
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -79,7 +79,7 @@ def do_test_sync(tmp_path, remote: Remote):
     }
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as cache
+        FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as cache
     ):
             first_downloader = cache
 
@@ -102,7 +102,7 @@ def do_test_sync(tmp_path, remote: Remote):
             with first_downloader.dolt.set_branch(context.local_uuid.get()):
                 dolt_server.commit(amend=True)
 
-            file_key_table = FileKeyTable.from_name("submissions")
+            file_key_table = FileTableSchema.from_name("submissions")
 
             # Sync first local repo with the remote, only pushing files
             filters: List[TableFilter] = []
@@ -144,7 +144,7 @@ def do_test_sync(tmp_path, remote: Remote):
             
 
 
-def sync_and_verify(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable, filters: List[TableFilter]) -> SyncResults:
+def sync_and_verify(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, filters: List[TableFilter]) -> SyncResults:
 
     files_synced = do_sync(downloader, file_remote, ssh_settings, file_key_table, filters)
     downloader.flush()

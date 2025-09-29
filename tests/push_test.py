@@ -11,13 +11,13 @@ import uuid
 import paramiko 
 
 from dolt_annex import importers, move_functions, context 
-from dolt_annex.annex import AnnexCache
+from dolt_annex.table import FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.push import do_push
 from dolt_annex.commands.server_command import server_context
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
-from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
+from dolt_annex.datatypes import Remote, FileTableSchema, TableRow
 from dolt_annex.commands.sync import SshSettings
 
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
@@ -69,7 +69,7 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
     importer = TestImporter()
     shutil.copy(config_directory / "submissions.table", tmp_path / "submissions.table")
     shutil.copy(config_directory / "urls.table", tmp_path / "urls.table")
-    table = FileKeyTable.from_name(table_name)
+    table = FileTableSchema.from_name(table_name)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -81,7 +81,7 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
-        with AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
+        with FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
             ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
             local_remote = Remote(
                 name="local",
@@ -110,7 +110,7 @@ def do_test_push(tmp_path, table_name: str, remote: Remote):
             assert files_pushed == 1
 
 
-def push_and_verify(downloader: AnnexCache, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable):
+def push_and_verify(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema):
 
     files_pushed = do_push(downloader, file_remote, ssh_settings, file_key_table, [], limit=None)
     downloader.flush()

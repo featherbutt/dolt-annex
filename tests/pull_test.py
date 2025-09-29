@@ -11,14 +11,14 @@ import uuid
 
 import paramiko 
 
-from dolt_annex.annex import AnnexCache
+from dolt_annex.table import FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.pull import do_pull
 from dolt_annex.commands.server_command import server_context
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
 from dolt_annex import move_functions, importers
-from dolt_annex.datatypes import Remote, FileKeyTable, TableRow
+from dolt_annex.datatypes import Remote, FileTableSchema, TableRow
 from dolt_annex.commands.sync import SshSettings
 
 from tests.setup import setup, setup_ssh_remote, base_config, init
@@ -77,7 +77,7 @@ def do_test_pull(tmp_path, table_name: str, remote: Remote):
     """Run and validate pulling content files from a remote"""
     importer = TestImporter()
     with contextlib.chdir(config_directory):
-        table = FileKeyTable.from_name(table_name)
+        table = FileTableSchema.from_name(table_name)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -89,7 +89,7 @@ def do_test_pull(tmp_path, table_name: str, remote: Remote):
     ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        AnnexCache(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader
+        FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader
     ):
         do_import(remote, import_config, downloader, importer, ["import_data/00"])
         downloader.flush()
@@ -103,7 +103,7 @@ def do_test_pull(tmp_path, table_name: str, remote: Remote):
         assert files_pulled == 0
 
 
-def pull_and_verify(downloader: AnnexCache, files_dir: Path, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileKeyTable):
+def pull_and_verify(downloader: FileTable, files_dir: Path, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema):
 
     files_pulled = do_pull(downloader, file_remote, ssh_settings, file_key_table, [], limit=None)
     downloader.flush()
