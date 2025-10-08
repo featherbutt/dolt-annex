@@ -1,0 +1,11 @@
+{
+    "name": "urls",
+    "tables": [
+        {
+            "name": "urls",
+            "file_column": "annex_key",
+            "key_columns": ["url"]
+        }
+    ],
+    "empty_table_ref": "urls"
+}

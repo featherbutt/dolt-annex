@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from io import StringIO
 import os
 from pathlib import Path
 import random
@@ -10,15 +9,17 @@ from uuid import UUID
 
 from typing_extensions import Dict, Optional
 
-from dolt_annex.table import FileTable
-from dolt_annex.commands.import_command import ImportConfig, ImportCsv, do_import
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.table import Dataset, FileTable
+from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.config import get_config
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.file_keys import key_from_file
 from dolt_annex.filestore import get_key_path
 from dolt_annex import importers, move_functions
+from dolt_annex.datatypes import AnnexKey, TableRow, FileTableSchema, DatasetSource, Repo
+
 from tests.setup import setup_file_remote,  base_config
-from dolt_annex.datatypes import AnnexKey, TableRow, FileTableSchema, TableSettings, Remote
 
 import_config = ImportConfig(
     batch_size = 10,
@@ -56,12 +57,10 @@ def do_test_import(tmp_path_: str, table_name: str, importer_factory, expected_r
     tmp_path = Path(tmp_path_)
     setup_file_remote(tmp_path)
     shutil.copytree(import_directory, tmp_path / "import_data")
-    shutil.copy(config_directory / "submissions.table", tmp_path / "submissions.table")
-    shutil.copy(config_directory / "urls.table", tmp_path / "urls.table")
+    shutil.copy(config_directory / "submissions.dataset", tmp_path / "submissions.dataset")
+    shutil.copy(config_directory / "urls.dataset", tmp_path / "urls.dataset")
 
-    table = FileTableSchema.from_name(table_name)
-    if not table:
-        raise ValueError(f"Table {table_name} not found")
+    dataset = DatasetSchema.must_load(table_name)
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
         "user": "root",
@@ -69,21 +68,23 @@ def do_test_import(tmp_path_: str, table_name: str, importer_factory, expected_r
         "autocommit": True,
         "port": random.randint(20000, 21000),
     }
-    table_settings = TableSettings(base_config.local_uuid, table=table, remote=None)
-    local_remote = Remote(
+    table_settings = DatasetSource(dataset, repo=base_config.local_repo())
+    
+    local_remote = Repo(
         name="local",
         uuid=base_config.local_uuid,
-        url=base_config.files_dir.as_posix(),
+        files_url=base_config.files_dir.as_posix(),
     )
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
     ):
-        with FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader:
+        with Dataset(dolt_server, table_settings, base_config.auto_push, import_config.batch_size) as downloader:
+            table = downloader.get_table(table_name)
             importer = importer_factory(downloader)
-            do_import(local_remote, import_config, downloader, importer, ["import_data"])
-        validate_import(downloader, table_settings, expected_rows)
+            do_import(local_remote, import_config, table, importer, ["import_data"])
+        validate_import(table, table_settings, expected_rows)
 
-def validate_import(downloader: FileTable, table_settings: TableSettings, expected_rows: Dict[str, TableRow]):
+def validate_import(downloader: FileTable, table_settings: DatasetSource, expected_rows: Dict[str, TableRow]):
     """Check that the imported files are present in the annex and the Dolt database"""
     print(os.path.curdir)
     file_count = 0
@@ -94,7 +95,7 @@ def validate_import(downloader: FileTable, table_settings: TableSettings, expect
             key = key_from_file(root_path / file)
             print(f"Validating {file} with key {key}")
             assert_key(downloader.dolt, key)
-            assert_submission_id(downloader.dolt, table_settings, key, expected_rows[file])
+            assert_submission_id(downloader.dolt, table_settings, downloader.schema, key, expected_rows[file])
 
     assert file_count == len(expected_rows)
 
@@ -124,36 +125,8 @@ def get_annex_key_from_submission_id(dolt: DoltSqlServer, row: TableRow, uuid: U
         return row[0]
     return None
 
-def assert_submission_id(dolt: DoltSqlServer, table_settings: TableSettings, key: AnnexKey, expected_submission_id: TableRow):
+def assert_submission_id(dolt: DoltSqlServer, table_settings: DatasetSource, table_schema: FileTableSchema, key: AnnexKey, expected_submission_id: TableRow):
     """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""
     # 4. Check that the key exists in the personal Dolt branch
-    assert get_annex_key_from_submission_id(dolt, expected_submission_id, table_settings.uuid, table_settings.table) == key
-
-def test_import_csv(tmp_path):
-    """Test importing with a url determined by the md5 hash of the file"""
-    test_csv = """annex_key,url
-SHA256E-s2134560--178714a6e42ab064af381ab1a74c942588aee41316645f8a961bfb66622d5e0c.png,https://static1.e621.net/data/59/17/591785b794601e212b260e25925636fd.txt
-SHA256E-s2134564--131cefbcb150edb19bb17be3c3bcba10cba207b5e580187d6caccec05b9b88d1.png,https://static1.e621.net/data/b1/94/b1946ac92492d2347c6235b4d2611184.txt
-"""
-    expected_urls = {
-        "SHA256E-s2134560--178714a6e42ab064af381ab1a74c942588aee41316645f8a961bfb66622d5e0c.png": "https://static1.e621.net/data/59/17/591785b794601e212b260e25925636fd.txt",
-        "SHA256E-s2134564--131cefbcb150edb19bb17be3c3bcba10cba207b5e580187d6caccec05b9b88d1.png": "https://static1.e621.net/data/b1/94/b1946ac92492d2347c6235b4d2611184.txt",
-    }
-    setup_file_remote(tmp_path)
-    shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
-    db_config = {
-        "unix_socket": base_config.dolt_server_socket,
-        "user": "root",
-        "database": base_config.dolt_db,
-        "autocommit": True,
-        "port": random.randint(20000, 21000),
-    }
-    table = FileTableSchema.from_name("submissions")
-    with (
-        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader
-    ):
-        ImportCsv.import_csv(downloader, StringIO(test_csv))
-        for key, url in expected_urls.items():
-            assert_key(downloader.dolt, key, skip_exists_check=True)
+    assert get_annex_key_from_submission_id(dolt, expected_submission_id, table_settings.repo.uuid, table_schema) == key
 

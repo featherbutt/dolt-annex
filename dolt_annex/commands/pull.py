@@ -8,13 +8,14 @@ from typing_extensions import Iterable, Optional, Tuple, List
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.table import FileTable
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.table import Dataset, FileTable
 from dolt_annex.commands.sync import SshSettings, TableFilter
 from dolt_annex.application import Application, Downloader
 from dolt_annex.commands.push import FileMover, file_mover, diff_keys
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import AnnexKey, TableRow, FileTableSchema, Remote
+from dolt_annex.datatypes import AnnexKey, TableRow, Repo
 from dolt_annex import context
 
 class Pull(cli.Application):
@@ -56,10 +57,10 @@ class Pull(cli.Application):
         help="The name of the dolt-annex remote",
     )
 
-    table = cli.SwitchAttr(
-        "--table",
+    dataset = cli.SwitchAttr(
+        "--dataset",
         str,
-        help="The name of the table being pushed",
+        help="The name of the dataset being pulled",
     )
 
     @cli.switch(
@@ -79,20 +80,13 @@ class Pull(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for pull command"""
-        table = FileTableSchema.from_name(self.table)
-        if not table:
-            logger.error(f"Table {self.table} not found")
-            return 1
+        dataset = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or self.parent.config.dolt_remote
-        remote = Remote.from_name(remote_name)
-        if not remote:
-            logger.error(f"Remote {remote_name} not found")
-            return 1
+        remote = Repo.must_load(remote_name)
         ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
-        
 
-        with Downloader(self.parent.config, self.batch_size, table) as downloader:
-            do_pull(downloader, remote, ssh_settings, table, self.filters, self.limit)
+        with Downloader(self.parent.config, self.batch_size, dataset) as downloader:
+            pull_dataset(downloader, remote, ssh_settings, self.filters, self.limit)
         return 0
     
 def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: FileTable, mover: FileMover, local_uuid: UUID, files_pulled: List[AnnexKey]) -> bool:
@@ -109,20 +103,26 @@ def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Tab
     downloader.flush()
     return has_more
 
-def do_pull(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], limit: Optional[int] = None) -> List[AnnexKey]:
-    dolt = downloader.dolt
+def pull_dataset(dataset: Dataset, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+    if out_pulled_keys is None:
+        out_pulled_keys = []
+    dataset.pull_from(file_remote)
+    for table in dataset.tables.values():
+        pull_table(table, file_remote, ssh_settings, where, limit, out_pulled_keys)
+    return out_pulled_keys
+
+def pull_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+    if out_pulled_keys is None:
+        out_pulled_keys = []
+    dolt = table.dolt
     local_uuid = context.local_uuid.get()
     remote_uuid = file_remote.uuid
 
-    dolt.pull_branch(f"{remote_uuid}-{file_key_table.name}", file_remote)
-    dolt.maybe_create_branch(f"{local_uuid}-{file_key_table.name}", file_key_table.name)
-
     with file_mover(file_remote, ssh_settings) as mover:
-        total_files_pulled: List[AnnexKey] = []
         while True:
-            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), file_key_table, where, limit))
-            has_more = pull_submissions_and_keys(keys_and_submissions, downloader, mover, local_uuid, total_files_pulled)
+            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), table.schema, where, limit))
+            has_more = pull_submissions_and_keys(keys_and_submissions, table, mover, local_uuid, out_pulled_keys)
             if not has_more:
                 break
-    return total_files_pulled
+    return out_pulled_keys
 

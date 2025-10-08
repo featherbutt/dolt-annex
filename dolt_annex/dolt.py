@@ -12,7 +12,7 @@ from plumbum import local # type: ignore
 import pymysql
 
 from dolt_annex.logger import logger
-from dolt_annex.datatypes.remote import Remote
+from dolt_annex.datatypes.remote import Repo
 
 class DoltSqlServer:
     """A connection to a Dolt SQL server."""
@@ -125,11 +125,11 @@ class DoltSqlServer:
         back to the previous branch when done."""
         return DoltBranch(self, branch)
 
-    def pull_branch(self, branch: str, remote: Remote):
+    def pull_branch(self, branch: str, remote: Repo):
         with self.set_branch(branch):
             self.cursor.execute("call DOLT_PULL(%s, %s)", (remote.name, branch))
 
-    def push_branch(self, branch: str, remote: Remote):
+    def push_branch(self, branch: str, remote: Repo):
         with self.set_branch(branch):
             self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote.name, branch))
             res = self.cursor.fetchone()

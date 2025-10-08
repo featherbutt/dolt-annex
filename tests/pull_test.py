@@ -11,14 +11,15 @@ import uuid
 
 import paramiko 
 
-from dolt_annex.table import FileTable
+from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
+from dolt_annex.table import Dataset, FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
-from dolt_annex.commands.pull import do_pull
+from dolt_annex.commands.pull import pull_dataset
 from dolt_annex.commands.server_command import server_context
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
 from dolt_annex import move_functions, importers
-from dolt_annex.datatypes import Remote, FileTableSchema, TableRow
+from dolt_annex.datatypes import Repo, FileTableSchema, TableRow
 from dolt_annex.commands.sync import SshSettings
 
 from tests.setup import setup, setup_ssh_remote, base_config, init
@@ -37,8 +38,8 @@ def test_pull_local(tmp_path):
     origin_uuid = uuid.uuid4()
     setup(tmp_path, origin_uuid)
     init()
-    remote = Remote(
-        url=f"file://{tmp_path}/remote_files",
+    remote = Repo(
+        files_url=f"file://{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )
@@ -57,8 +58,8 @@ def test_pull_server(tmp_path):
     host = "localhost"
     ssh_port = random.randint(21000, 22000)
     setup(tmp_path, origin_uuid)
-    remote = Remote(
-        url=f"file://{tmp_path}/remote_files",
+    remote = Repo(
+        files_url=f"file://{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )
@@ -73,11 +74,11 @@ class TestImporter(importers.ImporterBase):
         sid = int(''.join(path.parts[-6:-1]))
         return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
 
-def do_test_pull(tmp_path, table_name: str, remote: Remote):
+def do_test_pull(tmp_path, dataset_name: str, remote: Repo):
     """Run and validate pulling content files from a remote"""
     importer = TestImporter()
     with contextlib.chdir(config_directory):
-        table = FileTableSchema.from_name(table_name)
+        dataset = DatasetSchema.must_load(dataset_name)
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -87,25 +88,27 @@ def do_test_pull(tmp_path, table_name: str, remote: Remote):
         "port": random.randint(20000, 21000),
     }
     ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
+    dataset_source = DatasetSource(dataset, repo=base_config.local_repo())
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as downloader
+        Dataset(dolt_server, dataset_source, base_config.auto_push, import_config.batch_size) as downloader
     ):
-        do_import(remote, import_config, downloader, importer, ["import_data/00"])
+        table = next(iter(downloader.tables.values()))
+        do_import(remote, import_config, table, importer, ["import_data/00"])
         downloader.flush()
-        with downloader.dolt.set_branch(f"{remote.uuid}-{table.name}"):
+        with downloader.dolt.set_branch(f"{remote.uuid}-{dataset.name}"):
             dolt_server.commit(amend=True)
-        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings, table)
+        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings)
         assert files_pulled == 2
         # Pulling again should have no effect
 
-        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings, table)
+        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings)
         assert files_pulled == 0
 
 
-def pull_and_verify(downloader: FileTable, files_dir: Path, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema):
+def pull_and_verify(downloader: Dataset, files_dir: Path, file_remote: Repo, ssh_settings: SshSettings):
 
-    files_pulled = do_pull(downloader, file_remote, ssh_settings, file_key_table, [], limit=None)
+    files_pulled = pull_dataset(downloader, file_remote, ssh_settings, [])
     downloader.flush()
         
     for key in files_pulled:

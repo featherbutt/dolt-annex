@@ -21,7 +21,7 @@ from dolt_annex.table import FileTable
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
 from dolt_annex import move_functions
 from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import Remote, AnnexKey, TableRow, FileTableSchema
+from dolt_annex.datatypes import Repo, AnnexKey, TableRow, FileTableSchema
 from dolt_annex.logger import logger
 
 @dataclass
@@ -98,11 +98,11 @@ class FileMover:
         self.remote_cwd = old_remote_cwd
 
 @contextmanager
-def file_mover(remote: Remote, ssh_settings: SshSettings) -> Generator[FileMover, None, None]:
+def file_mover(remote: Repo, ssh_settings: SshSettings) -> Generator[FileMover, None, None]:
     base_config = get_config()
     local_path = os.path.abspath(base_config.files_dir)
-    if '@' in remote.url:
-        user, rest = remote.url.split('@', maxsplit=1)
+    if '@' in remote.files_url:
+        user, rest = remote.files_url.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
 
         cnopts = sftpretty.CnOpts(config=ssh_settings.ssh_config, knownhosts=ssh_settings.known_hosts)
@@ -140,11 +140,11 @@ def file_mover(remote: Remote, ssh_settings: SshSettings) -> Generator[FileMover
                 sftp.get(remote_path.as_posix(), local_path.as_posix())
                 return True
             yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
-    elif remote.url.startswith("file://"):
+    elif remote.files_url.startswith("file://"):
         # Remote path may be relative to the local git directory
-        yield FileMover(move_functions.copy, move_functions.copy, remote.url[7:], local_path)
+        yield FileMover(move_functions.copy, move_functions.copy, remote.files_url[7:], local_path)
     else:
-        raise ValueError(f"Unknown remote URL format: {remote.url}")
+        raise ValueError(f"Unknown remote URL format: {remote.files_url}")
     
 
 
@@ -212,21 +212,15 @@ class Sync(cli.Application):
         """Entrypoint for sync command"""
         if len(args) > 0:
             print(f"Unexpected positional arguments provided to {sys.argv[0]} sync")
-        table = FileTableSchema.from_name(self.table)
-        if not table:
-            logger.error(f"Table {self.table} not found")
-            return 1
+        table = FileTableSchema.must_load(self.table)
         remote_name = self.remote or self.parent.config.dolt_remote
-        remote = Remote.from_name(remote_name)
-        if not remote:
-            logger.error(f"Remote {remote_name} not found")
-            return 1
+        remote = Repo.must_load(remote_name)
         with Downloader(self.parent.config, table, self.batch_size) as downloader:
             ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
             do_sync(downloader, remote, ssh_settings, self.table, self.filters, self.limit)
         return 0
 
-def do_sync(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None) -> SyncResults:
+def do_sync(downloader: FileTable, file_remote: Repo, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None) -> SyncResults:
     dolt = downloader.dolt
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
@@ -265,7 +259,7 @@ def sync_keys(keys: Iterable[Tuple[AnnexKey, str, TableRow]], downloader: FileTa
     downloader.flush()
     return has_more
 
-def pull_personal_branch(dolt: DoltSqlServer, remote: Remote) -> None:
+def pull_personal_branch(dolt: DoltSqlServer, remote: Repo) -> None:
     """Fetch the personal branch for the remote"""
     dolt.pull_branch(str(remote.uuid), remote)
 

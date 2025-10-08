@@ -18,7 +18,7 @@ from dolt_annex.commands.server_command import server_context
 from dolt_annex.commands.sync import SshSettings, SyncResults, TableFilter, do_sync
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
-from dolt_annex.datatypes import Remote, FileTableSchema, TableRow
+from dolt_annex.datatypes import Repo, FileTableSchema, TableRow
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
 
 import_config = ImportConfig(
@@ -48,8 +48,8 @@ def test_sync_server(tmp_path):
     host = "localhost"
     ssh_port = random.randint(21000, 22000)
     setup(tmp_path, origin_uuid)
-    remote = Remote(
-        url=f"file://{tmp_path}/remote_files",
+    remote = Repo(
+        files_url=f"file://{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )
@@ -65,7 +65,7 @@ class TestImporter(importers.ImporterBase):
         sid = int(''.join(path.parts[-6:-1]))
         return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
 
-def do_test_sync(tmp_path, remote: Remote):
+def do_test_sync(tmp_path, remote: Repo):
     """Run and validate syncing content files to a remote"""
     importer = TestImporter()
     table = FileTableSchema.from_name("submissions")
@@ -144,19 +144,19 @@ def do_test_sync(tmp_path, remote: Remote):
             
 
 
-def sync_and_verify(downloader: FileTable, file_remote: Remote, ssh_settings: SshSettings, file_key_table: FileTableSchema, filters: List[TableFilter]) -> SyncResults:
+def sync_and_verify(downloader: FileTable, file_remote: Repo, ssh_settings: SshSettings, file_key_table: FileTableSchema, filters: List[TableFilter]) -> SyncResults:
 
     files_synced = do_sync(downloader, file_remote, ssh_settings, file_key_table, filters)
     downloader.flush()
 
-    if file_remote.url.startswith("file://"):
-        pushed_files_dir = Path(file_remote.url[7:]).absolute()
-    elif '@' in file_remote.url:
-        user, rest = file_remote.url.split('@', maxsplit=1)
+    if file_remote.files_url.startswith("file://"):
+        pushed_files_dir = Path(file_remote.files_url[7:]).absolute()
+    elif '@' in file_remote.files_url:
+        user, rest = file_remote.files_url.split('@', maxsplit=1)
         host, path = rest.split(':', maxsplit=1)
         pushed_files_dir = Path(path).absolute()
     else:
-        raise ValueError(f"Unsupported remote URL format: {file_remote.url}")
+        raise ValueError(f"Unsupported remote URL format: {file_remote.files_url}")
         
     for key in files_synced.files_pushed:
         key_path = pushed_files_dir / get_key_path(key)

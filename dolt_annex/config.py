@@ -8,6 +8,8 @@ from pathlib import Path
 from uuid import UUID
 from typing_extensions import Optional
 
+from dolt_annex.datatypes.remote import Repo
+
 @dataclass
 class Config:
     """Global configuration settings"""
@@ -37,6 +39,13 @@ class Config:
         for field in ["dolt_dir", "dolt_db", "dolt_remote", "email", "name", "annexcommitmessage", "files_dir"]:
             if getattr(self, field) is None:
                 raise ValueError(f"Missing configuration: {field}")
+            
+    def local_repo(self) -> Repo:
+        return Repo(
+            name="local",
+            uuid=self.local_uuid,
+            files_url=self.files_dir.as_posix(),
+        )
 
 config = ContextVar[Config]('config')
 

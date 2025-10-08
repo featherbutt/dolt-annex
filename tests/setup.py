@@ -15,7 +15,7 @@ from dolt_annex.application import Config
 from dolt_annex.commands.init import InitConfig, do_init, read_uuid
 from dolt_annex.config import config
 from dolt_annex.context import local_uuid
-from dolt_annex.datatypes import Remote
+from dolt_annex.datatypes import Repo
 
 base_config = Config(
     dolt_dir = Path("./dolt"),
@@ -35,8 +35,8 @@ def setup_file_remote(tmp_path):
     setup(tmp_path, origin_uuid)
     init()
     Path(os.path.join(tmp_path, "remote_files")).mkdir()
-    return Remote(
-        url=f"file://{tmp_path}/remote_files",
+    return Repo(
+        files_url=f"file://{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )
@@ -51,8 +51,8 @@ def setup_ssh_remote(tmp_path):
     setup(tmp_path, origin_uuid)
     init()
     Path(os.path.join(tmp_path, "remote_files")).mkdir()
-    yield Remote(
-        url=f"{user}@localhost:{tmp_path}/remote_files",
+    yield Repo(
+        files_url=f"{user}@localhost:{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
     )

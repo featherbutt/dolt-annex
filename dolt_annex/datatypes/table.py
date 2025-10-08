@@ -2,15 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
-import json
-import os
-from uuid import UUID
 from typing_extensions import List
 
-from .remote import Remote
+from .loader import Loadable
+from .remote import Repo
 
 @dataclass
-class FileTableSchema:
+class FileTableSchema(Loadable("table")):
     """
     The schema describing a table with a file column.
     Contains all the information needed to diff file keys between two remotes.
@@ -19,25 +17,36 @@ class FileTableSchema:
     file_column: str
     key_columns: List[str]
 
-    @staticmethod
-    def from_name(name: str):
-        # Look for a file in the current directory that matches the name.
-        path = f"{name}.table"
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-                if data.get("name") != name:
-                    raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
-                return FileTableSchema(**data)
-        return None
-
     def insert_sql(self) -> str:
+        """
+        Returns the SQL statement to insert a row into the table.
+        """
         cols = ", ".join([self.file_column] + self.key_columns)
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"INSERT INTO {self.name} ({cols}) VALUES ({placeholders})"
+    
+@dataclass
+class DatasetSchema(Loadable("dataset")):
+    """
+    The schema describing one or more tables that are version controlled together.
+    Contains all the information needed to diff file keys between two remotes.
+    """
+    name: str
+    tables: List[FileTableSchema]
+    empty_table_ref: str
+
+    def get_table(self, table_name: str) -> FileTableSchema:
+        for table in self.tables:
+            if table.name == table_name:
+                return table
+        raise ValueError(f"Table {table_name} not found in dataset {self.name}")
+
 
 @dataclass
-class TableSettings:
-    uuid: UUID
-    table: FileTableSchema
-    remote: Remote
+class DatasetSource:
+    """
+    A specific copy of a dataset, stored in a specific repo.
+    """
+    schema: DatasetSchema
+    repo: Repo
+    

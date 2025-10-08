@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-import csv
-from io import TextIOWrapper
 import os
 from pathlib import Path
 
@@ -9,38 +7,18 @@ from typing_extensions import Dict, Iterable
 from plumbum import cli # type: ignore
 
 from dolt_annex import importers, move_functions
+from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import key_from_file
 from dolt_annex.filestore import get_key_path
 from dolt_annex.application import Application, Downloader
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import AnnexKey, FileTableSchema, Remote
+from dolt_annex.datatypes import AnnexKey, Repo
 from dolt_annex.table import FileTable
 
 class ImportError(Exception):
     pass
-
-class ImportCsv:
-    KEY_ANNEX_KEY = 'annex_key'
-    KEY_URL = 'url'
-    KEYS = {KEY_ANNEX_KEY, KEY_URL}
-
-    @classmethod
-    def import_csv(cls, downloader: FileTable, csv_file: TextIOWrapper):
-        """Import annex keys from CSV file"""
-        fields_checked = False
-        for row in csv.DictReader(csv_file):
-            if not fields_checked:
-                key_set = set(row.keys())
-                if not key_set.issuperset(cls.KEYS):
-                    raise ValueError(f'Missing field keys: {cls.KEYS - key_set}')
-                fields_checked = True
-
-            annex_key = row[cls.KEY_ANNEX_KEY]
-            url = row[cls.KEY_URL]
-
-            # downloader.update_database(url, annex_key)
 
 @dataclass
 class ImportConfig:
@@ -59,13 +37,6 @@ class Import(cli.Application):
         int,
         help="The number of files to process at once",
         default = 10000,
-    )
-
-    from_csv = cli.SwitchAttr(
-        "--from-csv",
-        str,
-        help="Import annex keys and urls from CSV. File must contain the following fields: f{ImportCsv.KEYS}",
-        excludes = ["--from-md5", "--from-falr", "--move", "--copy", "--symlink"],
     )
 
     move = cli.Flag(
@@ -98,6 +69,12 @@ class Import(cli.Application):
         str,
     )
 
+    dataset = cli.SwitchAttr(
+        "--dataset",
+        str,
+        help="The name of the dataset being imported to",
+    )
+
     table = cli.SwitchAttr(
         "--table",
         str,
@@ -116,7 +93,7 @@ class Import(cli.Application):
         
     def main(self, *files_or_directories: str):
 
-        if not self.from_csv and not self.copy and not self.move and not self.symlink:
+        if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
         move_function = self.get_move_function()
@@ -127,25 +104,18 @@ class Import(cli.Application):
             move_function = move_function,
             follow_symlinks = follow_symlinks,
         )
-        table = FileTableSchema.from_name(self.table)
-        if not table:
-            logger.error(f"Table {self.table} not found")
-            return 1
+        dataset = DatasetSchema.must_load(self.dataset)
 
-        with Downloader(self.parent.config, import_config.batch_size, table) as downloader:
-            if self.from_csv:
-                with open(self.from_csv) as csv_file:
-                    ImportCsv.import_csv(downloader, csv_file)
-            else:
-                importer = get_importer(*self.importer.split())
-                local_remote = Remote(
-                    name="local",
-                    uuid=self.parent.config.local_uuid,
-                    url=self.parent.config.files_dir.as_posix(),
-                )
-                do_import(local_remote, import_config, downloader, importer, files_or_directories)
+        with Downloader(self.parent.config, import_config.batch_size, dataset) as downloader:
+            table = dataset.get_table(self.table)
+            if not table:
+                raise ValueError(f"Table {self.table} not found in dataset {self.dataset}")
+                
+        
+            importer = get_importer(*self.importer.split())
+            do_import(self.parent.config.local_repo(), import_config, downloader, importer, files_or_directories)
 
-def do_import(remote: Remote, import_config: ImportConfig, downloader: FileTable, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+def do_import(remote: Repo, import_config: ImportConfig, downloader: FileTable, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, Path] = {}
     downloader.add_flush_hook(lambda: move_files(remote, import_config.move_function, key_paths))
     
@@ -196,7 +166,7 @@ def do_import(remote: Remote, import_config: ImportConfig, downloader: FileTable
     for file_or_directory in files_or_directories:
         import_path(Path(file_or_directory))
 
-def move_files(remote: Remote, move: MoveFunction, files: Dict[AnnexKey, Path]):
+def move_files(remote: Repo, move: MoveFunction, files: Dict[AnnexKey, Path]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for key, file_path in files.items():

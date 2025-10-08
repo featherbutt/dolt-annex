@@ -2,35 +2,31 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
-import json
-import os
 from pathlib import Path
 from uuid import UUID
 
+from .loader import Loadable
+
 @dataclass
-class Remote:
+class Repo(Loadable("remote")):
+    """
+    A description of a file respository. May be local or remote.
+    """
     name: str
     uuid: UUID
-    url: str
+    files_url: str
+    dolt_remote: str = ""
 
     def files_dir(self) -> Path:
-        if self.url.startswith("file://"):
-            return Path(self.url[7:])
-        elif self.url.startswith("ssh://"):
-            return Path(self.url.split(":", 2)[2])
-        else:
-            return Path(self.url)
+        """
+        Returns the directory containing the files for this repository.
 
-    @staticmethod
-    def from_name(name: str):
-        # Look for a file in the current directory that matches the name.
-        path = f"{name}.remote"
-        if os.path.exists(path):
-            with open(path) as f:
-                data = json.load(f)
-                return Remote(
-                    name=name,
-                    uuid=data["uuid"],
-                    url=data["url"],
-                )
-        return None
+        This may be a local path, or a path on a remote server.
+        """
+        if self.files_url.startswith("file://"):
+            return Path(self.files_url[7:])
+        elif self.files_url.startswith("ssh://"):
+            return Path(self.files_url.split(":", 2)[2])
+        else:
+            return Path(self.files_url)
+

@@ -4,13 +4,15 @@
 from contextlib import contextmanager
 import json
 import os
+from pathlib import Path
 
-from plumbum import cli # type: ignore
+from plumbum import cli
+
+from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 
 from .config import Config, set_config
 from .dolt import DoltSqlServer
-from .table import FileTable
-from .datatypes import FileTableSchema
+from .table import Dataset
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
@@ -44,6 +46,10 @@ class Application(cli.Application):
             try:
                 config_json = json.load(f)
                 for key, value in config_json.items():
+                    if key == "files_dir":
+                        value = Path(value)
+                        if not value.exists():
+                            raise ValueError(f"Files directory {value} does not exist")
                     setattr(self.config, key, value)
             except json.JSONDecodeError as e:
                 print(f"Error parsing config file {path}: {e}")
@@ -91,7 +97,7 @@ class Application(cli.Application):
         set_config(self.config)
 
 @contextmanager
-def Downloader(base_config: Config, db_batch_size, table: FileTableSchema):
+def Downloader(base_config: Config, db_batch_size, dataset: DatasetSchema):
     db_config = {
         "user": "root",
         "database": base_config.dolt_db,
@@ -103,8 +109,13 @@ def Downloader(base_config: Config, db_batch_size, table: FileTableSchema):
     else:
         db_config["unix_socket"] = base_config.dolt_server_socket
 
+    dataset_source = DatasetSource(
+        schema=dataset,
+        repo=base_config.local_repo(),
+    )
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        FileTable(dolt_server, table, base_config.auto_push, db_batch_size) as cache
+        Dataset(dolt_server, dataset_source, base_config.auto_push, db_batch_size) as cache
     ):
         yield cache
+    
