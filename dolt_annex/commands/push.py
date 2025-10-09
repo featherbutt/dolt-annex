@@ -2,15 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from uuid import UUID
-from pathlib import Path
 
 from typing_extensions import List, Iterable, Optional, Tuple
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.application import Application, Downloader
+from dolt_annex.application import Application
 from dolt_annex.config import get_config
-from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.table import Dataset, FileTable
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
@@ -80,13 +79,17 @@ class Push(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for push command"""
-        dataset = DatasetSchema.must_load(self.dataset)
+        dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or self.parent.config.dolt_remote
         remote = Repo.must_load(remote_name)
-        with Downloader(self.parent.config, self.batch_size, dataset) as downloader:
-            ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
-
-            push_dataset(downloader, remote, ssh_settings, self.filters, self.limit)
+        with Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset:
+            ssh_settings = SshSettings.create(
+                ssh_config=self.ssh_config,
+                known_hosts=self.known_hosts
+            )
+            remote_source = DatasetSource(dataset_schema, remote)
+            remote_source.initialize(dataset.dolt)
+            push_dataset(dataset, remote, ssh_settings, self.filters, self.limit)
         return 0
 
 def push_dataset(dataset: Dataset, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
@@ -105,7 +108,7 @@ def push_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, w
     local_uuid = get_config().local_uuid
     with file_mover(file_remote, ssh_settings) as mover:
         while True:
-            keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), table.schema, where, limit))
+            keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), table.dataset_name, table.schema, where, limit))
             has_more = push_submissions_and_keys(keys_and_submissions, table, mover, remote_uuid, out_pushed_files)
             if not has_more:
                 break
@@ -127,13 +130,13 @@ def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, Tab
     downloader.flush()
     return has_more
 
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
-    union_branch_name = f"union-{refs[0]}-{refs[1]}-{file_key_table.name}"
+    union_branch_name = f"union-{refs[0]}-{refs[1]}-{dataset_name}"
     
-    in_ref_branch = f"{in_ref}-{file_key_table.name}"
-    not_in_ref_branch = f"{not_in_ref}-{file_key_table.name}"
+    in_ref_branch = f"{in_ref}-{dataset_name}"
+    not_in_ref_branch = f"{not_in_ref}-{dataset_name}"
     # Create the union branch if it doesn't exist
     with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
         dolt.merge(in_ref_branch)

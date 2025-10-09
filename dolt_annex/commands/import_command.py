@@ -10,12 +10,12 @@ from dolt_annex import importers, move_functions
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import key_from_file
 from dolt_annex.filestore import get_key_path
-from dolt_annex.application import Application, Downloader
+from dolt_annex.application import Application
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.move_functions import MoveFunction
 from dolt_annex.datatypes import AnnexKey, Repo
-from dolt_annex.table import FileTable
+from dolt_annex.table import Dataset, FileTable
 
 class ImportError(Exception):
     pass
@@ -106,14 +106,14 @@ class Import(cli.Application):
         )
         dataset = DatasetSchema.must_load(self.dataset)
 
-        with Downloader(self.parent.config, import_config.batch_size, dataset) as downloader:
+        with Dataset.connect(self.parent.config, import_config.batch_size, dataset) as downloader:
             table = dataset.get_table(self.table)
             if not table:
                 raise ValueError(f"Table {self.table} not found in dataset {self.dataset}")
                 
         
             importer = get_importer(*self.importer.split())
-            do_import(self.parent.config.local_repo(), import_config, downloader, importer, files_or_directories)
+            do_import(self.parent.config.local_repo(), import_config, downloader.get_table(table.name), importer, files_or_directories)
 
 def do_import(remote: Repo, import_config: ImportConfig, downloader: FileTable, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[AnnexKey, Path] = {}

@@ -14,10 +14,10 @@ from typing_extensions import List, Iterable, Optional, Generator, Tuple, Any
 import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
-from dolt_annex.application import Application, Downloader
+from dolt_annex.application import Application
 from dolt_annex.config import get_config
 from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.table import FileTable
+from dolt_annex.table import Dataset, FileTable
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
 from dolt_annex import move_functions
 from dolt_annex.move_functions import MoveFunction
@@ -33,6 +33,14 @@ class TableFilter:
 class SshSettings:
     ssh_config: Path
     known_hosts: Optional[Path]
+
+    @staticmethod
+    def create(*, ssh_config: str, known_hosts: Optional[str]) -> 'SshSettings':
+        """Create SshSettings by converting strings to Paths"""
+        return SshSettings(
+            ssh_config=Path(ssh_config),
+            known_hosts=Path(known_hosts) if known_hosts else None
+        )
 
 @dataclass
 class SyncResults:
@@ -215,13 +223,21 @@ class Sync(cli.Application):
         table = FileTableSchema.must_load(self.table)
         remote_name = self.remote or self.parent.config.dolt_remote
         remote = Repo.must_load(remote_name)
-        with Downloader(self.parent.config, table, self.batch_size) as downloader:
+        with Dataset.connect(self.parent.config, table, self.batch_size) as dataset:
             ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
-            do_sync(downloader, remote, ssh_settings, self.table, self.filters, self.limit)
+            sync_dataset(dataset, remote, ssh_settings, self.table, self.filters, self.limit)
         return 0
 
-def do_sync(downloader: FileTable, file_remote: Repo, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None) -> SyncResults:
-    dolt = downloader.dolt
+def sync_dataset(dataset: Dataset, file_remote: Repo, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None, sync_results: Optional[SyncResults] = None) -> SyncResults:
+    if sync_results is None:
+        sync_results = SyncResults()
+    dataset.pull_from(file_remote)
+    for table in dataset.tables.values():
+        sync_table(table, file_remote, ssh_settings, file_key_table, where, diff_type, limit, sync_results)
+    return sync_results
+
+def sync_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, file_key_table: FileTableSchema, where: List[TableFilter], diff_type: str = "", limit: Optional[int] = None, sync_results: Optional[SyncResults] = None) -> SyncResults:
+    dolt = table.dolt
     remote_uuid = file_remote.uuid
     local_uuid = get_config().local_uuid
 
@@ -229,10 +245,10 @@ def do_sync(downloader: FileTable, file_remote: Repo, ssh_settings: SshSettings,
         total_files_synced = SyncResults()
         while True:
             keys_and_submissions = diff_keys(dolt, str(local_uuid), str(remote_uuid), file_key_table, where, limit)
-            has_more = sync_keys(keys_and_submissions, downloader, mover, remote_uuid, total_files_synced)
+            has_more = sync_keys(keys_and_submissions, table, mover, remote_uuid, total_files_synced)
             if not has_more:
                 break
-    downloader.flush()
+    table.flush()
 
     return total_files_synced
 
@@ -272,7 +288,6 @@ def diff_keys(dolt: DoltSqlServer, local_ref: str, remote_ref: str, file_key_tab
     else:
         query_results = dolt.query(query, (remote_ref, local_ref))
     for (annex_key, diff_type, *key_parts) in query_results:
-        print(annex_key, diff_type, key_parts)
         yield (AnnexKey(annex_key), diff_type, TableRow(*key_parts))
 
 def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:

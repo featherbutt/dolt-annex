@@ -4,9 +4,13 @@ version = "0.1.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 readme = "README.md"
+include = [
+    { path = "dolt_annex/gallry_dl/config.json", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.13"
 typing-extensions = "^4.15.0"
 plumbum = "^1.9.0"
 pymysql = "^1.1.2"
@@ -15,11 +19,13 @@ requests = "^2.32.5"
 paramiko = "^4.0.0"
 sftpretty = "^1.1.9"
 types-paramiko = "^4.0.0.20250822"
+dataclass-wizard = "^0.35.1"
+gallery-dl = {git = "https://github.com/featherbutt/gallery-dl"}
 
 [tool.poetry.scripts]
-# command_name = module_for_handler : function_for_handler
 dolt-annex = 'dolt_annex:main'
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+

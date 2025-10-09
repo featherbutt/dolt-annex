@@ -11,7 +11,7 @@ from plumbum import cli # type: ignore
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.table import Dataset, FileTable
 from dolt_annex.commands.sync import SshSettings, TableFilter
-from dolt_annex.application import Application, Downloader
+from dolt_annex.application import Application
 from dolt_annex.commands.push import FileMover, file_mover, diff_keys
 from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
 from dolt_annex.logger import logger
@@ -85,7 +85,7 @@ class Pull(cli.Application):
         remote = Repo.must_load(remote_name)
         ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
 
-        with Downloader(self.parent.config, self.batch_size, dataset) as downloader:
+        with Dataset.connect(self.parent.config, self.batch_size, dataset) as downloader:
             pull_dataset(downloader, remote, ssh_settings, self.filters, self.limit)
         return 0
     
@@ -120,7 +120,7 @@ def pull_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, w
 
     with file_mover(file_remote, ssh_settings) as mover:
         while True:
-            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), table.schema, where, limit))
+            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), table.dataset_name, table.schema, where, limit))
             has_more = pull_submissions_and_keys(keys_and_submissions, table, mover, local_uuid, out_pulled_keys)
             if not has_more:
                 break

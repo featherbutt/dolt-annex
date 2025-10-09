@@ -5,7 +5,7 @@
 
 import time
 from uuid import UUID
-from typing_extensions import Callable, Dict, List, Tuple
+from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSource
@@ -40,14 +40,14 @@ class FileTable:
     flush_hooks: List[Callable[[], None]]
     write_sources_table: bool = False
     write_git_annex: bool = False
-    table: FileTableSchema
+    schema: FileTableSchema
     dataset_name: str
     branch_start_point: str
 
     MAX_EXTENSION_LENGTH = 4
 
-    def __init__(self, dolt: DoltSqlServer, table: FileTableSchema, dataset_name: str, branch_start_point: str, auto_push: bool, batch_size: int):
-        self.table = table
+    def __init__(self, dolt: DoltSqlServer, schema: FileTableSchema, dataset_name: str, branch_start_point: str, auto_push: bool, batch_size: int):
+        self.schema = schema
         self.dataset_name = dataset_name
         self.dolt = dolt
         self.flush_hooks = []
@@ -88,7 +88,7 @@ class FileTable:
         for source, rows in self.added_rows.items():
             branch = f"{source}-{self.dataset_name}"
             with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-                 self.dolt.executemany(self.table.insert_sql(), [(row[0], *row[1]) for row in rows])
+                 self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         for hook in self.flush_hooks:
             hook()
@@ -108,7 +108,7 @@ class FileTable:
         self.flush()
 
     def has_row(self, uuid: UUID, key: TableRow) -> bool:
-        query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.table.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.table.key_columns, key)]) + " LIMIT 1"
+        query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
         print(query_sql)
         print(key)
         results = self.dolt.query(query_sql, tuple(key))
@@ -136,9 +136,12 @@ class Dataset:
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]
     
+    def get_tables(self) -> Iterable[FileTable]:
+        return self.tables.values()
+    
     def pull_from(self, remote: Repo):
         if remote.dolt_remote:
-            self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote.dolt_remote)
+            self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote)
     
     def __enter__(self):
         return self
@@ -149,3 +152,7 @@ class Dataset:
         if self.auto_push:
             pass
             # self.dolt.push_branch()
+
+    def flush(self):
+        for table in self.tables.values():
+            table.flush()

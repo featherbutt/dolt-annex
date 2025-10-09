@@ -64,7 +64,6 @@ def read_uuid() -> uuid.UUID:
     return local_uuid
 
 def do_init(base_config: Config, init_config: InitConfig):
-    local_uuid = read_uuid()
     if init_config.init_dolt:
         Path(base_config.dolt_dir).mkdir(parents=True, exist_ok=True)
 
