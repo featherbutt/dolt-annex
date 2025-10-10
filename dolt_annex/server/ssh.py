@@ -44,7 +44,7 @@ def load_public_key(path: pathlib.Path) -> serialization.SSHPublicKeyTypes:
 class AnnexSshServer(paramiko.ServerInterface):
     """
     A custom SSH server for running git-shell commands.
-    When AnnexSftpServer is added as a sybsystem, this server can handle all commands necessary for
+    When AnnexSftpServer is added as a subsystem, this server can handle all commands necessary for
     a remote server, while still restricting the user from running arbitrary commands.
     """
 
