@@ -1,18 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
 import json
-import os
 from pathlib import Path
 
 from plumbum import cli
 
-from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 
 from .config import Config, set_config
-from .dolt import DoltSqlServer
-from .table import Dataset
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
@@ -78,14 +73,15 @@ class Application(cli.Application):
         # 1. Command line argument or environment variable
         # 2. Existing config file passed in with -c
         # 3. Default value
-        self.config.dolt_dir = self.dolt_dir or self.config.dolt_dir or "./dolt"
+        self.config.dolt_dir = Path(self.dolt_dir or self.config.dolt_dir or "./dolt")
         self.config.spawn_dolt_server = self.spawn_dolt_server or self.config.spawn_dolt_server
         self.config.dolt_server_socket = self.dolt_server_socket or self.config.dolt_server_socket
-        self.config.dolt_db = self.dolt_db or self.config.dolt_db
+        self.config.dolt_db = self.dolt_db or self.config.dolt_db or self.config.dolt_dir.name
         self.config.dolt_remote = self.dolt_remote or self.config.dolt_remote or "origin"
         self.config.email = self.email or self.config.email or "user@localhost"
         self.config.name = self.name or self.config.name or "user"
         self.config.annexcommitmessage = self.annexcommitmessage or self.config.annexcommitmessage or "update git-annex"
+        self.config.files_dir = self.config.files_dir or Path("./annex")
        
         if self.nested_command is None:
             self.help()

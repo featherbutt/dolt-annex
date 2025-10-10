@@ -6,7 +6,8 @@ authors = ["Featherbutt <admin@featherbutt.com>"]
 readme = "README.md"
 include = [
     { path = "dolt_annex/gallry_dl/config.json", format = ["sdist", "wheel"] },
-    { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] }
+    { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/data/", format = ["sdist", "wheel"] }
 ]
 
 [tool.poetry.dependencies]
