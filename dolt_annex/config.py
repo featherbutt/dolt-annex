@@ -10,7 +10,7 @@ from typing_extensions import Optional
 
 from dolt_annex.datatypes.remote import Repo
 
-@dataclass
+@dataclass(kw_only=True)
 class Config:
     """Global configuration settings"""
     dolt_dir: Path
@@ -19,13 +19,14 @@ class Config:
     files_dir: Path
     email: str
     name: str
-    spawn_dolt_server: bool = False
+    spawn_dolt_server: bool = True
     dolt_host: str = "localhost"
     dolt_server_socket: str = "/tmp/mysql.sock"
     annexcommitmessage: str = "update git-annex"
     auto_push: bool = False
     uuid: Optional[UUID] = None
     encrypted_ssh_key: bool = False
+    dolt_port: Optional[int] = None
 
     @property
     def local_uuid(self) -> UUID:
