@@ -3,12 +3,16 @@
 
 """This file contains functions for interacting with git-annex"""
 
+from contextlib import contextmanager
+import os
+import random
 import time
 from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
+from dolt_annex.config import Config
 from dolt_annex.datatypes.remote import Repo
-from dolt_annex.datatypes.table import DatasetSource
+from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 
 from .dolt import DoltSqlServer
 from .logger import logger
@@ -85,6 +89,7 @@ class FileTable:
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
+        print("added_rows", self.added_rows)
         for source, rows in self.added_rows.items():
             branch = f"{source}-{self.dataset_name}"
             with self.dolt.maybe_create_branch(branch, self.branch_start_point):
@@ -131,7 +136,7 @@ class Dataset:
         self.auto_push = auto_push
         self.tables = {table.name: FileTable(dolt, table, self.name, self.dataset_source.schema.empty_table_ref, auto_push, batch_size) for table in dataset_source.schema.tables}
 
-        self.dolt.maybe_create_branch(f"{dataset_source.repo.uuid}-{self.name}", self.dataset_source.schema.empty_table_ref)
+        self.dataset_source.initialize(dolt)
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]
@@ -156,3 +161,31 @@ class Dataset:
     def flush(self):
         for table in self.tables.values():
             table.flush()
+
+    @staticmethod
+    @contextmanager
+    def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema):
+        """Context manager for creating a Dataset object by connecting to the Dolt server."""
+        # If configuration sets a port, use that.
+        # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
+        port = base_config.dolt_port or (random.randint(20000, 30000) if base_config.spawn_dolt_server else 3306)
+        db_config = {
+            "user": "root",
+            "database": base_config.dolt_db,
+            "autocommit": True,
+            "port": port,
+        }
+        if os.name == 'nt':
+            db_config["host"] = base_config.dolt_host
+        else:
+            db_config["unix_socket"] = base_config.dolt_server_socket
+
+        dataset_source = DatasetSource(
+            schema=dataset_schema,
+            repo=base_config.local_repo(),
+        )
+        with (
+            DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
+            Dataset(dolt_server, dataset_source, base_config.auto_push, db_batch_size) as dataset
+        ):
+            yield dataset

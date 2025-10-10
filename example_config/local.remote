@@ -1,5 +1,5 @@
 {
     "name": "local",
-    "url": "file://../local_remote",
+    "files_url": "file://../local_remote",
     "uuid": ""
 }

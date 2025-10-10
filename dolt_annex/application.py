@@ -96,26 +96,4 @@ class Application(cli.Application):
         self.config.validate()
         set_config(self.config)
 
-@contextmanager
-def Downloader(base_config: Config, db_batch_size, dataset: DatasetSchema):
-    db_config = {
-        "user": "root",
-        "database": base_config.dolt_db,
-        "autocommit": True,
-        "port": 3306,
-    }
-    if os.name == 'nt':
-        db_config["host"] = base_config.dolt_host
-    else:
-        db_config["unix_socket"] = base_config.dolt_server_socket
-
-    dataset_source = DatasetSource(
-        schema=dataset,
-        repo=base_config.local_repo(),
-    )
-    with (
-        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        Dataset(dolt_server, dataset_source, base_config.auto_push, db_batch_size) as cache
-    ):
-        yield cache
     
