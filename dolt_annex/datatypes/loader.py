@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing_extensions import Self, Optional
 
-from dataclass_wizard import fromdict
+from dataclass_wizard import fromdict, asdict
 
 def Loadable(extension: str, config_dir = Path(".")):
     """
@@ -39,4 +39,12 @@ def Loadable(extension: str, config_dir = Path(".")):
                 raise ValueError(f"Could not load {name}")
             return result
         
+        def save_as(self, name: str):
+            """
+            Saves the instance to a JSON file.
+            """
+            path = config_dir / f"{name}.{extension}"
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(asdict(self), f, ensure_ascii=False, indent=4)
+
     return LoadableMixin

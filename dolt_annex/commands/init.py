@@ -1,11 +1,16 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import shutil
 import uuid
+import json
 
 from plumbum import cli, local # type: ignore
+from dataclass_wizard import asdict
 
-from dolt_annex.application import Application, Config
+from dolt_annex.application import Application
+from dolt_annex.gallery_dl import skip_db_path
+from dolt_annex.data import data_dir
 
 def is_wsl():
     """Check if running in Windows Subsystem for Linux"""
@@ -43,14 +48,40 @@ class Init(cli.Application):
             self.help()
             return 1
 
-        base_config = self.parent.config
-        init_config = InitConfig(
-            init_dolt = not self.no_dolt,
-            dolt_url = self.dolt_url,
-            remote_name = self.remote_name,
-        )
+        # Things that need to be created:
+        # - dolt directory/repository (if it doesn't exist)
+        # - skip.sqlite3 database (if it doesn't exist)
+        # - uuid file (if it doesn't exist)
+        # - If a dolt-url is provided, add it as a remote to the dolt repository
+        # - If a dolt-url is provided, fetch from it and create a branch for this UUID?
+        
+        if not self.no_dolt:
+            dolt_dir = self.parent.config.dolt_dir
+            if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
+                print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
+                dolt_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
+                print(f"Initialized Dolt repository in {dolt_dir}")
+                # Add dolt remote if it was provided
+                # dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+                # dolt("config", "--local", "--add", "push.autoSetupRemote", "true")
 
-        do_init(base_config, init_config)
+        local_uuid = read_uuid()
+        print(f"Local UUID: {local_uuid}")
+
+        if not Path("skip.sqlite3").exists():
+            shutil.copy(skip_db_path, "skip.sqlite3")
+
+        # TODO: Add .remote file?
+
+        # Create config file
+        if not Path("config.json").exists():
+
+            with open("config.json", "w", encoding="utf-8") as f:
+                path = Path("config.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(asdict(self.parent.config), f, ensure_ascii=False, indent=4)
+                print("Created config.json")
 
 def read_uuid() -> uuid.UUID:
     try:
@@ -62,22 +93,3 @@ def read_uuid() -> uuid.UUID:
         with open("uuid", "w", encoding="utf-8") as fd:
             fd.write(str(local_uuid))
     return local_uuid
-
-def do_init(base_config: Config, init_config: InitConfig):
-    if init_config.init_dolt:
-        Path(base_config.dolt_dir).mkdir(parents=True, exist_ok=True)
-
-        if init_config.dolt_url:
-            #dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-            local.cmd.dolt("clone", "--remote", base_config.dolt_remote, init_config.dolt_url, base_config.dolt_dir)
-            dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-            dolt("fetch")
-            #dolt("init", "--name", base_config.name, "--email", base_config.email)
-            #dolt("remote", "add", base_config.dolt_remote, init_config.dolt_url)
-            #dolt("pull", base_config.dolt_remote, "main")
-            #local.cmd.dolt.with_cwd(base_config.dolt_dir)("branch", local_uuid)
-        else:
-            dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-            dolt("init", "--name", base_config.name, "--email", base_config.email)
-        dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
-        dolt("config", "--local", "--add", "push.autoSetupRemote", "true")
