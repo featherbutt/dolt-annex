@@ -89,7 +89,6 @@ class FileTable:
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
-        print("added_rows", self.added_rows)
         for source, rows in self.added_rows.items():
             branch = f"{source}-{self.dataset_name}"
             with self.dolt.maybe_create_branch(branch, self.branch_start_point):
@@ -114,8 +113,6 @@ class FileTable:
 
     def has_row(self, uuid: UUID, key: TableRow) -> bool:
         query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
-        print(query_sql)
-        print(key)
         results = self.dolt.query(query_sql, tuple(key))
         for _ in results:
             return True
