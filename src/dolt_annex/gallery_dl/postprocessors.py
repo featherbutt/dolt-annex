@@ -23,24 +23,24 @@ def gallery_dl_post(metadata: dict):
     category = metadata["category"]
     subcategory = metadata["subcategory"]
     id = metadata["id"]
-    source = get_source(category)
+    source = get_source(category, subcategory)
 
     source.format_post_metadata(metadata)
 
-    if (post_rows := source.import_post(metadata)):
+    for table_row in source.post_metadata(metadata):
         dataset: Dataset = dataset_context.get()
         local_repo = dataset.dataset_source.repo
 
         temp_directory = Path(metadata["_path_metadata"].realdirectory)
 
-        for (table_name, table_row) in post_rows:
-            table: FileTable = dataset.get_table(table_name)
-            import_file(local_repo, table, table_row, temp_directory / f"{category}-{subcategory}-{id}.json", "json")
+        table: FileTable = dataset.get_table("metadata")
+        import_file(local_repo, table, table_row, temp_directory / f"{category}-{subcategory}-{id}.json", "json")
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
     category = metadata["category"]
-    source = get_source(category)
+    subcategory = metadata["subcategory"]
+    source = get_source(category, subcategory)
 
     source.format_file_metadata(metadata)
     check_skip(source, metadata)
@@ -52,20 +52,16 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     dataset = dataset_context.get()
     file_table = dataset.get_table("submissions")
     uuid = dataset.dataset_source.repo.uuid
-    key = generate_table_key(source, metadata)
+    key = source.table_key(metadata)
     if file_table.has_row(uuid, key):
         # We already have this file, skip it.
         metadata["_skip"] = 1
 
-def generate_table_key(source: GalleryDLSource, metadata: dict[str, Any]) -> TableRow:
-    """Compute the table key for this metadata."""
-    key = source.table_key(metadata)
-    return key
-
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""
     category = metadata["category"]
-    source = get_source(category)
+    subcategory = metadata["subcategory"]
+    source = get_source(category, subcategory)
     gallery_dl_import(source, metadata)
 
 def gallery_dl_import(source: GalleryDLSource, metadata: dict):
@@ -79,10 +75,10 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
 
     temp_path = Path(metadata["_path_metadata"].realpath)
 
-    table_key = generate_table_key(source, metadata)
+    import_file(local_repo, submissions_table, source.table_key(metadata), temp_path, metadata["extension"], metadata["sha256"])
+    for metadata_key in source.file_metadata(metadata):
+        import_file(local_repo, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
 
-    import_file(local_repo, metadata_table, table_key, temp_path.parent / (temp_path.name + ".json"), "json")
-    import_file(local_repo, submissions_table, TableRow(table_key + (1,)), temp_path, metadata["extension"], metadata["sha256"])
 
 def import_file(local_remote: Repo, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
