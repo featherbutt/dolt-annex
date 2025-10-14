@@ -25,7 +25,7 @@ class FileTableSchema(Loadable("table")):
         """
         cols = ", ".join([self.file_column] + self.key_columns)
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
-        return f"INSERT INTO {self.name} ({cols}) VALUES ({placeholders})"
+        return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
     
 @dataclass
 class DatasetSchema(Loadable("dataset")):
