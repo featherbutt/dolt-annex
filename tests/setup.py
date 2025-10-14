@@ -87,8 +87,8 @@ def setup(tmp_path, origin_uuid: UUID):
 def init():
     init_config = InitConfig(
         init_dolt = True,
-        dolt_url = "file://./dolt_origin/", # dolt_url is relative to the base directory
-        remote_name = "test_remote",
+        dolt_url = "file://../dolt_origin/", 
+        remote_name = "origin",
     )
     Path(base_config.files_dir).mkdir(parents=True, exist_ok=True)
     do_init(base_config, init_config)

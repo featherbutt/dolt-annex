@@ -12,13 +12,13 @@ import paramiko
 
 from dolt_annex import importers, move_functions, context 
 from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
-from dolt_annex.table import Dataset, FileTable
+from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.push import push_dataset
 from dolt_annex.commands.server_command import server_context
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
-from dolt_annex.datatypes import Repo, FileTableSchema, TableRow
+from dolt_annex.datatypes import Repo, TableRow
 from dolt_annex.commands.sync import SshSettings
 
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
@@ -85,11 +85,7 @@ def do_test_push(tmp_path, dataset_name: str, remote: Repo):
     ):
         with Dataset(dolt_server, dataset_source, base_config.auto_push, import_config.batch_size) as downloader:
             ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
-            local_remote = Repo(
-                name="local",
-                uuid=context.local_uuid.get(),
-                files_url=base_config.files_dir.as_posix(),
-            )
+            local_remote = base_config.local_repo()
             table = next(iter(downloader.tables.values()))
             do_import(local_remote, import_config, table, importer, ["import_data/00"])
             downloader.flush()

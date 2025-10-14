@@ -7,15 +7,16 @@ import random
 import shutil
 import uuid
 import copy
-from typing_extensions import Optional, List
+from typing_extensions import Optional, List, override
 
 import paramiko 
 
 from dolt_annex import importers, move_functions, config, context
-from dolt_annex.table import FileTable
+from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
+from dolt_annex.table import Dataset, FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.server_command import server_context
-from dolt_annex.commands.sync import SshSettings, SyncResults, TableFilter, do_sync
+from dolt_annex.commands.sync import SshSettings, SyncResults, TableFilter
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.filestore import get_key_path
 from dolt_annex.datatypes import Repo, FileTableSchema, TableRow
@@ -61,14 +62,23 @@ def test_sync_server(tmp_path):
 
 class TestImporter(importers.ImporterBase):
     
+    def __init__(self, table_name: str = "submissions"):
+        self._table_name = table_name
+
+    @override
     def key_columns(self, path: Path) -> Optional[TableRow]:
         sid = int(''.join(path.parts[-6:-1]))
         return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
+    
+    @override
+    def table_name(self, path: Path) -> str:
+        return self._table_name
+
 
 def do_test_sync(tmp_path, remote: Repo):
     """Run and validate syncing content files to a remote"""
     importer = TestImporter()
-    table = FileTableSchema.from_name("submissions")
+    dataset_schema = DatasetSchema.must_load("submissions")
     shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
     db_config = {
         "unix_socket": base_config.dolt_server_socket,
@@ -77,11 +87,13 @@ def do_test_sync(tmp_path, remote: Repo):
         "autocommit": True,
         "port": random.randint(20000, 21000),
     }
+    ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
+    dataset_source = DatasetSource(dataset_schema, repo=base_config.local_repo())
     with (
         DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        FileTable(dolt_server, table, base_config.auto_push, import_config.batch_size) as cache
     ):
-            first_downloader = cache
+        with Dataset(dolt_server, dataset_source, base_config.auto_push, import_config.batch_size) as dataset:
+            first_downloader = dataset
 
             other_base_config = copy.replace(base_config, files_dir = "./other_files")
 
@@ -89,12 +101,13 @@ def do_test_sync(tmp_path, remote: Repo):
                 config.config_context(other_base_config),
                 context.assign(context.local_uuid, uuid.uuid4())
             ):
-                second_downloader = cache
+                second_downloader = dataset
                 
             ssh_settings = SshSettings(
                 ssh_config = Path(__file__).parent / "config" / "ssh_config",
                 known_hosts = None
             )
+            local_remote = base_config.local_repo()
             do_import(local_remote, import_config, first_downloader, importer, ["import_data/00"])
             first_downloader.flush()
             with first_downloader.dolt.set_branch("files"):
