@@ -1,7 +1,7 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import importlib
 from pathlib import Path
-from typing_extensions import List, Optional, Type, Dict
+from typing_extensions import List, Optional, Type, Dict, override
 
 from dolt_annex.datatypes import TableRow
 
@@ -11,14 +11,16 @@ class ImporterBase(AbstractBaseClass):
     def key_columns(self, path: Path) -> Optional[TableRow]:
         ...
 
+    @abstractmethod
+    def table_name(self, path: Path) -> str:
+        ...
+
     def skip(self, path: Path) -> bool:
         return False
 
     def extension(self, path: Path) -> str | None:
         return path.suffix[1:]  # Get the file extension without the dot
     
-    def url(self, path: Path) -> List[str]:
-        return []
    
 
 importers: Dict[str, Type[ImporterBase]] = {}
@@ -35,16 +37,23 @@ def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
     if class_name in dir(importer_module):
         return getattr(importer_module, class_name)(*args, **kwargs)
     return getattr(importer_module, "Importer")(*args, **kwargs)
+
 class DirectoryImporter(ImporterBase):
-    def __init__(self, prefix: str = ""):
+    def __init__(self, table_name: str, prefix: str = ""):
         self.prefix = prefix
+        self._table_name = table_name
 
+    @override
     def key_columns(self, path: Path) -> Optional[TableRow]:
-        return TableRow((self.prefix + '/' + '/'.join(path.parts),))
+        return TableRow((self.prefix + '/' + path.as_posix(),))
+    
+    @override
+    def table_name(self, path: Path) -> str:
+        return self._table_name
 
-    def skip(self, path: Path) -> bool:
-        return False
 class MD5Importer(ImporterBase):
+    def __init__(self, table_name: str):
+        self._table_name = table_name
 
     def key_columns(self, path: Path):
         return (path.stem.split('.')[0],)
@@ -70,4 +79,7 @@ class MD5Importer(ImporterBase):
         else:
             raise ValueError(f"Unknown source: {basename}")
     
+    @override
+    def table_name(self, path: Path) -> str:
+        return self._table_name
     
