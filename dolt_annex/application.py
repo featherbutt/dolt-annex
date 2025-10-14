@@ -10,6 +10,7 @@ from plumbum import cli
 from .config import Config, set_config
 class Env:
     DOLT_DIR = "DA_DOLT_DIR"
+    FILES_DIR = "DA_FILES_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
     DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
     DOLT_DB = "DA_DOLT_DB"
@@ -51,6 +52,8 @@ class Application(cli.Application):
                 raise
 
     dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname=Env.DOLT_DIR)
+
+    files_dir = cli.SwitchAttr("--files-dir", cli.ExistingDirectory, envname=Env.FILES_DIR)
 
     spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname=Env.SPAWN_DOLT_SERVER,
                                  help = "If set, spawn a new Dolt server instead of connecting to an existing one.")
