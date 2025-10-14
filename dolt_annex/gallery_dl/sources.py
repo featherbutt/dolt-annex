@@ -111,9 +111,26 @@ class Furaffinity(GalleryDLSource):
             "views"
         ]
 
+class AO3(GalleryDLSource):
+    """Support for archiveofourown.org"""
+    @override
+    def table_key(self, metadata: dict[str, Any]) -> TableRow:
+        date = metadata.get("date_completed") or metadata.get("date_updated") or metadata.get("date") or 0
+        return TableRow(( "archiveofourown.org", metadata["id"], date))
+
+    @override
+    def fields_to_remove(self) -> list[str]:
+        return [
+            "bookmarks",
+            "comments",
+            "likes",
+            "views"
+        ]
+    
 category_to_source : Dict[str, GalleryDLSource]= {
     "itaku": Itaku(),
     "furaffinity": Furaffinity(),
+    "ao3": AO3(),
 }
 
 def get_source(category: str) -> GalleryDLSource:
