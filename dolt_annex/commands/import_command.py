@@ -75,12 +75,6 @@ class Import(cli.Application):
         help="The name of the dataset being imported to",
     )
 
-    table = cli.SwitchAttr(
-        "--table",
-        str,
-        help="The name of the table being written to",
-    )
-
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
         print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
@@ -104,20 +98,17 @@ class Import(cli.Application):
             move_function = move_function,
             follow_symlinks = follow_symlinks,
         )
-        dataset = DatasetSchema.must_load(self.dataset)
+        dataset_schema = DatasetSchema.must_load(self.dataset)
 
-        with Dataset.connect(self.parent.config, import_config.batch_size, dataset) as downloader:
-            table = dataset.get_table(self.table)
-            if not table:
-                raise ValueError(f"Table {self.table} not found in dataset {self.dataset}")
-                
-        
+        with Dataset.connect(self.parent.config, import_config.batch_size, dataset_schema) as dataset:
             importer = get_importer(*self.importer.split())
-            do_import(self.parent.config.local_repo(), import_config, downloader.get_table(table.name), importer, files_or_directories)
+            do_import(self.parent.config.local_repo(), import_config, dataset, importer, files_or_directories)
 
-def do_import(remote: Repo, import_config: ImportConfig, downloader: FileTable, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
-    key_paths: Dict[AnnexKey, Path] = {}
-    downloader.add_flush_hook(lambda: move_files(remote, import_config.move_function, key_paths))
+def do_import(remote: Repo, import_config: ImportConfig, dataset: Dataset, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+    key_paths: Dict[str, Dict[Path, AnnexKey]] = {}
+    for table_name, table in dataset.tables.items():
+        key_paths[table_name] = {}
+        table.add_flush_hook(move_files, remote, import_config.move_function, key_paths[table_name])
     
     def import_path(file_or_directory: Path):
         """Import a file or directory into the annex"""
@@ -139,7 +130,7 @@ def do_import(remote: Repo, import_config: ImportConfig, downloader: FileTable, 
     def import_file(path: Path):
         """Import a file into the annex"""
         extension = path.suffix[1:]
-        if len(extension) > downloader.MAX_EXTENSION_LENGTH+1:
+        if len(extension) > dataset.MAX_EXTENSION_LENGTH+1:
             return
         # catch both regular symlinks and windows shortcuts
         is_symlink = path.is_symlink() or extension == '.lnk'
@@ -157,19 +148,20 @@ def do_import(remote: Repo, import_config: ImportConfig, downloader: FileTable, 
         if importer:
             key_columns = importer.key_columns(path)
             if key_columns:
-                downloader.insert_file_source(key_columns, key, remote.uuid)
+                table_name = importer.table_name(path)
+                table = dataset.get_table(table_name)
+                table.insert_file_source(key_columns, key, remote.uuid)
+                key_paths[table_name][abs_path] = key
             if not key_columns:
                 raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
-
-        key_paths[AnnexKey(key)] = abs_path
 
     for file_or_directory in files_or_directories:
         import_path(Path(file_or_directory))
 
-def move_files(remote: Repo, move: MoveFunction, files: Dict[AnnexKey, Path]):
+def move_files(remote: Repo, move: MoveFunction, files: Dict[Path, AnnexKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
-    for key, file_path in files.items():
+    for file_path, key in files.items():
         key_path = remote.files_dir() / get_key_path(key)
         move(file_path, key_path)
     files.clear()

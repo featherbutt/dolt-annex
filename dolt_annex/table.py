@@ -48,8 +48,6 @@ class FileTable:
     dataset_name: str
     branch_start_point: str
 
-    MAX_EXTENSION_LENGTH = 4
-
     def __init__(self, dolt: DoltSqlServer, schema: FileTableSchema, dataset_name: str, branch_start_point: str, auto_push: bool, batch_size: int):
         self.schema = schema
         self.dataset_name = dataset_name
@@ -75,9 +73,9 @@ class FileTable:
 
         self.increment_count()
 
-    def add_flush_hook(self, hook: Callable[[], None]):
+    def add_flush_hook[**P](self, hook: Callable[P, None], *args: P.args, **kwargs: P.kwargs) -> None:
         """Add a hook to be called when the cache is flushed."""
-        self.flush_hooks.append(hook)
+        self.flush_hooks.append(lambda: hook(*args, **kwargs))
 
     def flush(self):
         """Flush the cache to the git-annex branch and the Dolt database."""
@@ -92,7 +90,7 @@ class FileTable:
         for source, rows in self.added_rows.items():
             branch = f"{source}-{self.dataset_name}"
             with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-                 self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
+                self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         for hook in self.flush_hooks:
             hook()
@@ -125,6 +123,8 @@ class Dataset:
     tables: Dict[str, FileTable]
     dolt: DoltSqlServer
     auto_push: bool
+
+    MAX_EXTENSION_LENGTH = 4
 
     def __init__(self, dolt: DoltSqlServer, dataset_source: DatasetSource, auto_push: bool, batch_size: int):
         self.name = dataset_source.schema.name
