@@ -15,7 +15,7 @@ class Furaffinity(GalleryDLSource):
     
     @override
     def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        return TableRow(( "furaffinity.net", metadata["id"], metadata["date"]))
+        return TableRow(( "furaffinity.net", metadata["id"], metadata["date"], 1))
 
     @override
     def fields_to_remove(self) -> list[str | list[str]]:
@@ -27,4 +27,4 @@ class Furaffinity(GalleryDLSource):
     
     @override
     def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        return TableRow(( "furaffinity.net", metadata["id"], metadata["date"], 1))
+        return [TableRow(( "furaffinity.net", metadata["id"], metadata["date"]))]
