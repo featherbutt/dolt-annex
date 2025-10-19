@@ -6,6 +6,10 @@ from typing_extensions import Any, Iterable
 
 from dolt_annex.datatypes.common import TableRow
 
+def is_private_field(field: str) -> bool:
+    """Whether a field is considered private and should be excluded from imported metadata."""
+    return field.startswith("_")
+
 class GalleryDLSource:
     """A supported gallery-dl source. Methods describe how to parse and process metadata from that source."""
 
@@ -22,6 +26,10 @@ class GalleryDLSource:
         - Submissions have identical metadata when downloaded from this subcategory's endpoint vs. other endpoints.
         - Any fields that change frequently (e.g. view counts) are removed in `fields_to_remove`.
         """
+    
+    def exclude_field(self, field: str) -> bool:
+        """Whether to exclude a given field from the imported metadata."""
+        return is_private_field(field) or field == "subcategory" or field in self.fields_to_remove()
     
     @abstractmethod
     def fields_to_remove(self) -> list[str | list[str]]:

@@ -6,8 +6,11 @@ Helper functions that gallery-dl postprocessors can use to format data for dolt-
 """
 
 import hashlib
+import json
 from pathlib import Path
 from typing_extensions import Any, Optional
+
+from gallery_dl.util import json_default
 
 from dolt_annex import config
 from dolt_annex.datatypes.common import TableRow, AnnexKey
@@ -22,7 +25,6 @@ def gallery_dl_post(metadata: dict):
     """The entrypoint for 'post' postprocessor hooks (run at the start of a batch of related downloads)"""
     category = metadata["category"]
     subcategory = metadata["subcategory"]
-    id = metadata["id"]
     source = get_source(category, subcategory)
 
     source.format_post_metadata(metadata)
@@ -30,11 +32,16 @@ def gallery_dl_post(metadata: dict):
     for table_row in source.post_metadata(metadata):
         dataset: Dataset = dataset_context.get()
         local_repo = dataset.dataset_source.repo
-
-        temp_directory = Path(metadata["_path_metadata"].realdirectory)
-
+        # remove subcategory
+        public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
+        metadata_bytes = json.dumps(
+            public_metadata,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=4,
+            default=json_default).encode('utf-8') + b'\n'
         table: FileTable = dataset.get_table("metadata")
-        import_file(local_repo, table, table_row, temp_directory / f"{category}-{subcategory}-{id}.json", "json")
+        import_bytes(local_repo, table, table_row, metadata_bytes, "json")
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -92,6 +99,22 @@ def import_file(local_remote: Repo, file_table: FileTable, table_key: TableRow, 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
     from_path.rename(output_path)
+    file_table.insert_file_source(table_key, file_key, config.get_config().local_uuid)
+
+def import_bytes(local_remote: Repo, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):
+    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
+    if not sha256:
+        sha256 = hashlib.sha256(file_bytes).hexdigest()
+    size = len(file_bytes)
+
+    file_key = make_file_key(size, sha256, extension)
+
+    output_path = local_remote.files_dir() / get_key_path(file_key)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(output_path, "wb") as f:
+        f.write(file_bytes)
+
     file_table.insert_file_source(table_key, file_key, config.get_config().local_uuid)
 
 def make_file_key(size, sha256, extension) -> AnnexKey:

@@ -10,13 +10,6 @@
 		"filename": "{category}-{subcategory}-{id}.{extension}",
 		"postprocessors": [
 			{
-				"name": "metadata",
-				"event": "post",
-				"sort": true,
-				"base-directory": true,
-				"filename": "{category}-{subcategory}-{id}.json"
-            },
-			{
 				"name": "python",
 				"event": "post",
 				"function": "dolt_annex:gallery_dl_post"
