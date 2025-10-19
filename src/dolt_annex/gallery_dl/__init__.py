@@ -14,7 +14,7 @@ import gallery_dl
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.table import Dataset
 
-config_path = Path(__file__).parent / "config.json"
+config_path = Path(__file__).parent / "gallery_dl_config.json"
 skip_db_path = Path(__file__).parent / "skip.sqlite3"
 
 gdl_args = [ "gallery-dl", "--config", str(config_path) ]

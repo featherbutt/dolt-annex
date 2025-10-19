@@ -1,0 +1,54 @@
+{
+    "extractor": {
+		"archive": "./skip.sqlite3",
+		"archive-table": "skip",
+		"archive-format": "{_skip}",
+        "archive-event": [],
+		"path-metadata": "_path_metadata",
+		"base-directory": "./gallery-dl-temp",
+		"directory": [],
+		"filename": "{category}-{subcategory}-{id}.{extension}",
+		"postprocessors": [
+			{
+				"name": "metadata",
+				"event": "post",
+				"sort": true,
+				"base-directory": true,
+				"filename": "{category}-{subcategory}-{id}.json"
+            },
+			{
+				"name": "python",
+				"event": "post",
+				"function": "dolt_annex:gallery_dl_post"
+			},
+			{
+				"name": "python",
+				"event": "prepare",
+				"function": "dolt_annex:gallery_dl_prepare"
+			},
+			{
+				"name": "hash",
+				"hashes": "md5,sha1,sha256",
+				"event": "file"
+			},
+			{
+				"name": "metadata",
+				"sort": true,
+				"base-directory": true,
+				"exclude": [
+					"subcategory"
+				],
+				"filename": "{category}-{subcategory}-{id}.{extension}.json"
+			},
+			{
+				"name": "python",
+				"event": "after",
+				"function": "dolt_annex:gallery_dl_after"
+			}
+		],
+        "itaku": {
+            "image-unique": true,
+            "include": "all"
+        }
+    }
+}
