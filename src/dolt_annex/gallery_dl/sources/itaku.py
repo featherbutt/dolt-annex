@@ -67,7 +67,7 @@ class Itaku(GalleryDLSource):
     def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         if metadata.get("subcategory") == "post":
             yield TableRow((
-                "itaku.ee/posts",
+                "itaku.ee",
                 metadata["id"],
                 metadata.get("date_edited") or metadata.get("date_added"),
             ))

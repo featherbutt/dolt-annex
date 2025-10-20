@@ -7,6 +7,7 @@ from typing_extensions import Optional, override
 from dolt_annex.datatypes.common import TableRow
 from .base import ImporterBase
 
+# Remove subcategory and sort keys when importing post
 class GalleryDL(ImporterBase):
     """
     Importer for gallery-dl downloads.
@@ -22,11 +23,15 @@ class GalleryDL(ImporterBase):
 
     @override
     def key_columns(self, path: Path) -> Optional[TableRow]:
+        source = self.source_name(path)
+        updated: str | int
         id, updated = path.stem.split('_', 1)
+        if updated == "None":
+            updated = 0
         if self.table_name(path) == "submissions":
             part = 1
-            return TableRow((self.source, int(id), updated, part))
-        return TableRow((self.source, int(id), updated))
+            return TableRow((source, int(id), updated, part))
+        return TableRow((source, int(id), updated))
 
     @override
     def table_name(self, path: Path) -> str:
@@ -36,6 +41,11 @@ class GalleryDL(ImporterBase):
             case "image_metadata":
                 return "metadata"
             case "posts":
-                return "posts"
+                return "metadata"
             case _:
                 raise ValueError(f"Unknown table for path: {path}")
+            
+    def source_name(self, path: Path) -> str:
+        if path.parts[-4] == "posts":
+            return self.source + "/posts"
+        return self.source
