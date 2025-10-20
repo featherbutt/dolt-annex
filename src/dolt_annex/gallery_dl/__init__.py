@@ -28,15 +28,15 @@ def make_default_schema(dataset_name: str) -> DatasetSchema:
             FileTableSchema(
                 name="submissions",
                 key_columns=["source", "id", "updated", "part"],
-                        file_column="annex_key",
-                    ),
-                    FileTableSchema(
-                        name="metadata",
-                        key_columns=["source", "id", "updated"],
-                        file_column="annex_key",
-                    ),
-                    FileTableSchema(
-                        name="posts",
+                    file_column="annex_key",
+                ),
+                FileTableSchema(
+                    name="metadata",
+                    key_columns=["source", "id", "updated"],
+                    file_column="annex_key",
+                ),
+                FileTableSchema(
+                    name="posts",
                 key_columns=["source", "id", "updated"],
                 file_column="annex_key",
             ),
