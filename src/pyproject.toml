@@ -3,7 +3,7 @@ name = "dolt_annex"
 version = "0.1.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
-readme = "README.md"
+readme = "../README.md"
 include = [
     { path = "dolt_annex/gallry_dl/gallery_dl_config.json", format = ["sdist", "wheel"] },
     { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] },
