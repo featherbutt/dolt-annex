@@ -23,6 +23,7 @@ types-paramiko = "^4.0.0.20250822"
 dataclass-wizard = "^0.35.1"
 gallery-dl = {git = "https://github.com/featherbutt/gallery-dl"}
 tzdata = "^2025.2"
+pydantic = "^2.12.3"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
@@ -31,3 +32,7 @@ dolt-annex = 'dolt_annex:main'
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[dependency-groups]
+dev = [
+    "pytest (>=8.4.2,<9.0.0)"
+]
