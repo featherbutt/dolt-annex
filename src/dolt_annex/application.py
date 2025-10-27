@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import json
 from pathlib import Path
+from typing_extensions import Literal
 
 from plumbum import cli
 
+from dolt_annex.config import Config
 
-from .config import Config, set_config
 class Env:
-    DOLT_DIR = "DA_DOLT_DIR"
+    CONFIG_FILE = "DA_CONFIG"
     FILES_DIR = "DA_FILES_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
     DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
@@ -25,33 +25,7 @@ class Application(cli.Application):
     PROGNAME = "dolt-annex"
     VERSION = "0.1"
 
-    def __init__(self, *args):
-        super().__init__(*args)
-        self.config = Config(
-            dolt_dir = None,
-            dolt_db = None,
-            files_dir = None,
-            dolt_remote = None,
-            email = None,
-            name = None,
-        )
-
-    @cli.switch(['-c', '--config'], cli.ExistingFile)
-    def set_config(self, path):
-        with open(path) as f:
-            try:
-                config_json = json.load(f)
-                for key, value in config_json.items():
-                    if key == "files_dir":
-                        value = Path(value)
-                        if not value.exists():
-                            raise ValueError(f"Files directory {value} does not exist")
-                    setattr(self.config, key, value)
-            except json.JSONDecodeError as e:
-                print(f"Error parsing config file {path}: {e}")
-                raise
-
-    dolt_dir = cli.SwitchAttr("--dolt-dir", cli.ExistingDirectory, envname=Env.DOLT_DIR)
+    config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE, default="./config.json")
 
     files_dir = cli.SwitchAttr("--files-dir", cli.ExistingDirectory, envname=Env.FILES_DIR)
 
@@ -63,36 +37,43 @@ class Application(cli.Application):
 
     dolt_db = cli.SwitchAttr("--dolt-db", str, envname=Env.DOLT_DB)
 
-    dolt_remote = cli.SwitchAttr("--dolt-remote", str, envname=Env.DOLT_REMOTE)
-
     email = cli.SwitchAttr("--email", str, envname=Env.EMAIL)
 
     name = cli.SwitchAttr("--name", str, envname=Env.NAME)
 
     annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
 
-    def main(self, *args):
+    config: Config
+
+    def main(self, *args) -> Literal[0, 1]:
         # Set each config parameter in order of preference:
-        # 1. Command line argument or environment variable
-        # 2. Existing config file passed in with -c
-        # 3. Default value
-        self.config.dolt_dir = Path(self.dolt_dir or self.config.dolt_dir or "./dolt")
-        self.config.spawn_dolt_server = self.spawn_dolt_server or self.config.spawn_dolt_server
-        self.config.dolt_server_socket = self.dolt_server_socket or self.config.dolt_server_socket
-        self.config.dolt_db = self.dolt_db or self.config.dolt_db or self.config.dolt_dir.name
-        self.config.dolt_remote = self.dolt_remote or self.config.dolt_remote or "origin"
-        self.config.email = self.email or self.config.email or "user@localhost"
-        self.config.name = self.name or self.config.name or "user"
-        self.config.annexcommitmessage = self.annexcommitmessage or self.config.annexcommitmessage or "update git-annex"
-        self.config.files_dir = self.config.files_dir or Path("./annex")
-       
+        # 1. Command line argument
+        # 2. environment variable
+        # 3. Existing config file passed in with -c
+        # 4. Existing config file in default location
+        # 5. Default value
+        config_path = Path(self.config_file)
+        if config_path.exists():
+            with open(config_path, 'rb') as fd:
+                config_json = fd.read()
+            self.config = Config.model_validate_json(config_json)
+        else:
+            self.config = Config()
+
+        self.config.user.name = self.name or self.config.user.name
+        self.config.user.email = self.email or self.config.user.email
+        self.config.dolt.default_commit_message = self.annexcommitmessage or self.config.dolt.default_commit_message
+        self.config.dolt.spawn_dolt_server = self.spawn_dolt_server or self.config.dolt.spawn_dolt_server
+        self.config.dolt.db_name = self.dolt_db or self.config.dolt.db_name
+
+        if self.dolt_server_socket:
+            self.config.dolt.connection["server_socket"] = self.dolt_server_socket
+        
         if self.nested_command is None:
             self.help()
             return 0
         if args:
             print(f"Unknown command: {args[0]}")
             return 1
-        self.config.validate()
-        set_config(self.config)
-
+        return 0
     
