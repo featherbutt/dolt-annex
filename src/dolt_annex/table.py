@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""This file contains functions for interacting with git-annex"""
-
 from contextlib import contextmanager
 import os
 import random
@@ -10,13 +8,15 @@ import time
 from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
-from dolt_annex.config import Config
+from dolt_annex.config.config import Config
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 
 from .dolt import DoltSqlServer
 from .logger import logger
-from .datatypes import AnnexKey, TableRow, FileTableSchema
+from .datatypes import AnnexKey, TableRow
+from .datatypes.table import FileTableSchema
+from dolt_annex import dolt
 
 # We must prevent data loss in the event the process is interrupted:
 # - Original file names contain data that is lost when the file is added to the annex
@@ -126,14 +126,12 @@ class Dataset:
 
     MAX_EXTENSION_LENGTH = 4
 
-    def __init__(self, dolt: DoltSqlServer, dataset_source: DatasetSource, auto_push: bool, batch_size: int):
-        self.name = dataset_source.schema.name
+    def __init__(self, base_config: Config, dolt: DoltSqlServer, dataset_schema: DatasetSchema, auto_push: bool, batch_size: int):
+        self.name = dataset_schema.name
         self.dolt = dolt
-        self.dataset_source = dataset_source
         self.auto_push = auto_push
-        self.tables = {table.name: FileTable(dolt, table, self.name, self.dataset_source.schema.empty_table_ref, auto_push, batch_size) for table in dataset_source.schema.tables}
-
-        self.dataset_source.initialize(dolt)
+        self.tables = {table.name: FileTable(dolt, table, self.name, dataset_schema.empty_table_ref, auto_push, batch_size) for table in dataset_schema.tables}
+        dolt.maybe_create_branch(f"{base_config.get_uuid()}-{self.name}", dataset_schema.empty_table_ref)
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]
@@ -142,8 +140,7 @@ class Dataset:
         return self.tables.values()
     
     def pull_from(self, remote: Repo):
-        if remote.dolt_remote:
-            self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote)
+        self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote)
     
     def __enter__(self):
         return self
@@ -165,24 +162,22 @@ class Dataset:
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
-        port = base_config.dolt_port or (random.randint(20000, 30000) if base_config.spawn_dolt_server else 3306)
+        dolt_config = base_config.dolt
+        port = dolt_config.port or (random.randint(20000, 30000) if dolt_config.spawn_dolt_server else 3306)
         db_config = {
-            "user": "root",
-            "database": base_config.dolt_db,
-            "autocommit": True,
+            "user": dolt_config.user,
+            "database": dolt_config.db_name,
+            "autocommit": dolt_config.autocommit,
             "port": port,
+            **dolt_config.connection,
         }
         if os.name == 'nt':
-            db_config["host"] = base_config.dolt_host
+            db_config["host"] = dolt_config.hostname
         else:
-            db_config["unix_socket"] = base_config.dolt_server_socket
+            db_config["unix_socket"] = dolt_config.server_socket
 
-        dataset_source = DatasetSource(
-            schema=dataset_schema,
-            repo=base_config.local_repo(),
-        )
         with (
-            DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-            Dataset(dolt_server, dataset_source, base_config.auto_push, db_batch_size) as dataset
+            DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server) as dolt_server,
+            Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset
         ):
             yield dataset

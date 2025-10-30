@@ -1,159 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
-from dataclasses import dataclass, field
-import os
 from uuid import UUID
-import getpass
 import sys
 from pathlib import Path
 
-from typing_extensions import List, Iterable, Optional, Generator, Tuple, Any
+from typing_extensions import List, Iterable, Optional, Tuple
 
-import sftpretty # type: ignore
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
-from dolt_annex.config import get_config
 from dolt_annex.dolt import DoltSqlServer
+from dolt_annex.sync import FileModifiedError, SyncResults, diff_query
 from dolt_annex.table import Dataset, FileTable
-from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
-from dolt_annex import move_functions
-from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import Repo, AnnexKey, TableRow, FileTableSchema
-from dolt_annex.logger import logger
-
-@dataclass
-class TableFilter:
-    column_name: str
-    column_value: Any
-
-@dataclass
-class SshSettings:
-    ssh_config: Path
-    known_hosts: Optional[Path]
-
-    @staticmethod
-    def create(*, ssh_config: str, known_hosts: Optional[str]) -> 'SshSettings':
-        """Create SshSettings by converting strings to Paths"""
-        return SshSettings(
-            ssh_config=Path(ssh_config),
-            known_hosts=Path(known_hosts) if known_hosts else None
-        )
-
-@dataclass
-class SyncResults:
-    files_pushed: List[AnnexKey] = field(default_factory=list)
-    files_pulled: List[AnnexKey] = field(default_factory=list)
-
-    def __iadd__(self, other: 'SyncResults') -> 'SyncResults':
-        self.files_pushed += other.files_pushed
-        self.files_pulled += other.files_pulled
-        return self
-    
-    def __bool__(self) -> bool:
-        return bool(self.files_pushed or self.files_pulled)
-    
-class FileModifiedError(Exception):
-    def __init__(self, key: AnnexKey):
-        self.key = key
-        super().__init__(f"File with annex key {key} has different content on both remotes")
-
-class FileMover:
-    local_cwd: Path
-    remote_cwd: Path
-    put_function: MoveFunction
-    get_function: MoveFunction
-
-    def __init__(self, put_function: MoveFunction, get_function: MoveFunction, remote_cwd: str, local_cwd = None) -> None:
-        if local_cwd is None:
-            local_cwd = os.getcwd()
-        self.local_cwd = Path(local_cwd)
-        self.remote_cwd = Path(remote_cwd)
-        self.put_function = put_function
-        self.get_function = get_function
-
-    def put(self, local_path: Path, remote_path: Path) -> bool:
-        """Move a file from the local filesystem to the remote filesystem"""
-        abs_local_path = self.local_cwd / local_path
-        abs_remote_path = self.remote_cwd / remote_path
-        logger.info(f"Moving {abs_local_path} to {abs_remote_path}")
-        return self.put_function(
-            abs_local_path,
-            abs_remote_path)
-        
-    def get(self, local_path: Path, remote_path: Path) -> bool:
-        """Move a file from the local filesystem to the remote filesystem"""
-        abs_local_path = self.local_cwd / local_path
-        abs_remote_path = self.remote_cwd / remote_path
-        logger.info(f"Moving {abs_remote_path} to {abs_local_path}")
-        return self.get_function(
-            abs_remote_path,
-            abs_local_path)
-
-    @contextmanager
-    def cd(self, local_path: Optional[str] = None, remote_path: Optional[str] = None):
-        """Change the remote directory"""
-        old_local_cwd = self.local_cwd
-        old_remote_cwd = self.remote_cwd
-        if local_path is not None:
-            self.local_cwd = self.local_cwd / local_path
-        if remote_path is not None:
-            self.remote_cwd = self.remote_cwd / remote_path
-        yield
-        self.local_cwd = old_local_cwd
-        self.remote_cwd = old_remote_cwd
-
-@contextmanager
-def file_mover(remote: Repo, ssh_settings: SshSettings) -> Generator[FileMover, None, None]:
-    base_config = get_config()
-    local_path = os.path.abspath(base_config.files_dir)
-    if '@' in remote.files_url:
-        user, rest = remote.files_url.split('@', maxsplit=1)
-        host, path = rest.split(':', maxsplit=1)
-
-        cnopts = sftpretty.CnOpts(config=ssh_settings.ssh_config, knownhosts=ssh_settings.known_hosts)
-        cnopts.log_level = 'error'
-
-        extra_opts = {}
-        if base_config.encrypted_ssh_key:
-            extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
-
-        with sftpretty.Connection(host, cnopts=cnopts, username = user, default_path = path, **extra_opts) as sftp:
-            def sftp_put(
-                local_path: Path,
-                remote_path: Path,
-            ) -> bool:
-                """Move a file from the local filesystem to the remote filesystem using SFTP"""
-                if not local_path.exists():
-                    return False
-                sftp.mkdir_p(remote_path.parent.as_posix())
-                if sftp.exists(remote_path.as_posix()):
-                    logger.info(f"File {remote_path} already exists, skipping")
-                    return True
-                sftp.put(local_path.as_posix(), remote_path.as_posix())
-                return True
-            def sftp_get(
-                remote_path: Path,
-                local_path: Path,
-            ) -> bool:
-                """Move a file from the remote filesystem to the local filesystem using SFTP"""
-                local_path.parent.mkdir(parents=True, exist_ok=True)
-                if not sftp.exists(remote_path.as_posix()):
-                    return False
-                if local_path.exists():
-                    logger.info(f"File {local_path} already exists, skipping")
-                    return True
-                sftp.get(remote_path.as_posix(), local_path.as_posix())
-                return True
-            yield FileMover(sftp_put, sftp_get, sftp.getcwd(), local_path)
-    elif remote.files_url.startswith("file://"):
-        # Remote path may be relative to the local git directory
-        yield FileMover(move_functions.copy, move_functions.copy, remote.files_url[7:], local_path)
-    else:
-        raise ValueError(f"Unknown remote URL format: {remote.files_url}")
-    
+from dolt_annex.datatypes import AnnexKey, TableRow
+from dolt_annex.datatypes.table import FileTableSchema
+from dolt_annex.datatypes.remote import Repo
 
 
 class Sync(cli.Application):
@@ -289,19 +151,3 @@ def diff_keys(dolt: DoltSqlServer, local_ref: str, remote_ref: str, file_key_tab
         query_results = dolt.query(query, (remote_ref, local_ref))
     for (annex_key, diff_type, *key_parts) in query_results:
         yield (AnnexKey(annex_key), diff_type, TableRow(*key_parts))
-
-def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
-    """
-    Generates a SQL query to identify the files that exist on one remote but not another.
-    Note that generating a SQL query this way is not safe from SQL injection, but SQL injection
-    isn't part of the threat model, since any query that the application can run,
-    the user can already run themselves.
-    """
-    return f"""
-        SELECT
-            to_{file_key_table.file_column}, `diff_type`, {",".join("to_" + col for col in file_key_table.key_columns)}
-        FROM dolt_commit_diff_{file_key_table.name}
-        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s)
-        {''.join(f" AND to_{f.column_name} = %s" for f in filters)}
-        """
-

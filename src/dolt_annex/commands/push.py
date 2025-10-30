@@ -1,21 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
 from uuid import UUID
 
-from typing_extensions import List, Iterable, Optional, Tuple
+from typing_extensions import List, Optional
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.application import Application
-from dolt_annex.config import get_config
-from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
-from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.table import Dataset, FileTable
-from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
-from dolt_annex.datatypes import AnnexKey, FileTableSchema, Repo, TableRow
-from dolt_annex.logger import logger
-from dolt_annex.commands.sync import SshSettings, TableFilter, file_mover, FileMover, diff_query
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.filestore import FileStore
+from dolt_annex.table import Dataset
+from dolt_annex.datatypes import AnnexKey
+from dolt_annex.datatypes.remote import Repo
+from dolt_annex.sync import TableFilter, move_table
 
 class Push(cli.Application):
     """Push imported files to a remote repository"""
@@ -79,73 +78,35 @@ class Push(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for push command"""
+
+        base_config = self.parent.config
+
+        if self.ssh_config:
+            base_config.ssh.ssh_config = Path(self.ssh_config)
+        if self.known_hosts:
+            base_config.ssh.known_hosts = Path(self.known_hosts)
+
         dataset_schema = DatasetSchema.must_load(self.dataset)
-        remote_name = self.remote or self.parent.config.dolt_remote
-        remote = Repo.must_load(remote_name)
-        with Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset:
-            ssh_settings = SshSettings.create(
-                ssh_config=self.ssh_config,
-                known_hosts=self.known_hosts
-            )
-            remote_source = DatasetSource(dataset_schema, remote)
-            remote_source.initialize(dataset.dolt)
-            push_dataset(dataset, remote, ssh_settings, self.filters, self.limit)
+        remote_name = self.remote or self.parent.config.dolt.default_remote
+        remote_repo = Repo.must_load(remote_name)
+        remote_file_store = remote_repo.filestore()
+        local_file_store = self.parent.config.filestore
+        if not local_file_store:
+            raise ValueError("No local filestore configured")
+        local_uuid = self.parent.config.get_uuid()
+
+        with (
+            local_file_store.open(base_config),
+            remote_file_store.open(base_config),
+            Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
+        ):
+            push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
         return 0
 
-def push_dataset(dataset: Dataset, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pushed_files is None:
         out_pushed_files = []
-    dataset.pull_from(file_remote)
+    dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        push_table(table, file_remote, ssh_settings, where, limit, out_pushed_files)
+        move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, limit, out_pushed_files)
     return out_pushed_files
-
-def push_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
-    if out_pushed_files is None:
-        out_pushed_files = []
-    dolt = table.dolt
-    remote_uuid = file_remote.uuid
-    local_uuid = get_config().local_uuid
-    with file_mover(file_remote, ssh_settings) as mover:
-        while True:
-            keys_and_submissions = list(diff_keys(dolt, str(local_uuid), str(remote_uuid), table.dataset_name, table.schema, where, limit))
-            has_more = push_submissions_and_keys(keys_and_submissions, table, mover, remote_uuid, out_pushed_files)
-            if not has_more:
-                break
-    table.flush()
-
-    return out_pushed_files
-
-def push_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: FileTable, mover: FileMover, remote_uuid: UUID, files_pushed: List[AnnexKey]) -> bool:
-    has_more = False
-    for key, submission in keys_and_submissions:
-        has_more = True
-        logger.info(f"pushing {submission}: {key}")
-        rel_key_path = get_key_path(key)
-        old_rel_key_path = get_old_relative_annex_key_path(key)
-        if not mover.put(old_rel_key_path, rel_key_path):
-            mover.put(rel_key_path, rel_key_path)
-        downloader.insert_file_source(submission, key, remote_uuid)
-        files_pushed.append(key)
-    downloader.flush()
-    return has_more
-
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[AnnexKey, TableRow]]:
-    refs = [in_ref, not_in_ref]
-    refs.sort()
-    union_branch_name = f"union-{refs[0]}-{refs[1]}-{dataset_name}"
-    
-    in_ref_branch = f"{in_ref}-{dataset_name}"
-    not_in_ref_branch = f"{not_in_ref}-{dataset_name}"
-    # Create the union branch if it doesn't exist
-    with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
-        dolt.merge(in_ref_branch)
-        dolt.merge(not_in_ref_branch)
-        query = diff_query(file_key_table, filters)
-        if limit is not None:
-            query += " LIMIT %s"
-            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
-        else:
-            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
-        for (annex_key, _, *key_parts) in query_results:
-            yield (AnnexKey(annex_key), TableRow(key_parts))

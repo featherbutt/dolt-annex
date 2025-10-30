@@ -3,12 +3,11 @@ import os
 from pathlib import Path
 import shutil
 import uuid
-import json
 
-from plumbum import cli, local # type: ignore
-from dataclass_wizard import asdict
+from plumbum import cli, local
 
 from dolt_annex.application import Application
+from dolt_annex.config.config import Config
 from dolt_annex.gallery_dl import skip_db_path
 from dolt_annex.data import data_dir
 
@@ -34,11 +33,13 @@ class Init(cli.Application):
 
     dolt_url = cli.SwitchAttr(
         "--dolt-url",
+        str,
         envname = "DA_DOLT_URL",
     )
 
     remote_name = cli.SwitchAttr(
         "--name",
+        str,
         envname = "DA_REMOTE_NAME",
     )
 
@@ -69,7 +70,7 @@ def read_uuid() -> uuid.UUID:
             fd.write(str(local_uuid))
     return local_uuid
 
-def do_init(base_config, init_config: InitConfig):
+def do_init(base_config: Config, init_config: InitConfig):
     # Things that need to be created:
     # - dolt directory/repository (if it doesn't exist)
     # - skip.sqlite3 database (if it doesn't exist)
@@ -78,14 +79,14 @@ def do_init(base_config, init_config: InitConfig):
     # - If a dolt-url is provided, fetch from it and create a branch for this UUID?
 
     if init_config.init_dolt:
-        dolt_dir = base_config.dolt_dir
+        dolt_dir = base_config.dolt.dolt_dir
         if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
             print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
             dolt_dir.mkdir(parents=True, exist_ok=True)
             shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
             print(f"Initialized Dolt repository in {dolt_dir}")
             # Add dolt remote if it was provided
-            dolt = local.cmd.dolt.with_cwd(base_config.dolt_dir)
+            dolt = local.cmd.dolt.with_cwd(base_config.dolt.dolt_dir)
             dolt("config", "--local", "--add", "push.autoSetupRemote", "true")
             if init_config.dolt_url:
                 dolt("remote", "add", init_config.remote_name, init_config.dolt_url)
@@ -105,5 +106,5 @@ def do_init(base_config, init_config: InitConfig):
         with open("config.json", "w", encoding="utf-8") as f:
             path = Path("config.json")
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(asdict(base_config), f, ensure_ascii=False, indent=4)
+                f.write(base_config.model_dump_json(ensure_ascii=False, indent=4))
             print("Created config.json")

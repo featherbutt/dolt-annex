@@ -18,4 +18,7 @@ Other filestores could be added in the future. Possible candidates include:
 - IPFS
 """
 
-from .common import *
+from .base import FileStore, YesNoMaybe
+from .annexfs import AnnexFS
+
+__all__ = ['FileStore', 'AnnexFS', 'YesNoMaybe']

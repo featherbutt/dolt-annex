@@ -6,28 +6,31 @@ import os
 from pathlib import Path
 import random
 import shutil
-from typing_extensions import Optional
+from typing import override
 import uuid
+from typing_extensions import Optional
 
 import paramiko 
 
-from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
-from dolt_annex.table import Dataset, FileTable
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.filestore import FileStore
+from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.pull import pull_dataset
 from dolt_annex.commands.server_command import server_context
-from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.filestore import get_key_path
 from dolt_annex import move_functions, importers
-from dolt_annex.datatypes import Repo, FileTableSchema, TableRow
-from dolt_annex.commands.sync import SshSettings
+from dolt_annex.datatypes import TableRow
+from dolt_annex.datatypes.remote import Repo
+from dolt_annex.file_keys.sha256e import Sha256e
+from tests.import_test import TestImporter
 
-from tests.setup import setup, setup_ssh_remote, base_config, init
+from .setup import setup, setup_ssh_remote, base_config, init
 
 import_config = ImportConfig(
     batch_size = 10,
     move_function = move_functions.move,
     follow_symlinks = False,
+    file_key_type = Sha256e
 )
 
 import_directory = Path(__file__).parent / "import_data"
@@ -38,11 +41,12 @@ def test_pull_local(tmp_path):
     origin_uuid = uuid.uuid4()
     setup(tmp_path, origin_uuid)
     init()
-    remote = Repo(
-        files_url=f"file://{tmp_path}/remote_files",
-        uuid=origin_uuid,
-        name="origin",
-    )
+    remote = Repo.model_validate({
+        "files_url": f"file://{tmp_path}/remote_files",
+        "uuid": origin_uuid,
+        "name": "origin",
+        "key_format": "Sha256e"
+    })
     do_test_pull(tmp_path, "submissions", remote)
 
 def test_pull_sftp(tmp_path):
@@ -58,62 +62,52 @@ def test_pull_server(tmp_path):
     host = "localhost"
     ssh_port = random.randint(21000, 22000)
     setup(tmp_path, origin_uuid)
-    remote = Repo(
-        files_url=f"file://{tmp_path}/remote_files",
-        uuid=origin_uuid,
-        name="origin",
-    )
-    
+    remote = Repo.model_validate({
+        "files_url": f"file://{tmp_path}/remote_files",
+        "uuid": origin_uuid,
+        "name": "origin",
+    })
+
     # setup server, then create server context, then setup client.
     with server_context(host, ssh_port, server_key, str(Path(__file__).parent / "test_client_keys")):
         init()
         do_test_pull(tmp_path, "submissions", remote)
 
-class TestImporter(importers.ImporterBase):
-    def key_columns(self, path: Path) -> Optional[TableRow]:
-        sid = int(''.join(path.parts[-6:-1]))
-        return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
-
 def do_test_pull(tmp_path, dataset_name: str, remote: Repo):
     """Run and validate pulling content files from a remote"""
+    tmp_path = Path(tmp_path)
     importer = TestImporter()
+    remote_file_store = remote.filestore()
+    local_file_store = base_config.get_filestore()
     with contextlib.chdir(config_directory):
-        dataset = DatasetSchema.must_load(dataset_name)
-    shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
-    db_config = {
-        "unix_socket": base_config.dolt_server_socket,
-        "user": "root",
-        "database": base_config.dolt_db,
-        "autocommit": True,
-        "port": random.randint(20000, 21000),
-    }
-    ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
-    dataset_source = DatasetSource(dataset, repo=base_config.local_repo())
+        dataset_schema = DatasetSchema.must_load(dataset_name)
+    shutil.copytree(import_directory, tmp_path / "import_data")
     with (
-        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-        Dataset(dolt_server, dataset_source, base_config.auto_push, import_config.batch_size) as downloader
+        local_file_store.open(base_config),
+        remote_file_store.open(base_config),
+        Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset
     ):
-        table = next(iter(downloader.tables.values()))
-        do_import(remote, import_config, table, importer, ["import_data/00"])
-        downloader.flush()
-        with downloader.dolt.set_branch(f"{remote.uuid}-{dataset.name}"):
-            dolt_server.commit(amend=True)
-        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings)
+        do_import(remote_file_store, remote.uuid, import_config, dataset, importer, ["import_data/00"])
+        dataset.flush()
+        assert remote_file_store.exists(Sha256e.from_file(import_directory / "00/12/34/56/78/591785b794601e212b260e25925636fd.e621.txt"))
+
+        with dataset.dolt.set_branch(f"{remote.uuid}-{dataset.name}"):
+            dataset.dolt.commit(amend=True)
+        files_pulled = pull_and_verify(dataset, remote, remote_file_store, local_file_store)
         assert files_pulled == 2
         # Pulling again should have no effect
 
-        files_pulled = pull_and_verify(downloader, base_config.files_dir, remote, ssh_settings)
+        files_pulled = pull_and_verify(dataset, remote, remote_file_store, local_file_store)
         assert files_pulled == 0
 
 
-def pull_and_verify(downloader: Dataset, files_dir: Path, file_remote: Repo, ssh_settings: SshSettings):
+def pull_and_verify(dataset: Dataset, file_remote: Repo, remote_file_store: FileStore, local_file_store: FileStore) -> int:
 
-    files_pulled = pull_dataset(downloader, file_remote, ssh_settings, [])
-    downloader.flush()
+    files_pulled = pull_dataset(dataset, base_config.get_uuid(), file_remote, remote_file_store, local_file_store, [])
+    dataset.flush()
         
     for key in files_pulled:
-        key_path = files_dir / get_key_path(key)
-        assert Path(key_path).exists()
+        assert local_file_store.exists(key)
     # TODO: Test that the branches are correct.
 
     return len(files_pulled)

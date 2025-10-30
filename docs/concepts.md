@@ -28,7 +28,7 @@ It's possible for a repo to store two files with identical contents, differing o
 
 Every dolt-annex repository keeps its local file copies in a filestore. A filestore is an interface that provides access to files by their key and allows inserting new files.
 
-There is currently only one filestore implementation: a simple filesystem based store. Files are stored in a nested directory structure with two levels of indirection based on the first six characters of the file key's md5 hash.
+There is currently only one filestore implementation: a simple filesystem based store called AnnexFS, modeled after git-annex's file layout. Files are stored in a nested directory structure with two levels of indirection based on the first six characters of the file key's md5 hash.
 
 So for example, the file key `SHA256E-s5--2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824.txt` has an md5 hash beginning with `091de9...`, and is thus found at `./091/de9/` relative to the filestore root.
 

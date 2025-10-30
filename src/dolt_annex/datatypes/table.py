@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+from pydantic import BaseModel
 from typing_extensions import List
 
 from dolt_annex.dolt import DoltSqlServer
@@ -9,8 +10,7 @@ from dolt_annex.dolt import DoltSqlServer
 from .loader import Loadable
 from .remote import Repo
 
-@dataclass
-class FileTableSchema(Loadable("table")):
+class FileTableSchema(Loadable("table"), BaseModel):
     """
     The schema describing a table with a file column.
     Contains all the information needed to diff file keys between two remotes.
@@ -27,8 +27,7 @@ class FileTableSchema(Loadable("table")):
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
     
-@dataclass
-class DatasetSchema(Loadable("dataset")):
+class DatasetSchema(Loadable("dataset"), BaseModel):
     """
     The schema describing one or more tables that are version controlled together.
     Contains all the information needed to diff file keys between two remotes.

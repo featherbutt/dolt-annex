@@ -1,32 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import contextlib
 import os
 from pathlib import Path
 import random
 import shutil
-from typing_extensions import Optional
 import uuid
 
 import paramiko 
 
-from dolt_annex import importers, move_functions, context 
-from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
+from dolt_annex import move_functions 
+from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.filestore import FileStore
 from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.push import push_dataset
 from dolt_annex.commands.server_command import server_context
-from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.filestore import get_key_path
-from dolt_annex.datatypes import Repo, TableRow
-from dolt_annex.commands.sync import SshSettings
 
+from tests.import_test import TestImporter
 from tests.setup import setup, setup_file_remote, setup_ssh_remote, base_config, init
 
 import_config = ImportConfig(
     batch_size = 10,
     move_function = move_functions.move,
     follow_symlinks = False,
+    file_key_type=Sha256e
 )
 
 import_directory = os.path.join(os.path.dirname(__file__), "import_data")
@@ -37,6 +38,8 @@ def test_push_local(tmp_path):
     do_test_push(tmp_path, "submissions", remote)
 
 def test_push_sftp(tmp_path):
+    base_config.ssh.encrypted_ssh_key = False
+
     with setup_ssh_remote(tmp_path) as remote:
         do_test_push(tmp_path, "submissions", remote)
 
@@ -50,9 +53,10 @@ def test_push_server(tmp_path):
     ssh_port = random.randint(21000, 22000)
     setup(tmp_path, origin_uuid)
     remote = Repo(
-        files_url=f"file://{tmp_path}/remote_files",
+        files_url=f"ssh://localhost:{ssh_port}/{tmp_path}/remote_files",
         uuid=origin_uuid,
         name="origin",
+        key_format=Sha256e
     )
     
     # setup server, then create server context, then setup client.
@@ -60,73 +64,55 @@ def test_push_server(tmp_path):
         init()
         do_test_push(tmp_path, "submissions", remote)
 
-class TestImporter(importers.ImporterBase):
-    def key_columns(self, path: Path) -> Optional[TableRow]:
-        sid = int(''.join(path.parts[-6:-1]))
-        return TableRow(("furaffinity.net", sid, '2021-01-01', 1))
-
 def do_test_push(tmp_path, dataset_name: str, remote: Repo):
     """Run and validate pushing content files to a remote"""
+    tmp_path = Path(tmp_path)
     importer = TestImporter()
     shutil.copy(config_directory / "submissions.dataset", tmp_path / "submissions.dataset")
     shutil.copy(config_directory / "urls.dataset", tmp_path / "urls.dataset")
-    dataset_schema = DatasetSchema.must_load(dataset_name)
-    shutil.copytree(import_directory, os.path.join(tmp_path, "import_data"))
-    db_config = {
-        "unix_socket": base_config.dolt_server_socket,
-        "user": "root",
-        "database": base_config.dolt_db,
-        "autocommit": True,
-        "port": random.randint(20000, 21000),
-    }
-    dataset_source = DatasetSource(dataset_schema, repo=base_config.local_repo())
-    with (
-        DoltSqlServer(base_config.dolt_dir, base_config.dolt_db, db_config, base_config.spawn_dolt_server) as dolt_server,
-    ):
-        with Dataset(dolt_server, dataset_source, base_config.auto_push, import_config.batch_size) as downloader:
-            ssh_settings = SshSettings(Path(__file__).parent / "config/ssh_config", None)
-            local_remote = base_config.local_repo()
-            table = next(iter(downloader.tables.values()))
-            do_import(local_remote, import_config, table, importer, ["import_data/00"])
-            downloader.flush()
-            with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{dataset_name}"):
-                dolt_server.commit(amend=True)
+    shutil.copytree(import_directory, tmp_path / "import_data")
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings)
+    importer = TestImporter()
+    remote_file_store = remote.filestore()
+    local_file_store = base_config.get_filestore()
+    local_uuid = base_config.get_uuid()
+    with contextlib.chdir(config_directory):
+        dataset_schema = DatasetSchema.must_load(dataset_name)
+    
+    with (
+        local_file_store.open(base_config),
+        remote_file_store.open(base_config),
+        Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset
+    ):
+            do_import(local_file_store, local_uuid, import_config, dataset, importer, ["import_data/00"])
+            dataset.flush()
+            with dataset.dolt.set_branch(f"{local_uuid}-{dataset_name}"):
+                dataset.dolt.commit(amend=True)
+
+            files_pushed = push_and_verify(dataset, remote, local_uuid, remote_file_store, local_file_store)
             assert files_pushed == 2
             # Pushing again should have no effect
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings)
+            files_pushed = push_and_verify(dataset, remote, local_uuid, remote_file_store, local_file_store)
             assert files_pushed == 0
 
             # But if we add more files, it should push them
-            do_import(local_remote, import_config, table, importer, ["import_data/08"])
-            downloader.flush()
-            with downloader.dolt.set_branch(f"{context.local_uuid.get()}-{dataset_name}"):
-                dolt_server.commit(amend=True)
+            do_import(local_file_store, local_uuid, import_config, dataset, importer, ["import_data/08"])
+            dataset.flush()
+            with dataset.dolt.set_branch(f"{local_uuid}-{dataset_name}"):
+                dataset.dolt.commit(amend=True)
 
-            files_pushed = push_and_verify(downloader, remote, ssh_settings)
+            files_pushed = push_and_verify(dataset, remote, local_uuid, remote_file_store, local_file_store)
             assert files_pushed == 1
 
 
-def push_and_verify(downloader: Dataset, file_remote: Repo, ssh_settings: SshSettings):
+def push_and_verify(dataset: Dataset, file_remote: Repo, local_uuid: uuid.UUID, remote_file_store: FileStore, local_file_store: FileStore):
 
-    files_pushed = push_dataset(downloader, file_remote, ssh_settings, [], limit=None)
-    downloader.flush()
+    files_pushed = push_dataset(dataset, local_uuid, file_remote, remote_file_store, local_file_store, [], limit=None)
+    dataset.flush()
 
-    if file_remote.files_url.startswith("file://"):
-        pushed_files_dir = Path(file_remote.files_url[7:]).absolute()
-    elif '@' in file_remote.files_url:
-        user, rest = file_remote.files_url.split('@', maxsplit=1)
-        host, path = rest.split(':', maxsplit=1)
-        pushed_files_dir = Path(path).absolute()
-    else:
-        raise ValueError(f"Unsupported remote URL format: {file_remote.files_url}")
-        
     for key in files_pushed:
-        
-        key_path = pushed_files_dir / get_key_path(key)
-        assert Path(key_path).exists()
+        assert remote_file_store.exists(key), f"Remote filestore missing pushed file {key}"
     # TODO: Test that the branches are correct.
 
     return len(files_pushed)

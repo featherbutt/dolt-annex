@@ -4,19 +4,17 @@
 from pathlib import Path
 from uuid import UUID
 
-from typing_extensions import Iterable, Optional, Tuple, List
+from typing_extensions import Literal, Optional, List
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.table import Dataset, FileTable
-from dolt_annex.commands.sync import SshSettings, TableFilter
+from dolt_annex.filestore import FileStore
+from dolt_annex.sync import move_table, TableFilter
+from dolt_annex.table import Dataset
 from dolt_annex.application import Application
-from dolt_annex.commands.push import FileMover, file_mover, diff_keys
-from dolt_annex.filestore import get_old_relative_annex_key_path, get_key_path
-from dolt_annex.logger import logger
-from dolt_annex.datatypes import AnnexKey, TableRow, Repo
-from dolt_annex import context
+from dolt_annex.datatypes import AnnexKey
+from dolt_annex.datatypes.remote import Repo
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
@@ -34,14 +32,12 @@ class Pull(cli.Application):
         "--ssh-config",
         str,
         help="The path to the ssh config file",
-        default = "~/.ssh/config",
     )
 
     known_hosts = cli.SwitchAttr(
         "--known-hosts",
         str,
         help="The path to the known hosts file",
-        default = None,
     )
 
     limit = cli.SwitchAttr(
@@ -78,51 +74,35 @@ class Pull(cli.Application):
 
     filters: List[TableFilter] = []
 
-    def main(self, *args) -> int:
+    def main(self, *args: list[str]) -> Literal[0]:
         """Entrypoint for pull command"""
-        dataset = DatasetSchema.must_load(self.dataset)
-        remote_name = self.remote or self.parent.config.dolt_remote
-        remote = Repo.must_load(remote_name)
-        ssh_settings = SshSettings(Path(self.ssh_config), Path(self.known_hosts))
+        base_config = self.parent.config
+        if self.ssh_config:
+            base_config.ssh.ssh_config = Path(self.ssh_config)
+        if self.known_hosts:
+            base_config.ssh.known_hosts = Path(self.known_hosts)
 
-        with Dataset.connect(self.parent.config, self.batch_size, dataset) as downloader:
-            pull_dataset(downloader, remote, ssh_settings, self.filters, self.limit)
+        dataset_schema = DatasetSchema.must_load(self.dataset)
+        remote_name = self.remote or base_config.dolt.default_remote
+        remote_repo = Repo.must_load(remote_name)
+        remote_file_store = remote_repo.filestore()
+        local_file_store = base_config.filestore
+        if not local_file_store:
+            raise ValueError("No local filestore configured")
+        local_uuid = self.parent.config.get_uuid()
+
+        with (
+            local_file_store.open(base_config),
+            remote_file_store.open(base_config),
+            Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
+        ):
+            pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
         return 0
-    
-def pull_submissions_and_keys(keys_and_submissions: Iterable[Tuple[AnnexKey, TableRow]], downloader: FileTable, mover: FileMover, local_uuid: UUID, files_pulled: List[AnnexKey]) -> bool:
-    has_more = False
-    for key, table_row in keys_and_submissions:
-        has_more = True
-        logger.info(f"pulling {table_row}: {key}")
-        rel_key_path = get_key_path(key)
-        old_rel_key_path = get_old_relative_annex_key_path(key)
-        if not mover.get(old_rel_key_path, rel_key_path):
-            mover.get(rel_key_path, rel_key_path)
-        downloader.insert_file_source(table_row, key, local_uuid)
-        files_pulled.append(key)
-    downloader.flush()
-    return has_more
 
-def pull_dataset(dataset: Dataset, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pulled_keys is None:
         out_pulled_keys = []
-    dataset.pull_from(file_remote)
+    dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        pull_table(table, file_remote, ssh_settings, where, limit, out_pulled_keys)
+        move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, limit, out_pulled_keys)
     return out_pulled_keys
-
-def pull_table(table: FileTable, file_remote: Repo, ssh_settings: SshSettings, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
-    if out_pulled_keys is None:
-        out_pulled_keys = []
-    dolt = table.dolt
-    local_uuid = context.local_uuid.get()
-    remote_uuid = file_remote.uuid
-
-    with file_mover(file_remote, ssh_settings) as mover:
-        while True:
-            keys_and_submissions = list(diff_keys(dolt, str(remote_uuid), str(local_uuid), table.dataset_name, table.schema, where, limit))
-            has_more = pull_submissions_and_keys(keys_and_submissions, table, mover, local_uuid, out_pulled_keys)
-            if not has_more:
-                break
-    return out_pulled_keys
-

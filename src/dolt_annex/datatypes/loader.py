@@ -3,15 +3,14 @@
 
 import json
 from pathlib import Path
+from pydantic import BaseModel
 from typing_extensions import Self, Optional
-
-from dataclass_wizard import fromdict, asdict
 
 def Loadable(extension: str, config_dir = Path(".")):
     """
     Create a mixin class that allows loading from a JSON file.
     """
-    class LoadableMixin:
+    class LoadableMixin(BaseModel):
         """
         A mixin class that allows loading from a JSON file.
         """
@@ -26,7 +25,7 @@ def Loadable(extension: str, config_dir = Path(".")):
                     data = json.load(f)
                     if data.get("name") != name:
                         raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
-                    return fromdict(cls, data)
+                    return cls(**data)
             return None
         
         @classmethod
@@ -45,6 +44,6 @@ def Loadable(extension: str, config_dir = Path(".")):
             """
             path = config_dir / f"{name}.{extension}"
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(asdict(self), f, ensure_ascii=False, indent=4)
+                json.dump(self.model_dump_json(), f, ensure_ascii=False, indent=4)
 
     return LoadableMixin

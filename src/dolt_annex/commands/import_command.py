@@ -1,21 +1,23 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
+from uuid import UUID
 
 from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
 from dolt_annex import importers, move_functions
+from dolt_annex.config.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.file_keys import key_from_file
-from dolt_annex.filestore import get_key_path
 from dolt_annex.application import Application
+from dolt_annex.file_keys import FileKeyType, get_file_key_type
+from dolt_annex.filestore import FileStore
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.move_functions import MoveFunction
-from dolt_annex.datatypes import AnnexKey, Repo
-from dolt_annex.table import Dataset, FileTable
+from dolt_annex.datatypes import AnnexKey
+from dolt_annex.table import Dataset
 
 class ImportError(Exception):
     pass
@@ -26,6 +28,7 @@ class ImportConfig:
     batch_size: int
     move_function: MoveFunction
     follow_symlinks: bool
+    file_key_type: FileKeyType
 
 class Import(cli.Application):
     """Import a file or directory into the annex and database"""
@@ -75,6 +78,13 @@ class Import(cli.Application):
         help="The name of the dataset being imported to",
     )
 
+    file_key_type = cli.SwitchAttr(
+        "--file-key-type",
+        str,
+        help="The type of file key to use",
+        default = "Sha256e",
+    )
+
     def get_move_function(self) -> MoveFunction:
         """Get the function to move files based on the command line arguments"""
         print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
@@ -86,6 +96,7 @@ class Import(cli.Application):
             return move_functions.move
         
     def main(self, *files_or_directories: str):
+        base_config = self.parent.config
 
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
@@ -97,19 +108,20 @@ class Import(cli.Application):
             batch_size = self.batch_size,
             move_function = move_function,
             follow_symlinks = follow_symlinks,
+            file_key_type = get_file_key_type(self.file_key_type),
         )
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
-        with Dataset.connect(self.parent.config, import_config.batch_size, dataset_schema) as dataset:
+        with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
             importer = get_importer(*self.importer.split())
-            do_import(self.parent.config.local_repo(), import_config, dataset, importer, files_or_directories)
+            do_import(base_config.get_filestore(), base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
 
-def do_import(remote: Repo, import_config: ImportConfig, dataset: Dataset, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
+def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, AnnexKey]] = {}
     for table_name, table in dataset.tables.items():
         key_paths[table_name] = {}
-        table.add_flush_hook(move_files, remote, import_config.move_function, key_paths[table_name])
-    
+        table.add_flush_hook(move_files, file_store, key_paths[table_name])
+
     def import_path(file_or_directory: Path):
         """Import a file or directory into the annex"""
         if file_or_directory.is_file():
@@ -142,26 +154,24 @@ def do_import(remote: Repo, import_config: ImportConfig, dataset: Dataset, impor
         if importer and importer.skip(path):
             return
         logger.debug(f"Importing file {path}")
-        abs_path = Path(path)
-        key = key_from_file(abs_path, importer.extension(path))
+        key = import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
             key_columns = importer.key_columns(path)
             if key_columns:
                 table_name = importer.table_name(path)
                 table = dataset.get_table(table_name)
-                table.insert_file_source(key_columns, key, remote.uuid)
-                key_paths[table_name][abs_path] = key
+                table.insert_file_source(key_columns, key, uuid)
+                key_paths[table_name][path] = key
             if not key_columns:
                 raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
 
     for file_or_directory in files_or_directories:
         import_path(Path(file_or_directory))
 
-def move_files(remote: Repo, move: MoveFunction, files: Dict[Path, AnnexKey]):
+def move_files(file_store: FileStore, files: Dict[Path, AnnexKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():
-        key_path = remote.files_dir() / get_key_path(key)
-        move(file_path, key_path)
+        file_store.put_file(file_path, key)
     files.clear()
