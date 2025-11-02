@@ -6,7 +6,7 @@ from typing_extensions import Literal
 
 from plumbum import cli
 
-from dolt_annex.config import Config
+from dolt_annex.datatypes.config import Config
 
 class Env:
     CONFIG_FILE = "DA_CONFIG"

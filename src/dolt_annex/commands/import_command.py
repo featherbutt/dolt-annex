@@ -7,8 +7,7 @@ from typing_extensions import Dict, Iterable
 
 from plumbum import cli # type: ignore
 
-from dolt_annex import importers, move_functions
-from dolt_annex.config.config import Config
+from dolt_annex import importers
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import FileKeyType, get_file_key_type

@@ -8,7 +8,7 @@ import time
 from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
-from dolt_annex.config.config import Config
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
 
@@ -16,7 +16,6 @@ from .dolt import DoltSqlServer
 from .logger import logger
 from .datatypes import AnnexKey, TableRow
 from .datatypes.table import FileTableSchema
-from dolt_annex import dolt
 
 # We must prevent data loss in the event the process is interrupted:
 # - Original file names contain data that is lost when the file is added to the annex
