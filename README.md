@@ -20,48 +20,33 @@ An unrelated scaling issue for git-annex is that the standard git client creates
 
 ## Requirements
 
-dolt-annex needs to connect to a locally running Dolt server in order to work, but the code itself does not depend on Dolt.
+dolt-annex depends on [Dolt](https://github.com/dolthub/dolt). Dolt can be installed locally, or dolt-annex can connect to a running Dolt server.
 
-Python 3.7+ is required. I've tested on both 3.10 and 3.13 and haven't encountered any obvious issues.
+Python 3.10+ is required.
 
 ## Installation
 
-While dolt-annex used to depend on git-annex and bup, it's now pure python. Installation and running is as simple as downloading the source and running main.py
+dolt-annex is pure python. To install, simply clone and run `pip install ./src`.
 
 ## Running
 
-git-annex-archive requires a configuration, which can be specified via command line flags, environment variables, or a JSON config file. I reccomend the JSON config file, which can be supplied to every command with the `-c` flag. An example config file is included for reference.
+Before running dolt-annex for the first time, read through [CONCEPTS.md](CONCEPTS.md). 
 
-Currently, you need to run `main.py` with your command line flags.
+The curent set of useful subcommands are:
 
-The curent sent of useful subcommands are:
+- `init` - creates a basic environment with sensible defaults in the current directory. This isn't necessary if you're going to set up your environment yourself, but looking at its implementation (in `commands/init.py`) is helpful for seeing what needs to be done to configure your repo.
+- `import` - import a local directory into to your annex.
+- `push` - upload files from your annex to a remote.
+- `pull` - download files from a remote to your annex.
+- `gallery-dl` - uses [gallery-dl](https://github.com/mikf/gallery-dl) to download files from a site supported by gallery-dl, and imports them into your annex.
+- `server` - create a sandboxed SFTP server, allowing dolt-annex to act as a remote.
 
-- `init` - attempts to initialize your Dolt and git-annex repos. This isn't necessary if you're going to set up your environment yourself, but looking at its implementation (in `commands/init.py`) is helpful for seeing what needs to be done to configure your repo.
-- `import` - adds local files to your annex, optionally recording the URL that they were originally downloaded from. You must supply exactly one of `--move`, `--copy`, or `--symlink`, which determines what happens to the original files.
-  - `--move` moves the files into the annex, whicih is the fastest but destroys the directory structure you're importing from. The original file name and path will be lost. Be careful with this.
-  - `--copy` preserves the original file and makes a copy in the annex. This is the safest option, but slowest and doubles your disk usage.
-  - `--symlink` replaces the original file with a symlink to the file in its new location. Less destructive than `--move` but avoids copies. A happy medium.
+## `dolt-annex import` 
 
-## Importing 
+Format: `dolt-annex import [--move|--copy|--symlink] --importer $IMPORTER --dataset $DATASET" --file-key-type $FILE_KEY_TYPE $DIRECTORY`
 
-Many of the other flags for `main.py --import` are for specific kinds of local archives that I had lying around that I wanted to import. Most likely the one you want is `--url-prefix`, which takes a string prefix and generates the URL by concatenating this prefix with the relative path of the imported file from the current working directory.
+Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type Sha256e ~/Downloads/prefix.com/files`
 
-So for example, if you have a mirror of `https://example.com/coolstuff` stored at `/home/me/coolstuff`, and the directory layout of your mirror matches the layout of the website, you could import the files by running:
+## `dolt-annex pull` and `dolt-annex push`
 
-```bash
-cd /home/me/
-python $PATH_TO_GAA/main.py -c config.json import --symlink --url-prefix "https://example.com/" coolstuff
-```
-
-Don't use `./coolstuff`. Don't cd into the `coolstuff` directory and import `.`. Neither of those will produce the correct url. Yes, this is annoying. Yes, this will get fixed.
-
-## Pushing content
-
-Being able to push content to remotes is a very important feature. Unfortunately it doesn't exist yet. I'm working on it.
-
-In the meantime, you can push things by using the underlying Dolt, and  git-annex commands:
-
-```bash
-dolt push
-git annex push --all
-```
+## `dolt-annex gallery-dl`
