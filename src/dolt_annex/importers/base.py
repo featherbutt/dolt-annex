@@ -5,7 +5,7 @@ from typing_extensions import List, Optional, Type, Dict, override
 
 from dolt_annex.datatypes import TableRow
 
-class ImporterBase(AbstractBaseClass):
+class Importer(AbstractBaseClass):
 
     @abstractmethod
     def key_columns(self, path: Path) -> Optional[TableRow]:
@@ -23,9 +23,9 @@ class ImporterBase(AbstractBaseClass):
     
    
 
-importers: Dict[str, Type[ImporterBase]] = {}
+importers: Dict[str, Type[Importer]] = {}
 
-def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
+def get_importer(importerName: str, *args, **kwargs) -> Importer:
     match importerName.split('.'):
         case [module_name]:
             class_name = module_name
@@ -38,7 +38,7 @@ def get_importer(importerName: str, *args, **kwargs) -> ImporterBase:
         return getattr(importer_module, class_name)(*args, **kwargs)
     return getattr(importer_module, "Importer")(*args, **kwargs)
 
-class DirectoryImporter(ImporterBase):
+class DirectoryImporter(Importer):
     def __init__(self, table_name: str, prefix: str = ""):
         self.prefix = prefix
         self._table_name = table_name
@@ -51,7 +51,7 @@ class DirectoryImporter(ImporterBase):
     def table_name(self, path: Path) -> str:
         return self._table_name
 
-class MD5Importer(ImporterBase):
+class MD5Importer(Importer):
     def __init__(self, table_name: str):
         self._table_name = table_name
 

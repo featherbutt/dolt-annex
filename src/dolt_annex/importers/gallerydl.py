@@ -5,10 +5,10 @@ from pathlib import Path
 from typing_extensions import Optional, override
 
 from dolt_annex.datatypes.common import TableRow
-from .base import ImporterBase
+from .base import Importer
 
 # Remove subcategory and sort keys when importing post
-class GalleryDL(ImporterBase):
+class GalleryDL(Importer):
     """
     Importer for gallery-dl downloads.
 
