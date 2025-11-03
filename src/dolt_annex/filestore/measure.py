@@ -6,7 +6,7 @@ from io import TextIOWrapper
 from pathlib import Path
 from typing_extensions import Optional, ContextManager, Generator, override, Self, BinaryIO
 
-from dolt_annex.config.config import Config
+from dolt_annex.datatypes.config import Config
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore import FileStore
 
