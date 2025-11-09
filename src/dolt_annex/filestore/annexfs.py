@@ -16,32 +16,27 @@ from contextlib import contextmanager
 import hashlib
 from pathlib import Path
 from typing import BinaryIO
-from typing_extensions import Generator, Optional, override
+from typing_extensions import Generator, override
 
-from dolt_annex.file_keys import FileKey, FileKeyType
+from dolt_annex.file_keys import FileKey
 
 from .base import FileStore, copy
 
 class AnnexFS(FileStore):
 
     root: Path
-    file_key_format: FileKeyType
 
     @override
-    def put_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> None:
+    def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
-        if file_key is None:
-            file_key = self.file_key_format.from_file(file_path)
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.rename(output_path)
         return
 
     @override
-    def put_file_object(self, in_fd: BinaryIO, file_key: Optional[FileKey] = None) -> None:
+    def put_file_object(self, in_fd: BinaryIO, file_key: FileKey) -> None:
         """Copy a file-like object into the annex."""
-        if file_key is None:
-            file_key = self.file_key_format.from_fo(in_fd)
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with open(output_path, 'wb') as out_fd:
