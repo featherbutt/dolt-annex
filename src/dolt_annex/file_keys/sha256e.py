@@ -33,3 +33,11 @@ class Sha256e(FileKey):
         """Generate a FileKey from bytes in memory."""
         data_hash = hashlib.sha256(file_bytes).hexdigest()
         return cls.make(len(file_bytes), data_hash, extension)
+    
+    @classmethod
+    @override
+    def try_parse(cls, key: bytes) -> Optional[Self]:
+        """Generate a FileKey from bytes in memory."""
+        if key.startswith(b"SHA256E-s"):
+            return cls(key=key)
+        return None

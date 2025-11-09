@@ -8,7 +8,7 @@ But other schemes could be added in the future.
 """
 
 import importlib
-from pydantic import ModelWrapValidatorHandler, ValidateAs, WrapValidator
+from pydantic import ModelWrapValidatorHandler, PlainSerializer, ValidateAs, WrapValidator
 from typing_extensions import Annotated, Optional
 from .base import FileKey
 from .sha256e import Sha256e
@@ -34,6 +34,6 @@ def get_file_key_type(name: str) -> type[FileKey]:
         return getattr(file_key_module, class_name)
     return getattr(file_key_module, module_name)
 
-type FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator)]
+type FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.__name__)]
 
 __all__ = ['FileKey', 'FileKeyType', 'Sha256e']
