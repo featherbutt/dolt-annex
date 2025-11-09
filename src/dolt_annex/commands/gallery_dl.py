@@ -1,15 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
-
 from plumbum import cli # type: ignore
-
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.logger import logger
-
 from dolt_annex.gallery_dl import dataset_context, make_default_schema, run_gallery_dl
 from dolt_annex.table import Dataset
 
