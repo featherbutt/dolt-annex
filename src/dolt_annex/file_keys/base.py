@@ -35,8 +35,16 @@ class FileKey:
     def from_bytes(cls, file_bytes: bytes, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from bytes in memory."""
 
+    @classmethod
+    @abstractmethod
+    def try_parse(cls, key: bytes) -> Optional[Self]:
+        """Validate a key."""
+
     def __bytes__(self) -> bytes:
         return self.key
 
     def __str__(self) -> str:
         return self.key.decode('utf-8')
+
+    def __hash__(self) -> int:
+        return hash(self.key)
