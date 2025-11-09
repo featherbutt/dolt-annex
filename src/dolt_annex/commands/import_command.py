@@ -11,23 +11,25 @@ from dolt_annex import importers
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
+from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
-from dolt_annex.move_functions import MoveFunction
 from dolt_annex.datatypes import AnnexKey
 from dolt_annex.table import Dataset
 
-class ImportError(Exception):
+class AnnexImportError(Exception):
     pass
 
 @dataclass
 class ImportConfig:
     """Configuration for the import command"""
     batch_size: int
-    move_function: MoveFunction
     follow_symlinks: bool
     file_key_type: FileKeyType
+    move: bool
+    copy: bool
+    symlink: bool
 
 class Import(cli.Application):
     """Import a file or directory into the annex and database"""
@@ -43,19 +45,19 @@ class Import(cli.Application):
 
     move = cli.Flag(
         "--move",
-        help="Move imported files into the annex",
+        help="Ensures that imported files are deleted from their original location after being moved into the annex",
         excludes = ["--copy", "--symlink"],
     )
 
     copy = cli.Flag(
         "--copy",
-        help="Copy imported files into the annex",
+        help="Ensures that imported files are copied into the annex and original files are retained",
         excludes = ["--move", "--symlink"],
     )
 
     symlink = cli.Flag(
         "--symlink",
-        help="Copy imported files into the annex",
+        help="Moves imported files into the annex and creates symlinks at the original file locations",
         excludes = ["--move", "--copy"],
     )
 
@@ -83,16 +85,6 @@ class Import(cli.Application):
         help="The type of file key to use",
         default = "Sha256e",
     )
-
-    def get_move_function(self) -> MoveFunction:
-        """Get the function to move files based on the command line arguments"""
-        print(f"Copy: {self.copy}, Move: {self.move}, Symlink: {self.symlink}")
-        if self.copy:
-            return move_functions.copy
-        elif self.symlink:
-            return move_functions.move_and_symlink
-        else:
-            return move_functions.move
         
     def main(self, *files_or_directories: str):
         base_config = self.parent.config
@@ -100,26 +92,27 @@ class Import(cli.Application):
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
-        move_function = self.get_move_function()
         follow_symlinks = (self.symlinks == "follow")
 
         import_config = ImportConfig(
             batch_size = self.batch_size,
-            move_function = move_function,
             follow_symlinks = follow_symlinks,
             file_key_type = get_file_key_type(self.file_key_type),
+            move=self.move,
+            copy=self.copy,
+            symlink=self.symlink,
         )
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
             importer = get_importer(*self.importer.split())
-            do_import(base_config.get_filestore(), base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
+            do_import(base_config.get_filestore().file_store, base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
 
-def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.ImporterBase, files_or_directories: Iterable[str]):
-    key_paths: Dict[str, Dict[Path, AnnexKey]] = {}
+def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
+    key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in dataset.tables.items():
         key_paths[table_name] = {}
-        table.add_flush_hook(move_files, file_store, key_paths[table_name])
+        table.add_flush_hook(move_files, file_store, import_config,key_paths[table_name])
 
     def import_path(file_or_directory: Path):
         """Import a file or directory into the annex"""
@@ -163,14 +156,26 @@ def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, da
                 table.insert_file_source(key_columns, key, uuid)
                 key_paths[table_name][path] = key
             if not key_columns:
-                raise ImportError("Importer did not produce a set of key columns, it is not safe to import")
+                raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")
 
     for file_or_directory in files_or_directories:
         import_path(Path(file_or_directory))
 
-def move_files(file_store: FileStore, files: Dict[Path, AnnexKey]):
+def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, AnnexKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():
-        file_store.put_file(file_path, key)
+        if import_config.copy:
+            file_store.copy_file(file_path, key)
+        else:
+            file_store.put_file(file_path, key)
+        if import_config.move:
+            # TODO: Add an extra check here that the file was added successfully, then delete the file
+            # os.remove(file_path)
+            pass
+        elif import_config.symlink:
+            # TODO: If the filestore doesn't support symlinks, that should have been caught earlier.
+            # Otherwise, verify that the file was successfully moved, get the new path, and create the symlink
+            pass
+    
     files.clear()
