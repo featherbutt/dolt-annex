@@ -66,7 +66,7 @@ class Logger:
         self.log(WARNING, *message)
 
     def error(self, *message):
-        """Log a message with INFO severity"""
+        """Log a message with ERROR severity"""
         self.log(ERROR, *message)
 
 null_logger = Logger(lambda *args, **kwargs: None)

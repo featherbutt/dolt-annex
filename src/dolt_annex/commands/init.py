@@ -7,7 +7,7 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
-from dolt_annex.config.config import Config
+from dolt_annex.datatypes.config import Config
 from dolt_annex.gallery_dl import skip_db_path
 from dolt_annex.data import data_dir
 
