@@ -42,6 +42,9 @@
         "itaku": {
             "image-unique": true,
             "include": "all"
-        }
+        },
+		"ao3": {
+			"formats": ["html"]
+		}
     }
 }

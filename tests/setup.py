@@ -11,7 +11,7 @@ from uuid import UUID
 from plumbum import local
 
 from dolt_annex.commands.init import InitConfig, do_init
-from dolt_annex.config.config import Config
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.remote import URL, Repo
 
 base_config = Config.model_validate({

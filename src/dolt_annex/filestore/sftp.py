@@ -21,7 +21,7 @@ from typing_extensions import Optional, ContextManager, override, Generator, Bin
 
 import sftpretty
 
-from dolt_annex.config.config import Config
+from dolt_annex.datatypes.config import Config
 from dolt_annex.file_keys import FileKey, FileKeyType
 
 from .base import FileStore, copy
