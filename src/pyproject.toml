@@ -23,6 +23,7 @@ dataclass-wizard = "^0.35.1"
 gallery-dl = {git = "https://github.com/featherbutt/gallery-dl"}
 tzdata = "^2025.2"
 pydantic = "^2.12.3"
+asyncssh = "^2.21.1"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
