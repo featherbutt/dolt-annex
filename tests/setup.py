@@ -11,29 +11,30 @@ from uuid import UUID
 from plumbum import local
 
 from dolt_annex.commands.init import InitConfig, do_init
-from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.remote import URL, Repo
+from dolt_annex.datatypes import remote
+from dolt_annex.datatypes.config import Config, DoltConfig, SshSettings
+from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.common import Connection
+from dolt_annex.filestore.annexfs import AnnexFS
 
-base_config = Config.model_validate({
-    "dolt": {
-        "db_name": "dolt",
-        "spawn_dolt_server": True,
-        "default_remote": "origin",
-        "dolt_dir": Path("./dolt"),
-    },
-    "filestore": {
-        "type": "AnnexFS",
-        "root": "./files",
-        "file_key_format": "Sha256e",
-    },
-    "ssh": {
-        "ssh_config": str(Path(__file__).parent / "config" / "ssh_config"),
-        "known_hosts": None,
-        "encrypted_ssh_key": False,
-    },
-    "uuid": uuid.uuid4(),
-    # dolt_server_socket=f"/tmp/mysql{random.randint(1,1000)}.sock"
-})
+local_filestore = AnnexFS(root=Path("./files"))
+
+base_config = Config(
+    dolt=DoltConfig(
+        db_name="dolt",
+        spawn_dolt_server=True,
+        default_remote="origin",
+        dolt_dir=Path("./dolt"),
+    ),
+    filestore=local_filestore,
+    ssh=SshSettings(
+        ssh_config=Path(__file__).parent / "config" / "ssh_config",
+        #known_hosts=str(Path(__file__).parent / "test_client_keys" / "known_hosts"),
+        encrypted_ssh_key=False,
+        client_key=Path(__file__).parent / "test_client_keys" / "id_ed25519",
+    ),
+    uuid=uuid.uuid4(),
+)
 
 def setup_file_remote(tmp_path):
     origin_uuid = uuid.uuid4()
@@ -57,7 +58,7 @@ def setup_ssh_remote(tmp_path):
     init()
     Path(os.path.join(tmp_path, "remote_files")).mkdir()
     yield Repo.model_validate({
-        "url": URL(
+        "url": Connection(
             user=user,
             host="localhost",
             port=22,
