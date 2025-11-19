@@ -3,6 +3,7 @@
 
 """Functionality for interacting with the Dolt server."""
 
+import os
 from pathlib import Path
 import time
 
@@ -53,6 +54,8 @@ class DoltSqlServer:
             args.extend(["-P", str(self.db_config["port"])])
         if "unix_socket" in self.db_config:
             args.extend(["--socket", self.db_config["unix_socket"]])
+        if (server_logfile := os.getenv("DA_SERVER_LOGFILE")) is not None:
+            dolt = (dolt > server_logfile)
         dolt_server_process = dolt.popen(["sql-server", *args])
         while True:
             try:
