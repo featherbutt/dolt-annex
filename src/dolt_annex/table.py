@@ -178,10 +178,10 @@ class Dataset:
             "port": port,
             **dolt_config.connection,
         }
-        if os.name == 'nt':
+        if os.name != 'nt' and dolt_config.server_socket:
+            db_config["unix_socket"] = dolt_config.server_socket.as_posix()
+        elif dolt_config.hostname:
             db_config["host"] = dolt_config.hostname
-        else:
-            db_config["unix_socket"] = dolt_config.server_socket
 
         with (
             DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server) as dolt_server,
