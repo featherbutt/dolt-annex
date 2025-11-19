@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 import os
 import random
 import time
+from typing import Awaitable, Optional
 from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
@@ -40,7 +41,7 @@ class FileTable:
     batch_size: int
     count: int
     time: float
-    flush_hooks: List[Callable[[], None]]
+    flush_hooks: List[Callable[[], Awaitable[None]]]
     write_sources_table: bool = False
     write_git_annex: bool = False
     schema: FileTableSchema
@@ -59,24 +60,24 @@ class FileTable:
         self.auto_push = auto_push
         self.branch_start_point = branch_start_point
 
-    def increment_count(self):
+    async def increment_count(self):
         self.count += 1
         if self.count >= self.batch_size:
-            self.flush()
+            await self.flush()
             self.count = 0
 
-    def insert_file_source(self, table_row: TableRow, key: AnnexKey, source: UUID):
+    async def insert_file_source(self, table_row: TableRow, key: AnnexKey, source: UUID):
         if source not in self.added_rows:
             self.added_rows[source] = []
         self.added_rows[source].append((key, table_row))
 
-        self.increment_count()
+        await self.increment_count()
 
-    def add_flush_hook[**P](self, hook: Callable[P, None], *args: P.args, **kwargs: P.kwargs) -> None:
+    def add_flush_hook[**P](self, hook: Callable[P, Awaitable[None]], *args: P.args, **kwargs: P.kwargs) -> None:
         """Add a hook to be called when the cache is flushed."""
         self.flush_hooks.append(lambda: hook(*args, **kwargs))
 
-    def flush(self):
+    async def flush(self):
         """Flush the cache to the git-annex branch and the Dolt database."""
         # Flushing the cache must be done in the following order:
         # 1. Update the git-annex branch to contain the new ownership records and registered urls.
@@ -92,7 +93,7 @@ class FileTable:
                 self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         for hook in self.flush_hooks:
-            hook()
+            await hook()
 
         num_keys = len(self.added_rows)
         self.added_rows.clear()
@@ -102,11 +103,11 @@ class FileTable:
         logger.debug(f"added {num_keys} keys in {elapsed_time:.2f} seconds")
         self.time = new_now
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.flush()
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.flush()
 
     def has_row(self, uuid: UUID, key: TableRow) -> bool:
         query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
@@ -114,6 +115,13 @@ class FileTable:
         for _ in results:
             return True
         return False
+
+    def get_row(self, uuid: UUID, key: TableRow) -> Optional[bytes]:
+        query_sql = f"SELECT {self.schema.file_column} FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
+        results = self.dolt.query(query_sql, tuple(key))
+        for result in results:
+            return result[0]
+        return None
     
 class Dataset:
     """A version controlled branch that contains one or more file tables."""
@@ -140,24 +148,24 @@ class Dataset:
     
     def pull_from(self, remote: Repo):
         self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote)
-    
-    def __enter__(self):
+
+    async def __aenter__(self):
         return self
-    
-    def __exit__(self, exc_type, exc_value, traceback):
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
         for table in self.tables.values():
-            table.__exit__(exc_type, exc_value, traceback)
+            await table.__aexit__(exc_type, exc_value, traceback)
         if self.auto_push:
             pass
             # self.dolt.push_branch()
 
-    def flush(self):
+    async def flush(self):
         for table in self.tables.values():
-            table.flush()
+            await table.flush()
 
     @staticmethod
-    @contextmanager
-    def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema):
+    @asynccontextmanager
+    async def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema):
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
@@ -177,6 +185,6 @@ class Dataset:
 
         with (
             DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server) as dolt_server,
-            Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset
         ):
-            yield dataset
+            async with Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset:
+                yield dataset

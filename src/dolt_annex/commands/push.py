@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import asyncio
 from pathlib import Path
 from uuid import UUID
 
@@ -78,7 +79,9 @@ class Push(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for push command"""
+        return asyncio.run(self._main_async())
 
+    async def _main_async(self) -> int:
         base_config = self.parent.config
 
         if self.ssh_config:
@@ -88,25 +91,25 @@ class Push(cli.Application):
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or self.parent.config.dolt.default_remote
-        remote_repo = Repo.must_load(remote_name)
-        remote_file_store = remote_repo.filestore()
+        remote_repo = base_config.get_remote(remote_name)
+        remote_file_store = remote_repo.filestore().file_store
         local_file_store = self.parent.config.filestore
         if not local_file_store:
             raise ValueError("No local filestore configured")
         local_uuid = self.parent.config.get_uuid()
 
-        with (
+        async with (
             local_file_store.open(base_config),
             remote_file_store.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            await push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
         return 0
 
-def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+async def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pushed_files is None:
         out_pushed_files = []
     dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, limit, out_pushed_files)
+        await move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, limit, out_pushed_files)
     return out_pushed_files

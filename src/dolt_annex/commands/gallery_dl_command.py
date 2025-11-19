@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import asyncio
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
@@ -30,6 +31,10 @@ class GalleryDL(cli.Application):
 
     def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
+        asyncio.run(self._main_async(args))
+        return 0
+    
+    async def _main_async(self, args) -> int:
         dataset_name = self.dataset
         dataset_schema = DatasetSchema.load(dataset_name)
         if not dataset_schema:
@@ -38,7 +43,7 @@ class GalleryDL(cli.Application):
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save_as(dataset_name)
             
-        with (
+        async with (
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset,
         ):
             dataset_context.set(dataset)

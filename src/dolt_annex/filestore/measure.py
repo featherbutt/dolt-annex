@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import contextmanager
-from io import TextIOWrapper
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from io import BytesIO, TextIOWrapper
 from pathlib import Path
-from typing_extensions import Optional, ContextManager, Generator, override, Self, BinaryIO
+from typing import cast
+from typing_extensions import override, Self
 
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.file_io import FileInfo, FileObject
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore import FileStore
+from dolt_annex.filestore.base import MaybeAwaitable, ReadableFileObject
 
 class Measure(FileStore):
     """
@@ -38,17 +42,17 @@ class Measure(FileStore):
         self._stats_file.flush()
 
     @override
-    def put_file_object(self, in_fd: BinaryIO, file_key: Optional[FileKey] = None) -> None:
+    def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> MaybeAwaitable[None]:
         """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
         return self.child.put_file_object(in_fd, file_key)
 
     @override
-    def get_file_object(self, file_key: FileKey) -> ContextManager[BinaryIO]:
+    def get_file_object(self, file_key: FileKey) -> MaybeAwaitable[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         return self.child.get_file_object(file_key)
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
         """
         Returns whether the key exists in the filestore.
         """
@@ -56,22 +60,29 @@ class Measure(FileStore):
 
 
     @override
-    def open(self, config: Config) -> ContextManager[None]:
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[Self]:
         """Open the filestore, loading or initializing metrics tracking."""
-        @contextmanager
-        def inner(self: Self) -> Generator[None]:
-            with open(self.stats_file_path, 'r+', encoding='utf-8') as self._stats_file:
-                stats = self._stats_file.read().split(',')
-                if len(stats) == 2:
-                    self._file_count = int(stats[0])
-                    self._total_file_size = int(stats[1])
-                else:
-                    self._file_count = 0
-                    self._total_file_size = 0
 
-                with self.child.open(config):
-                    yield
+        with open(self.stats_file_path, 'r+', encoding='utf-8') as self._stats_file:
+            stats = self._stats_file.read().split(',')
+            if len(stats) == 2:
+                self._file_count = int(stats[0])
+                self._total_file_size = int(stats[1])
+            else:
+                self._file_count = 0
+                self._total_file_size = 0
 
-                self.flush()
+            async with self.child.open(config):
+                yield self
 
-        return inner(self)
+            self.flush()
+
+
+    @override
+    def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
+         return self.child.stat(file_key)
+
+    @override
+    def fstat(self, file_obj: FileObject) -> MaybeAwaitable[FileInfo]:
+         return self.child.fstat(file_obj)

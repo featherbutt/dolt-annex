@@ -12,71 +12,105 @@ A single SFTP connection can only transfer one file at a time.
 
 # TODO: Add support for parallel connections to increase throughput.
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 import getpass
 import hashlib
+from http import client
 from pathlib import Path
-from paramiko import SFTPFile
-from typing_extensions import Optional, ContextManager, override, Generator, BinaryIO
+from typing import AsyncGenerator, Protocol, cast
+import asyncssh
+import paramiko
+from typing_extensions import override, BinaryIO, AsyncContextManager
 
 import sftpretty
 
-from dolt_annex.datatypes.config import Config
-from dolt_annex.file_keys import FileKey, FileKeyType
+from dolt_annex.datatypes.config import Config, resolve_path
+from dolt_annex.datatypes.common import Connection
+from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.file_keys import FileKey
 
-from .base import FileStore, copy
+from .base import FileInfo, FileObject, FileStore, MaybeAwaitable, copy
+
+def exists(sftp: sftpretty.Connection | paramiko.SFTPClient, remotepath: str) -> bool:
+    try:
+        sftp.stat(remotepath)
+    except IOError as err:
+        if err.errno == 2:
+            return False
+        else:
+            raise err
+
+    return True
 
 class SftpFileStore(FileStore):
 
-    file_key_format: FileKeyType
-    host: str
-    port: int
-    username: str
-    path: Path
+    url: Connection
 
-    _sftp: sftpretty.Connection
+    _sftp: asyncssh.SFTPClient = None
 
     @override
-    def put_file_object(self, in_fd: BinaryIO, file_key: Optional[FileKey] = None) -> None:
-        """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
-        if file_key is None:
-            file_key = self.file_key_format.from_fo(in_fd)
+    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
+        """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        self._sftp.mkdir_p(Path(remote_file_path).parent.as_posix())
-        out_fd: SFTPFile
-        with self._sftp.open(remote_file_path, mode='wb') as out_fd:
-            copy(src=in_fd, dst=out_fd)
+        # self._sftp.mkdir_p(Path(remote_file_path).parent.as_posix())
+        await self._sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
+        async with self._sftp.open(remote_file_path, 'wb') as out_fd:
+            await copy(src=in_fd, dst=out_fd)
 
     @override
-    @contextmanager
-    def get_file_object(self, file_key: FileKey) -> Generator[BinaryIO]:
+    async def get_file_object(self, file_key: FileKey) -> FileObject:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        if not self._sftp.exists(remote_file_path):
+        
+        if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        with self._sftp.open(remote_file_path, mode='rb') as f:
-            yield f
+        return await self._sftp.open(remote_file_path, 'rb').__aenter__()
 
     @override
-    def open(self, config: Config) -> ContextManager[None]:
+    async def stat(self, file_key: FileKey) -> FileInfo:
+         file_obj = await self.get_file_object(file_key)
+         return await self.fstat(file_obj)
+
+    @override
+    async def fstat(self, file_obj: FileObject) -> FileInfo:
+        sftp_file_obj = cast(asyncssh.SFTPClientFile, file_obj)
+        stat_result = await sftp_file_obj.stat()
+        return FileInfo(size=stat_result.size)
+
+
+    @override
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[None]:
         """Connect to an SFTP filestore."""
 
-        @contextmanager
-        def inner() -> Generator[None]:
-            cnopts = sftpretty.CnOpts(config=config.ssh.ssh_config, knownhosts=config.ssh.known_hosts)
+        if self._sftp is None:
+            cnopts = sftpretty.CnOpts(config=resolve_path(config.ssh.ssh_config), knownhosts=resolve_path(config.ssh.known_hosts))
             cnopts.log_level = 'error'
 
             extra_opts = {}
             if config.ssh.encrypted_ssh_key:
                 extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
-
-            with sftpretty.Connection(self.host, port=self.port, cnopts=cnopts, username=self.username, default_path=self.path.as_posix(), **extra_opts) as self._sftp:
-                yield
             
-        return inner()
+            client_keys = []
+            if self.url.client_key is not None:
+                client_keys.append(self.url.client_key)
+
+            async with asyncssh.connect(
+                host=self.url.host,
+                port=self.url.port,
+                known_hosts=None,
+                subsystem="sftp",
+                config=resolve_path(config.ssh.ssh_config),
+                client_keys=client_keys,
+                **extra_opts
+            ) as conn:
+                async with conn.start_sftp_client() as self._sftp:
+                    yield
+        else:
+            yield
     
     @override
-    def flush(self):
+    async def flush(self):
         pass
 
     def get_key_path(self, key: FileKey) -> Path:
@@ -91,5 +125,10 @@ class SftpFileStore(FileStore):
         return Path('.') / md5[:3] / md5[3:6] / str(key)
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
-        return self._sftp.exists(self.get_key_path(file_key).as_posix())
+    async def exists(self, file_key: FileKey) -> bool:
+        try:
+            # We don't call SFTPClient.exists because it checks for the type attribute,
+            # which does not exist prior to SFTP protocol version 4.
+            return bool(await self._sftp.stat(self.get_key_path(file_key).as_posix()))
+        except asyncssh.SFTPNoSuchFile:
+            return False
