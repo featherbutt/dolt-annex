@@ -12,6 +12,7 @@ from typing_extensions import Any, Dict, Tuple
 from plumbum import local # type: ignore
 import pymysql
 
+from dolt_annex.datatypes.table import DatasetSource
 from dolt_annex.logger import logger
 from dolt_annex.datatypes.remote import Repo
 
@@ -170,6 +171,12 @@ class DoltSqlServer:
         if conflicts > 0:
             self.cursor.execute("call DOLT_MERGE('--abort');")
             raise DoltException(f"Failed to merge {branch} into {self.active_branch}: unresolvable conflicts detected")
+        
+    def initialize_dataset_source(self, dataset_source: DatasetSource):
+        """
+        Ensures that the Dolt repo contains the necessary branches for this dataset.
+        """
+        self.maybe_create_branch(f"{dataset_source.repo.uuid}-{dataset_source.schema.name}", dataset_source.schema.empty_table_ref)
 
 class DoltException(Exception):
     """Exception raised for errors when executing Dolt commands."""
