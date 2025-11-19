@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ from dolt_annex.application import Application
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
+from dolt_annex.filestore.base import maybe_await
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import AnnexKey
@@ -87,6 +89,9 @@ class Import(cli.Application):
     )
         
     def main(self, *files_or_directories: str):
+        asyncio.run(self._main_async(files_or_directories))
+
+    async def _main_async(self, files_or_directories: Iterable[str]):
         base_config = self.parent.config
 
         if not self.copy and not self.move and not self.symlink:
@@ -104,34 +109,34 @@ class Import(cli.Application):
         )
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
-        with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
+        async with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
             importer = get_importer(*self.importer.split())
-            do_import(base_config.get_filestore().file_store, base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
+            await do_import(base_config.get_filestore().file_store, base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
 
-def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in dataset.tables.items():
         key_paths[table_name] = {}
         table.add_flush_hook(move_files, file_store, import_config,key_paths[table_name])
 
-    def import_path(file_or_directory: Path):
+    async def import_path(file_or_directory: Path):
         """Import a file or directory into the annex"""
         if file_or_directory.is_file():
-            import_file(file_or_directory)
+            await import_file(file_or_directory)
         elif file_or_directory.is_dir():
-            import_directory(file_or_directory)
+            await import_directory(file_or_directory)
         else:
             raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
-    def import_directory(path: Path):
+    async def import_directory(path: Path):
         """Import a directory into the annex"""
         logger.debug(f"Importing directory {path}")
         for root, _, files in os.walk(path):
             root_path = Path(root)
             for file in files:
-                import_file(root_path / file)
+                await import_file(root_path / file)
 
-    def import_file(path: Path):
+    async def import_file(path: Path):
         """Import a file into the annex"""
         extension = path.suffix[1:]
         if len(extension) > dataset.MAX_EXTENSION_LENGTH+1:
@@ -153,22 +158,22 @@ def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, da
             if key_columns:
                 table_name = importer.table_name(path)
                 table = dataset.get_table(table_name)
-                table.insert_file_source(key_columns, key, uuid)
+                await table.insert_file_source(key_columns, key, uuid)
                 key_paths[table_name][path] = key
             if not key_columns:
                 raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")
 
     for file_or_directory in files_or_directories:
-        import_path(Path(file_or_directory))
+        await import_path(Path(file_or_directory))
 
-def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, AnnexKey]):
+async def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, AnnexKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():
         if import_config.copy:
-            file_store.copy_file(file_path, key)
+            await file_store.copy_file(file_path, key)
         else:
-            file_store.put_file(file_path, key)
+            await maybe_await(file_store.put_file(file_path, key))
         if import_config.move:
             # TODO: Add an extra check here that the file was added successfully, then delete the file
             # os.remove(file_path)

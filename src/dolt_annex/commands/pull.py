@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import asyncio
 from pathlib import Path
 from uuid import UUID
 
@@ -74,8 +75,11 @@ class Pull(cli.Application):
 
     filters: List[TableFilter] = []
 
-    def main(self, *args: list[str]) -> Literal[0]:
+    def main(self, *args: list[str]) -> int:
         """Entrypoint for pull command"""
+        return asyncio.run(self._main_async())
+    
+    async def _main_async(self) -> int:
         base_config = self.parent.config
         if self.ssh_config:
             base_config.ssh.ssh_config = Path(self.ssh_config)
@@ -85,24 +89,24 @@ class Pull(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or base_config.dolt.default_remote
         remote_repo = Repo.must_load(remote_name)
-        remote_file_store = remote_repo.filestore()
+        remote_file_store = remote_repo.filestore().file_store
         local_file_store = base_config.filestore
         if not local_file_store:
             raise ValueError("No local filestore configured")
         local_uuid = self.parent.config.get_uuid()
 
-        with (
+        async with (
             local_file_store.open(base_config),
             remote_file_store.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            await pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
         return 0
 
-def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+async def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pulled_keys is None:
         out_pulled_keys = []
     dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, limit, out_pulled_keys)
+        await move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, limit, out_pulled_keys)
     return out_pulled_keys
