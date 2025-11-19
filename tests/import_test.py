@@ -24,7 +24,7 @@ from dolt_annex.filestore import FileStore
 
 from tests.setup import setup_file_remote, base_config
 
-class TestImporter(importers.ImporterBase):
+class TestImporter(importers.Importer):
     @override
     def key_columns(self, path: Path) -> Optional[TableRow]:
         sid = int(''.join(path.parts[-6:-1]))
@@ -36,9 +36,11 @@ class TestImporter(importers.ImporterBase):
     
 import_config = ImportConfig(
     batch_size = 10,
-    move_function = move_functions.move,
     follow_symlinks = False,
-    file_key_type= Sha256e
+    file_key_type= Sha256e,
+    move=False,
+    copy=True,
+    symlink=False,
 )
 
 import_directory = Path(__file__).parent / "import_data"
@@ -51,7 +53,7 @@ def test_import_with_prefix_url(tmp_path):
         "b1946ac92492d2347c6235b4d2611184.e621.txt": TableRow(("https://prefix/import_data/08/76/54/32/10/b1946ac92492d2347c6235b4d2611184.e621.txt",)),
         "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": TableRow(("https://prefix/import_data/00/12/34/56/90/d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt",)),
     }
-    def importer_factory() -> importers.ImporterBase:
+    def importer_factory() -> importers.Importer:
         return importers.DirectoryImporter("urls", "https://prefix")
     do_test_import(tmp_path, "urls", importer_factory, expected_urls)
 
@@ -62,7 +64,7 @@ def test_import_e621(tmp_path):
         "b1946ac92492d2347c6235b4d2611184.e621.txt": TableRow(("b1946ac92492d2347c6235b4d2611184",)),
         "d8e8fca2dc0f896fd7cb4cb0031ba249.e621.txt": TableRow(("d8e8fca2dc0f896fd7cb4cb0031ba249",)),
     }
-    def importer_factory() -> importers.ImporterBase:
+    def importer_factory() -> importers.Importer:
         return importers.MD5Importer("urls")
     do_test_import(tmp_path, "urls", importer_factory, expected_rows)
 
