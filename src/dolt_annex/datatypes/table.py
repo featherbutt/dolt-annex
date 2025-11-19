@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from pydantic import BaseModel
 from typing_extensions import List
 
-from dolt_annex.dolt import DoltSqlServer
-
 from .loader import Loadable
 from .remote import Repo
 
@@ -50,11 +48,5 @@ class DatasetSource:
     """
     schema: DatasetSchema
     repo: Repo
-
-    def initialize(self, dolt: DoltSqlServer):
-        """
-        Ensures that the Dolt repo contains the necessary branches for this dataset.
-        """
-        dolt.maybe_create_branch(f"{self.repo.uuid}-{self.schema.name}", self.schema.empty_table_ref)
 
     
