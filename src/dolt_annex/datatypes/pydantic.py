@@ -29,6 +29,9 @@ class AbstractBaseModel(BaseModel, ABC):
     @classmethod
     def validator(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
 
+        if isinstance(v, cls):
+            return handler(v)
+        
         # Concrete implementations use the normal handler
         if not cls.is_abstract():
             return handler(v)
