@@ -8,17 +8,12 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.annexfs import AnnexFS
+from dolt_annex.filestore.base import ContentAddressableStorage
 from dolt_annex.filestore.sftp import SftpFileStore
 
 from .loader import Loadable
-
-class URL(BaseModel):
-    user: str = getpass.getuser()
-    host: str
-    port: int = 22
-    path: str = "."
+from .common import Connection
     
 class Repo(Loadable('remote'), BaseModel):
     """
@@ -26,22 +21,21 @@ class Repo(Loadable('remote'), BaseModel):
     """
     name: str
     uuid: UUID
-    url: URL | Path
+    url: Connection | Path
     key_format: FileKeyType
 
-    def filestore(self) -> FileStore:
+    def filestore(self) -> ContentAddressableStorage:
         """Return a FileStore instance for this repository. The type of FileStore returned depends on the URL scheme"""
         if isinstance(self.url, Path):
-            return AnnexFS(
-                root=self.url,
+            return ContentAddressableStorage(
+                file_store=AnnexFS(
+                    root=self.url,
+                ),
                 file_key_format=self.key_format
             )
         else:
-            return SftpFileStore(
-                host=self.url.host,
-                port=self.url.port,
-                username=self.url.user,
-                path=self.url.path,
+            return ContentAddressableStorage(
+                file_store=SftpFileStore(url=self.url),
                 file_key_format=self.key_format
             )
 
@@ -51,9 +45,7 @@ class Repo(Loadable('remote'), BaseModel):
 
         This may be a local path, or a path on a remote server.
         """
-        if self.files_url.startswith("file://"):
-            return Path(self.files_url[7:])
-        elif self.files_url.startswith("ssh://"):
-            return Path(self.files_url.split(":", 2)[2])
+        if isinstance(self.url, Path):
+            return self.url
         else:
-            raise ValueError(f"Unsupported URL scheme in files_url, must begin with ssh:// or file://: {self.files_url}")
+            return Path(self.url.path)

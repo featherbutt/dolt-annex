@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
+import getpass
+from pathlib import Path
+from pydantic import BaseModel
 from typing_extensions import NewType
 
 from dolt_annex.file_keys.base import FileKey as AnnexKey
@@ -17,3 +20,10 @@ class YesNoMaybe(Enum):
     MAYBE = "maybe"
 
 __all__ = ['TableRow', 'YesNoMaybe', 'AnnexKey']
+
+class Connection(BaseModel):
+    user: str = getpass.getuser()
+    host: str
+    port: int = 22
+    client_key: Path | None = None
+    path: Path = Path(".")
