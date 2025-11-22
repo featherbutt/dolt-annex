@@ -55,6 +55,9 @@ async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey
         has_more = True
         logger.info(f"moving {table_row}: {key}")
 
+        if to_file_store.exists(key):
+            logger.debug(f"file {key} already exists in destination filestore")
+            continue
         async with from_file_store.with_file_object(key) as remote_file_obj:
             await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
 
