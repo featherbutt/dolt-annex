@@ -9,8 +9,6 @@ from typing_extensions import Optional, Any
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.base import ContentAddressableStorage
-from .remote import Repo
 
 class UserConfig(BaseModel):
     email: str = "user@localhost"
@@ -57,13 +55,10 @@ class Config(BaseModel):
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e
 
-    def get_filestore(self) -> ContentAddressableStorage:
+    def get_filestore(self) -> FileStore:
         if self.filestore is None:
             raise ValueError("No filestore configured in config")
-        return ContentAddressableStorage(
-            file_store=self.filestore,
-            file_key_format=self.default_file_key_type
-        )
+        return self.filestore
     
     def get_uuid(self) -> UUID:
         if self.uuid is None:

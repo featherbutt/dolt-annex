@@ -13,7 +13,8 @@ from asyncssh.misc import MaybeAwait
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import AnnexKey
-from dolt_annex.filestore.base import ContentAddressableStorage, FileInfo, FileObject, ReadableFileObject, maybe_await
+from dolt_annex.filestore.base import FileInfo, FileObject, ReadableFileObject, maybe_await
+from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class SFTPServer(asyncssh.SFTPServer):
     def __init__(self, chan: asyncssh.SSHServerChannel, cas: ContentAddressableStorage):

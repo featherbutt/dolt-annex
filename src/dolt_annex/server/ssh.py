@@ -4,7 +4,7 @@
 from contextlib import asynccontextmanager
 from typing_extensions import Optional
 
-from dolt_annex.filestore.base import ContentAddressableStorage
+from dolt_annex.filestore.cas import ContentAddressableStorage
 
 import asyncssh
 
