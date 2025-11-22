@@ -6,15 +6,13 @@ MemoryFS is an in-memory filestore useful for testing. It does not persist files
 across restarts.
 """
 
-from contextlib import asynccontextmanager, contextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import AsyncGenerator, BinaryIO, cast
-from typing_extensions import Generator, override
+from typing_extensions import override, BinaryIO, cast
 
+from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
-from dolt_annex.maybe_await_test import maybe_await
 
 from .base import FileInfo, FileObject, FileStore
 

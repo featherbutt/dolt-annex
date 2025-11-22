@@ -15,12 +15,11 @@ A single SFTP connection can only transfer one file at a time.
 from contextlib import asynccontextmanager
 import getpass
 import hashlib
-from http import client
 from pathlib import Path
-from typing import AsyncGenerator, Protocol, cast
+from typing import AsyncGenerator, cast
 import asyncssh
 import paramiko
-from typing_extensions import override, BinaryIO, AsyncContextManager
+from typing_extensions import override
 
 import sftpretty
 
@@ -29,7 +28,7 @@ from dolt_annex.datatypes.common import Connection
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileObject, FileStore, MaybeAwaitable, copy
+from .base import FileInfo, FileObject, FileStore, copy
 
 def exists(sftp: sftpretty.Connection | paramiko.SFTPClient, remotepath: str) -> bool:
     try:
