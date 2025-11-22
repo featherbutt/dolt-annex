@@ -13,7 +13,6 @@ A single SFTP connection can only transfer one file at a time.
 # TODO: Add support for parallel connections to increase throughput.
 
 from contextlib import asynccontextmanager
-import getpass
 import hashlib
 from pathlib import Path
 from typing import AsyncGenerator, cast
@@ -83,12 +82,10 @@ class SftpFileStore(FileStore):
         """Connect to an SFTP filestore."""
 
         if self._sftp is None:
-            cnopts = sftpretty.CnOpts(config=resolve_path(config.ssh.ssh_config), knownhosts=resolve_path(config.ssh.known_hosts))
-            cnopts.log_level = 'error'
-
             extra_opts = {}
             if config.ssh.encrypted_ssh_key:
-                extra_opts["private_key_pass"] = getpass.getpass("Enter passphrase for private key: ")
+                # TODO: Support passphrase input for encrypted SSH keys
+                pass
             
             client_keys = []
             if self.url.client_key is not None:
