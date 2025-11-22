@@ -29,12 +29,8 @@ class GalleryDL(cli.Application):
         default="gallery-dl",
     )
 
-    def main(self, *args) -> int:
+    async def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
-        asyncio.run(self._main_async(args))
-        return 0
-    
-    async def _main_async(self, args) -> int:
         dataset_name = self.dataset
         dataset_schema = DatasetSchema.load(dataset_name)
         if not dataset_schema:

@@ -5,14 +5,17 @@ import asyncio
 from collections.abc import Iterable
 import contextlib
 from io import StringIO
+import inspect
 from pathlib import Path
 import shutil
+from tokenize import maybe
 from typing import Optional
 import uuid
 
 from plumbum import local, cli
 
 from dolt_annex.application import Application
+from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
@@ -78,7 +81,7 @@ test_dataset_schema = DatasetSchema(
     empty_table_ref= "main"
 )
 
-def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None):
+async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None):
     """
     Run a dolt-annex CLI command and optionally check for expected output.
     
@@ -88,7 +91,9 @@ def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expect
     """
     captured_output = StringIO()
     with contextlib.redirect_stdout(captured_output):
-        cmd.run(args, exit=False)
+        inst, continuation = cmd.run(args, exit=False)
+        await maybe_await(continuation)
+        
     output = captured_output.getvalue()
     if expected_output is not None and expected_output not in output:
         raise AssertionError(f"Expected '{expected_output}' in output, got: {output}")

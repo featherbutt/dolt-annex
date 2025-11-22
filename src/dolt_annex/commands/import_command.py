@@ -88,11 +88,7 @@ class Import(cli.Application):
         default = "Sha256e",
     )
         
-    def main(self, *files_or_directories: str):
-        
-        asyncio.run(self._main_async(files_or_directories))
-
-    async def _main_async(self, files_or_directories: Iterable[str]):
+    async def main(self, *files_or_directories: str):
         base_config = self.parent.config
 
         if not self.copy and not self.move and not self.symlink:
