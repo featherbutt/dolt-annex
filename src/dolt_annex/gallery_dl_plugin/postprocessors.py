@@ -19,7 +19,7 @@ from dolt_annex.file_keys import Sha256e
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset, FileTable
-from dolt_annex.gallery_dl import dataset_context, config_context
+from dolt_annex.gallery_dl_plugin import dataset_context, config_context
 
 from .sources import GalleryDLSource, get_source
 
