@@ -11,6 +11,8 @@ from pathlib import Path
 
 import gallery_dl
 
+from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.table import Dataset
 
@@ -20,6 +22,7 @@ skip_db_path = Path(__file__).parent / "skip.sqlite3"
 gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 
 dataset_context = contextvars.ContextVar[Dataset]("dataset")
+config_context = contextvars.ContextVar[Config]("config")
 
 def make_default_schema(dataset_name: str) -> DatasetSchema:
     return DatasetSchema(

@@ -105,7 +105,7 @@ class Push(cli.Application):
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
             # TODO: This is a really hacky way to create the branch being pushed to if it doesn't exist.
-            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo)
+            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo.uuid)
             pushed_files = await push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
             print(f"Pushed {len(pushed_files)} files to remote {remote_name}")
         return 0

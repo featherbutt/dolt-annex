@@ -7,7 +7,7 @@ from plumbum import cli # type: ignore
 from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.logger import logger
-from dolt_annex.gallery_dl import dataset_context, make_default_schema, run_gallery_dl
+from dolt_annex.gallery_dl import dataset_context, config_context, make_default_schema, run_gallery_dl
 from dolt_annex.table import Dataset
 
 class GalleryDL(cli.Application):
@@ -47,6 +47,7 @@ class GalleryDL(cli.Application):
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset,
         ):
             dataset_context.set(dataset)
+            config_context.set(self.parent.config)
             run_gallery_dl(*args)
         return 0
     
