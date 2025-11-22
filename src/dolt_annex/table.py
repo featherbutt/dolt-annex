@@ -11,7 +11,7 @@ from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.remote import Repo
-from dolt_annex.datatypes.table import DatasetSchema, DatasetSource
+from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer
 from .logger import logger
@@ -126,19 +126,20 @@ class FileTable:
 class Dataset:
     """A version controlled branch that contains one or more file tables."""
     name: str
-    dataset_source: DatasetSource
+    schema: DatasetSchema
     tables: Dict[str, FileTable]
     dolt: DoltSqlServer
     auto_push: bool
 
     MAX_EXTENSION_LENGTH = 4
 
-    def __init__(self, base_config: Config, dolt: DoltSqlServer, dataset_schema: DatasetSchema, auto_push: bool, batch_size: int):
-        self.name = dataset_schema.name
+    def __init__(self, base_config: Config, dolt: DoltSqlServer, schema: DatasetSchema, auto_push: bool, batch_size: int):
+        self.name = schema.name
+        self.schema = schema
         self.dolt = dolt
         self.auto_push = auto_push
-        self.tables = {table.name: FileTable(dolt, table, self.name, dataset_schema.empty_table_ref, auto_push, batch_size) for table in dataset_schema.tables}
-        dolt.maybe_create_branch(f"{base_config.get_uuid()}-{self.name}", dataset_schema.empty_table_ref)
+        self.tables = {table.name: FileTable(dolt, table, self.name, schema.empty_table_ref, auto_push, batch_size) for table in schema.tables}
+        dolt.maybe_create_branch(f"{base_config.get_uuid()}-{self.name}", schema.empty_table_ref)
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]

@@ -39,14 +39,3 @@ class DatasetSchema(Loadable("dataset"), BaseModel):
             if table.name == table_name:
                 return table
         raise ValueError(f"Table {table_name} not found in dataset {self.name}")
-
-
-@dataclass
-class DatasetSource:
-    """
-    A specific copy of a dataset, stored in a specific repo.
-    """
-    schema: DatasetSchema
-    repo: Repo
-
-    
