@@ -76,11 +76,8 @@ class Pull(cli.Application):
 
     filters: List[TableFilter] = []
 
-    def main(self, *args: list[str]) -> int:
+    async def main(self, *args: list[str]) -> int:
         """Entrypoint for pull command"""
-        return asyncio.run(self._main_async())
-    
-    async def _main_async(self) -> int:
         base_config = self.parent.config
         if self.ssh_config:
             base_config.ssh.ssh_config = Path(self.ssh_config)
