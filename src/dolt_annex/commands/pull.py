@@ -5,12 +5,13 @@ import asyncio
 from pathlib import Path
 from uuid import UUID
 
-from typing_extensions import Literal, Optional, List
+from typing_extensions import Optional, List
 
 from plumbum import cli
 
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore import FileStore
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.sync import move_table, TableFilter
 from dolt_annex.table import Dataset
 from dolt_annex.application import Application
@@ -89,7 +90,7 @@ class Pull(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or base_config.dolt.default_remote
         remote_repo = Repo.must_load(remote_name)
-        remote_file_store = remote_repo.filestore().file_store
+        remote_file_store = ContentAddressableStorage.from_remote(remote_repo).file_store
         local_file_store = base_config.filestore
         if not local_file_store:
             raise ValueError("No local filestore configured")

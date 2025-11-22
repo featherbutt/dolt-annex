@@ -89,6 +89,7 @@ class Import(cli.Application):
     )
         
     def main(self, *files_or_directories: str):
+        
         asyncio.run(self._main_async(files_or_directories))
 
     async def _main_async(self, files_or_directories: Iterable[str]):
@@ -111,7 +112,7 @@ class Import(cli.Application):
 
         async with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
             importer = get_importer(*self.importer.split())
-            await do_import(base_config.get_filestore().file_store, base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
+            await do_import(base_config.get_filestore(), base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
 
 async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}

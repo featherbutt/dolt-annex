@@ -12,6 +12,7 @@ from plumbum import cli
 from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore import FileStore
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset
 from dolt_annex.datatypes import AnnexKey
 from dolt_annex.datatypes.remote import Repo
@@ -91,8 +92,8 @@ class Push(cli.Application):
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or self.parent.config.dolt.default_remote
-        remote_repo = base_config.get_remote(remote_name)
-        remote_file_store = remote_repo.filestore().file_store
+        remote_repo = Repo.must_load(remote_name)
+        remote_file_store = ContentAddressableStorage.from_remote(remote_repo).file_store
         local_file_store = self.parent.config.filestore
         if not local_file_store:
             raise ValueError("No local filestore configured")
@@ -103,13 +104,18 @@ class Push(cli.Application):
             remote_file_store.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            await push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            # TODO: This is a really hacky way to create the branch being pushed to if it doesn't exist.
+            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo)
+            pushed_files = await push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            print(f"Pushed {len(pushed_files)} files to remote {remote_name}")
         return 0
 
 async def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pushed_files is None:
         out_pushed_files = []
-    dataset.pull_from(remote_repo)
+    # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
+    # There may not be A Dolt remote to pull from
+    # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
         await move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, limit, out_pushed_files)
     return out_pushed_files

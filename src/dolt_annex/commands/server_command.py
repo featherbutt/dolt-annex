@@ -10,6 +10,7 @@ import asyncssh
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.logger import logger
 from dolt_annex.server.ssh import server_context
 
@@ -55,7 +56,7 @@ class Server(cli.Application):
 
     def main(self, *args):
         """Entrypoint for server command"""
-        cas = self.parent.config.get_filestore()
+        cas = ContentAddressableStorage.from_local(self.parent.config)
         loop = asyncio.new_event_loop()
 
         async def start_server():
