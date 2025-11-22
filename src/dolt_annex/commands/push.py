@@ -78,11 +78,8 @@ class Push(cli.Application):
 
     filters: List[TableFilter] = []
 
-    def main(self, *args) -> int:
+    async def main(self, *args) -> int:
         """Entrypoint for push command"""
-        return asyncio.run(self._main_async())
-
-    async def _main_async(self) -> int:
         base_config = self.parent.config
 
         if self.ssh_config:

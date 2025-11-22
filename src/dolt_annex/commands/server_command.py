@@ -36,44 +36,28 @@ class Server(cli.Application):
     authorized_keys = cli.SwitchAttr(
         "--authorized-keys",
         cli.ExistingFile,
-        help="The path to a directory containing authorized public keys",
-        default = os.path.expanduser("~/.ssh"),
+        help="The path to an authorized public key",
+        mandatory = True,
     )
 
     server_keyfile = cli.SwitchAttr(
         "--server-key",
         cli.ExistingFile,
         help="The path to the server key file",
-        default = None,
-    )
-    
-    server_key_password = cli.SwitchAttr(
-        "--server-key-password",
-        str,
-        help="The password for the server key file",
-        default = None,
+        mandatory = True,
     )
 
-    def main(self, *args):
+    async def main(self, *args):
         """Entrypoint for server command"""
         cas = ContentAddressableStorage.from_local(self.parent.config)
-        loop = asyncio.new_event_loop()
 
-        async def start_server():
-            async with server_context(
-                cas=cas,
-                host=self.host,
-                port=self.port,
-                authorized_keys=self.authorized_keys,
-                server_host_key=self.server_keyfile,
-            ) as server:
-                logger.info(f'Serving over sftp at {self.host}:{self.port}')
-                await server.wait_closed()
-                
-        try:
-            loop.run_until_complete(start_server())
-        except (OSError, asyncssh.Error) as exc:
-            sys.exit('Error starting server: ' + str(exc))
-
-        loop.run_forever()
+        async with server_context(
+            cas=cas,
+            host=self.host,
+            port=self.port,
+            authorized_keys=self.authorized_keys,
+            server_host_key=self.server_keyfile,
+        ) as server:
+            logger.info(f'Serving over sftp at {self.host}:{self.port}')
+            await server.wait_closed()
 

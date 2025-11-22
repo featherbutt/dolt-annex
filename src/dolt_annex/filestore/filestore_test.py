@@ -7,11 +7,13 @@ import random
 from typing_extensions import Callable, Generator, ContextManager, AsyncGenerator
 import pytest
 
+from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import Connection
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
-from dolt_annex.filestore.base import ContentAddressableStorage, FileStore, maybe_await
+from dolt_annex.filestore.base import FileStore
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.filestore.unionfs import UnionFS
 from dolt_annex.filestore.sftp import SftpFileStore

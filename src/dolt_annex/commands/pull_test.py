@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import asyncio
 import contextlib
+
+import pytest
 
 from dolt_annex.test_util import run, setup
 
-def test_pull_local(tmp_path):
-    asyncio.run(setup(tmp_path))
-    do_test_pull(tmp_path)
-
-def do_test_pull(tmp_path):
-    """Run and validate pulling content files from a remote"""
+@pytest.mark.asyncio
+async def test_pull_local(tmp_path):
+    await setup(tmp_path)
 
     with contextlib.chdir(tmp_path):
-        run(
+        await run(
             args=["dolt-annex", "insert-record",
                   "--dataset", "test",
                   "--table-name", "test_table",
@@ -23,7 +21,7 @@ def do_test_pull(tmp_path):
                   "--remote", "test_remote"],
             expected_output="Inserted row"
         )
-        run(
+        await run(
             args=["dolt-annex", "insert-record",
                   "--dataset", "test",
                   "--table-name", "test_table",
@@ -33,19 +31,19 @@ def do_test_pull(tmp_path):
             expected_output="Inserted row"
         )
 
-        run(
+        await run(
             args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
             expected_output="Pulled 2 files from remote test_remote"
         )
 
         # Pulling again should result in no files being pulled
-        run(
+        await run(
             args=["dolt-annex", "pull","--dataset", "test", "--remote", "test_remote"],
             expected_output="Pulled 0 files from remote test_remote"
         )
 
         # But if we add more files, it should push them
-        run(
+        await run(
             args=["dolt-annex", "insert-record",
                   "--dataset", "test",
                   "--table-name", "test_table",
@@ -54,7 +52,7 @@ def do_test_pull(tmp_path):
                   "--remote", "test_remote"],
             expected_output="Inserted row"
         )
-        run(
+        await run(
             args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
             expected_output="Pulled 1 files from remote test_remote"
         )
