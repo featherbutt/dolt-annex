@@ -3,7 +3,7 @@
 
 from pathlib import Path
 from uuid import UUID
-from pydantic import BaseModel
+from pydantic import BaseModel, SerializeAsAny
 from typing_extensions import Optional, Any
 
 from dolt_annex.file_keys import FileKeyType
@@ -50,7 +50,7 @@ class Config(BaseModel):
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
     uuid: Optional[UUID] = None
-    filestore: Optional[FileStore] = None
+    filestore: Optional[SerializeAsAny[FileStore]] = None
     repo_directory: Path = Path('.')
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e

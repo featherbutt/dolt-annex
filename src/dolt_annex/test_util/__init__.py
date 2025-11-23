@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import asyncio
 from collections.abc import Iterable
 import contextlib
 from io import StringIO
-import inspect
 from pathlib import Path
-import shutil
-from tokenize import maybe
 from typing import Optional
 import uuid
 
@@ -16,56 +12,40 @@ from plumbum import local, cli
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.filestore.memory import MemoryFS
-from dolt_annex.table import Dataset
+
+public_key_path = Path(__file__).parent / "id_ed25519.pub"
+private_key_path = Path(__file__).parent / "id_ed25519"
 
 # Arbitrary UUIDs for local and remote repos
 local_uuid = uuid.UUID("3fca31d9-f0dd-424e-b0e9-3cd4a26e9d68")
 remote_uuid = uuid.UUID("36b60d94-fbdf-476b-9479-f0abc61fa5ba")
 
-config_json =f"""
-{{
-    "uuid": "{local_uuid}",
-    "user": {{
-        "name": "A U Thor",
-        "email": "author@example.com"
-    }},
-
-    "dolt": {{
-        "db_name": "dolt",
-        "default_remote": "origin",
-        "default_commit_message": "update",
-
-        "connection": {{
+test_config = Config(
+    uuid=local_uuid,
+    user=UserConfig(
+        name="A U Thor",
+        email="author@example.com"
+    ),
+    dolt=DoltConfig(
+        db_name="dolt",
+        default_remote="origin",
+        default_commit_message="update",
+        connection={
             "user": "root"
-        }},
-        "spawn_dolt_server": true
-    }},
-    
-    "file_key_format": "Sha256e",
-
-    "filestore": {{
-        "type": "AnnexFS",
-        "root": "./local_files"
-    }},
-
-    "remotes": [
-        {{
-            "name": "origin",
-            "url": "../local_remote",
-            "uuid": "{remote_uuid}"
-        }}
-    ]
-}}
-"""
-test_config = Config.model_validate_json(config_json)
+        },
+        spawn_dolt_server=True
+    ),
+    default_file_key_type=Sha256e,
+    filestore=AnnexFS(
+        root=Path("./local_files")
+    )
+)
 
 test_remote = Repo(name="test_remote", uuid=remote_uuid, url=Path("../remote_files"), key_format=Sha256e)
 
@@ -112,7 +92,7 @@ async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, r
     setup_dolt(tmp_path)
 
     with (tmp_path / "config.json").open("w") as f:
-        f.write(config_json)
+        f.write(test_config.model_dump_json())
     return local_filestore, remote_filestore
 
 def setup_dolt(tmp_path):

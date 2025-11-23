@@ -4,7 +4,7 @@
 from abc import ABC
 import importlib
 from typing import Any, ClassVar, Self
-from pydantic import ModelWrapValidatorHandler, BaseModel, model_validator
+from pydantic import ModelWrapValidatorHandler, BaseModel, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 class AbstractBaseModel(BaseModel, ABC):
 
@@ -61,3 +61,11 @@ class AbstractBaseModel(BaseModel, ABC):
 
         impl_cls = cls._type_map[class_name]
         return impl_cls(**v)
+    
+    @model_serializer(mode='wrap')
+    def serialize_model(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, object]:
+        serialized = handler(self)
+        serialized['type'] = self.__class__.__name__
+        return serialized
