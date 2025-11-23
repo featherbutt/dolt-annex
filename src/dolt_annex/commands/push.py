@@ -114,5 +114,5 @@ async def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, re
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        await move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, limit, out_pushed_files)
+        await move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, False, limit, out_pushed_files)
     return out_pushed_files

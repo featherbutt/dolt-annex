@@ -61,6 +61,11 @@ class Pull(cli.Application):
         help="The name of the dataset being pulled",
     )
 
+    ignore_missing = cli.Flag(
+        "--ignore-missing",
+        help="Ignore missing files when pulling",
+    )
+
     @cli.switch(
         "--where",
         str,
@@ -98,16 +103,16 @@ class Pull(cli.Application):
             remote_file_store.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            pulled_files = await pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            pulled_files = await pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.ignore_missing, self.limit)
             print(f"Pulled {len(pulled_files)} files from remote {remote_name}")
         return 0
 
-async def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+async def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], ignore_missing: bool, limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
     if out_pulled_keys is None:
         out_pulled_keys = []
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        await move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, limit, out_pulled_keys)
+        await move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, ignore_missing, limit, out_pulled_keys)
     return out_pulled_keys
