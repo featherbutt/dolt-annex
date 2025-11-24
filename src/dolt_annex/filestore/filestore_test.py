@@ -14,6 +14,7 @@ from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.filestore.leveldb import LevelDB
 from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.filestore.unionfs import UnionFS
 from dolt_annex.filestore.sftp import SftpFileStore
@@ -28,6 +29,11 @@ def filestore_types():
     def memory_fs_factory(tmp_path: Path) -> Generator[FileStore, None, None]:
         yield MemoryFS()
     yield pytest.param(memory_fs_factory, id="memory")
+
+    @contextmanager
+    def leveldb_fs_factory(tmp_path: Path) -> Generator[FileStore, None, None]:
+        yield LevelDB(root=tmp_path / "leveldb")
+    yield pytest.param(leveldb_fs_factory, id="leveldb")
 
     @contextmanager
     def annex_fs_factory(tmp_path: Path) -> Generator[FileStore, None, None]:
