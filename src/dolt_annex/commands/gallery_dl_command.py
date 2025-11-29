@@ -40,7 +40,7 @@ class GalleryDL(cli.Application):
             dataset_schema.save_as(dataset_name)
             
         async with (
-            Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset,
+            Dataset.connect(self.parent.config, self.batch_size, dataset_schema, verbose=bool(self.parent.verbose)) as dataset,
         ):
             dataset_context.set(dataset)
             config_context.set(self.parent.config)

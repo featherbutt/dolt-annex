@@ -36,6 +36,10 @@ def Loadable(extension: str, config_dir = Path(".")):
             if path.exists():
                 with open(path, encoding="utf-8") as f:
                     data = json.load(f)
+                    if isinstance(data, str):
+                        # Try one more time to get structured data outta this.
+                        cooler_data = json.loads(data)
+                        data = cooler_data
                     if data.get("name") != name:
                         raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
                     instance = cls(**data)

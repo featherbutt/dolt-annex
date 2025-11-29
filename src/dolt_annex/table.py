@@ -166,7 +166,7 @@ class Dataset:
 
     @staticmethod
     @asynccontextmanager
-    async def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema):
+    async def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema, verbose: bool = False):
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
@@ -185,7 +185,7 @@ class Dataset:
             db_config["host"] = dolt_config.hostname
 
         with (
-            DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server) as dolt_server,
+            DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server, verbose=verbose) as dolt_server,
         ):
             async with Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset:
                 yield dataset

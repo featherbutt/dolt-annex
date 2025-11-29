@@ -4,6 +4,7 @@
 """Functionality for interacting with the Dolt server."""
 
 import os
+import sys
 from pathlib import Path
 import time
 from uuid import UUID
@@ -25,12 +26,12 @@ class DoltSqlServer:
     active_branch: str
     db_name: str
 
-    def __init__(self, dolt_dir: Path, dolt_db_name: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
+    def __init__(self, dolt_dir: Path, dolt_db_name: str, db_config: Dict[str, Any], spawn_dolt_server: bool, verbose: bool = False):
         self.db_config = db_config
         self.db_name = dolt_db_name
 
         if spawn_dolt_server:
-            self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_dir)
+            self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_dir, verbose=verbose)
         else:
             self.dolt_server_process = None
             self.connection = pymysql.connect(**db_config)
@@ -49,15 +50,22 @@ class DoltSqlServer:
         if self.dolt_server_process:
             self.dolt_server_process.terminate()
 
-    def spawn_dolt_server(self, dolt_dir: Path) -> Tuple[Any, pymysql.connections.Connection]:
+    def spawn_dolt_server(self, dolt_dir: Path, verbose: bool = False) -> Tuple[Any, pymysql.connections.Connection]:
         dolt = local.cmd.dolt.with_cwd(dolt_dir)
         args = []
         if "port" in self.db_config:
             args.extend(["-P", str(self.db_config["port"])])
         if "unix_socket" in self.db_config:
             args.extend(["--socket", self.db_config["unix_socket"]])
-        if (server_logfile := os.getenv("DA_SERVER_LOGFILE")) is not None:
+
+        if verbose:
+            logger.info("Showing verbose output")
+            server_logfile = sys.stdout
+        elif (server_logfile := os.getenv("DA_SERVER_LOGFILE")) is not None:
+            logger.info(f"Using DA_SERVER_LOGFILE of {server_logfile}")
+        if server_logfile:
             dolt = (dolt > server_logfile)
+
         dolt_server_process = dolt.popen(["sql-server", *args])
         while True:
             try:

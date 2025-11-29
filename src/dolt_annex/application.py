@@ -43,6 +43,9 @@ class Application(cli.Application):
 
     annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
 
+    verbose = cli.Flag(["-v", "--verbose"],
+                       help="Hint to be much more verbose on stdout.")
+
     config: Config
 
     def main(self, *args) -> Literal[0, 1]:
