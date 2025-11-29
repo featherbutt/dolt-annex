@@ -15,11 +15,6 @@ from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.datatypes.table import FileTableSchema
 
 @dataclass
-class TableFilter:
-    column_name: str
-    column_value: Any
-
-@dataclass
 class SyncResults:
     files_pushed: List[FileKey] = field(default_factory=list)
     files_pulled: List[FileKey] = field(default_factory=list)
