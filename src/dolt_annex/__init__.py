@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-from dolt_annex.commands import gallery_dl_command, insert_record, init, server_command, push, pull, import_command
+from dolt_annex.commands import gallery_dl_command, insert_record, init, server_command, import_command
+from dolt_annex.commands.sync import push, pull
+from dolt_annex.commands.dataset import read_table
+
 from dolt_annex.datatypes.async_utils import maybe_await
 from .application import Application
 
@@ -16,8 +19,12 @@ Application.subcommand("pull", pull.Pull)
 Application.subcommand("server", server_command.Server)
 Application.subcommand("gallery-dl", gallery_dl_command.GalleryDL)
 Application.subcommand("insert-record", insert_record.InsertRecord)
+Application.subcommand("read-table", read_table.ReadTable)
 
 def main():
+    import dolt_annex.commands.gallery_dl_command_test
+    import pytest
+    pytest.main([dolt_annex.commands.gallery_dl_command_test.__file__])
     """Entry point for dolt-annex package"""
     async def run():
         _, continuation = Application.run(exit=False)

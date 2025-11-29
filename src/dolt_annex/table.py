@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 import os
 import random
 import time
-from typing import Awaitable, Optional
+from typing import Any, Awaitable, Optional
 from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
@@ -31,6 +32,11 @@ from .datatypes.table import FileTableSchema
 # - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
+@dataclass
+class TableFilter:
+    column_name: str
+    column_value: Any
+    
 class FileTable:
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
@@ -122,6 +128,16 @@ class FileTable:
         for result in results:
             return result[0]
         return None
+    
+    def get_rows(self, uuid: UUID, filters: List[TableFilter]) -> Iterable[Tuple[TableRow, bytes]]:
+        query_sql = f"SELECT {self.schema.file_column}, " + ", ".join(self.schema.key_columns) + f" FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name}"
+        if filters:
+            query_sql += " WHERE " + " AND ".join([f"{f.column_name} = %s" for f in filters])
+            params = tuple(f.column_value for f in filters)
+        else:
+            params = ()
+        results = self.dolt.query(query_sql, params)
+        yield from results
     
 class Dataset:
     """A version controlled branch that contains one or more file tables."""
