@@ -18,14 +18,3 @@ class Repo(Loadable('remote'), BaseModel):
     uuid: UUID
     url: Connection | Path
     key_format: FileKeyType
-
-    def files_dir(self) -> Path:
-        """
-        Returns the directory containing the files for this repository.
-
-        This may be a local path, or a path on a remote server.
-        """
-        if isinstance(self.url, Path):
-            return self.url
-        else:
-            return Path(self.url.path)
