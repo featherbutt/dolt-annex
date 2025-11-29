@@ -6,12 +6,16 @@ LevelDB is a filestore type that stores every file in a LevelDB key-value store,
 with the file key as the key and the file contents as the value.
 """
 
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import cast
-import plyvel
 from typing_extensions import override
+
+try:
+    import plyvel
+except ImportError:
+    pass  # plyvel is an optional dependency
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import ReadableFileObject
