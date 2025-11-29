@@ -16,7 +16,7 @@ from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
-from dolt_annex.commands.pull import pull_dataset
+from dolt_annex.commands.sync.pull import pull_dataset
 from dolt_annex.server.ssh import server_context as async_server_context
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.file_keys.sha256e import Sha256e

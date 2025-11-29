@@ -18,10 +18,11 @@ from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.server.ssh import server_context as async_server_context
 from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
-from dolt_annex.commands.push import push_dataset
+from dolt_annex.commands.sync.push import push_dataset
 
 
 from tests.import_test import TestImporter
@@ -76,7 +77,7 @@ async def test_push_server(tmp_path: Path):
         name="origin",
         key_format=Sha256e
     )
-    remote_file_cas = file_remote.filestore()
+    remote_file_cas = ContentAddressableStorage.from_remote(file_remote)
 
     # setup server, then create server context, then setup client.
     #with local_server_context(remote_file_cas, base_config, str(Path(__file__).parent / "test_client_keys")) as client:
@@ -101,10 +102,10 @@ async def do_test_push(tmp_path, dataset_name: str, remote: Repo, client: Option
     shutil.copytree(import_directory, tmp_path / "import_data")
 
     importer = TestImporter()
-    remote_file_store = remote.filestore().file_store
+    remote_file_store = ContentAddressableStorage.from_remote(remote).file_store
     if client:
         remote_file_store._sftp = client
-    local_file_store = base_config.get_filestore().file_store
+    local_file_store = base_config.get_filestore()
     local_uuid = base_config.get_uuid()
     with contextlib.chdir(config_directory):
         dataset_schema = DatasetSchema.must_load(dataset_name)
