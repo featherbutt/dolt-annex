@@ -18,10 +18,10 @@ RUN /usr/local/bin/dolt version
 
 RUN --mount=type=bind,source=src,target=/src pip install /src
 
-ENV DA_DOLT_DIR="/repo/db" \
+ENV DA_DOLT_DIR="/repo/dolt" \
     DA_FILES_DIR="/repo/filestore" \
     DA_SPAWN_DOLT_SERVER=false \
-    DA_DOLT_DB="db" \
+    DA_DOLT_DB="dolt" \
     DA_EMAIL="anonymous@localhost" \
     DA_NAME="anonymous" \
     DA_ANNEX_COMMIT_MESSAGE="update dolt-annex"
