@@ -5,7 +5,9 @@
 gallery-dl integration for dolt-annex.
 """
 
+import asyncio
 import contextvars
+from dataclasses import dataclass
 import sys
 from pathlib import Path
 
@@ -21,8 +23,13 @@ skip_db_path = Path(__file__).parent / "skip.sqlite3"
 
 gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 
-dataset_context = contextvars.ContextVar[Dataset]("dataset")
-config_context = contextvars.ContextVar[Config]("config")
+@dataclass
+class GalleryDLContext:
+    dataset: Dataset
+    config: Config
+    tasks: asyncio.TaskGroup
+    
+gallery_dl_context = contextvars.ContextVar[GalleryDLContext]("gallery_dl_context")
 
 def make_default_schema(dataset_name: str) -> DatasetSchema:
     return DatasetSchema(
