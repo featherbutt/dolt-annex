@@ -5,21 +5,21 @@ import asyncio
 from pathlib import Path
 from uuid import UUID
 
-from typing_extensions import Optional, List
+from typing_extensions import List, Optional
 
 from plumbum import cli
 
+from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.sync import move_table, TableFilter
-from dolt_annex.table import Dataset
-from dolt_annex.application import Application
+from dolt_annex.table import Dataset, TableFilter
 from dolt_annex.datatypes import AnnexKey
 from dolt_annex.datatypes.remote import Repo
+from dolt_annex.sync import move_table
 
-class Pull(cli.Application):
-    """Pull imported files from a remote repository"""
+class Push(cli.Application):
+    """Push imported files to a remote repository"""
 
     parent: Application
 
@@ -32,20 +32,22 @@ class Pull(cli.Application):
 
     ssh_config = cli.SwitchAttr(
         "--ssh-config",
-        str,
+        cli.ExistingFile,
         help="The path to the ssh config file",
+        default = "~/.ssh/config",
     )
 
     known_hosts = cli.SwitchAttr(
         "--known-hosts",
-        str,
+        cli.ExistingFile,
         help="The path to the known hosts file",
+        default = None,
     )
 
     limit = cli.SwitchAttr(
         "--limit",
         int,
-        help="The maximum number of files to pull",
+        help="The maximum number of files to push",
         default = None,
     )
 
@@ -58,12 +60,7 @@ class Pull(cli.Application):
     dataset = cli.SwitchAttr(
         "--dataset",
         str,
-        help="The name of the dataset being pulled",
-    )
-
-    ignore_missing = cli.Flag(
-        "--ignore-missing",
-        help="Ignore missing files when pulling",
+        help="The name of the dataset being pushed",
     )
 
     @cli.switch(
@@ -81,19 +78,20 @@ class Pull(cli.Application):
 
     filters: List[TableFilter] = []
 
-    async def main(self, *args: list[str]) -> int:
-        """Entrypoint for pull command"""
+    async def main(self, *args) -> int:
+        """Entrypoint for push command"""
         base_config = self.parent.config
+
         if self.ssh_config:
             base_config.ssh.ssh_config = Path(self.ssh_config)
         if self.known_hosts:
             base_config.ssh.known_hosts = Path(self.known_hosts)
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
-        remote_name = self.remote or base_config.dolt.default_remote
+        remote_name = self.remote or self.parent.config.dolt.default_remote
         remote_repo = Repo.must_load(remote_name)
         remote_file_store = ContentAddressableStorage.from_remote(remote_repo).file_store
-        local_file_store = base_config.filestore
+        local_file_store = self.parent.config.filestore
         if not local_file_store:
             raise ValueError("No local filestore configured")
         local_uuid = self.parent.config.get_uuid()
@@ -103,16 +101,18 @@ class Pull(cli.Application):
             remote_file_store.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            pulled_files = await pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.ignore_missing, self.limit)
-            print(f"Pulled {len(pulled_files)} files from remote {remote_name}")
+            # TODO: This is a really hacky way to create the branch being pushed to if it doesn't exist.
+            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo.uuid)
+            pushed_files = await push_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.limit)
+            print(f"Pushed {len(pushed_files)} files to remote {remote_name}")
         return 0
 
-async def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], ignore_missing: bool, limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
-    if out_pulled_keys is None:
-        out_pulled_keys = []
+async def push_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], limit: Optional[int] = None, out_pushed_files: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
+    if out_pushed_files is None:
+        out_pushed_files = []
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        await move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, ignore_missing, limit, out_pulled_keys)
-    return out_pulled_keys
+        await move_table(table, local_uuid, remote_repo.uuid, local_file_store, remote_file_store, where, False, limit, out_pushed_files)
+    return out_pushed_files
