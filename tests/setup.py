@@ -25,6 +25,9 @@ base_config = Config(
         spawn_dolt_server=True,
         default_remote="origin",
         dolt_dir=Path("./dolt"),
+        connection={
+            "user": "root",
+        }
     ),
     filestore=local_filestore,
     ssh=SshSettings(

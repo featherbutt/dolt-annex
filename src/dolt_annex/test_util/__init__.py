@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import cmd
 from collections.abc import Iterable
 import contextlib
 from io import StringIO
 from pathlib import Path
+import shutil
 from typing import Optional
 import uuid
 
 from plumbum import local, cli
 
+from dolt_annex.data import data_dir
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
@@ -58,7 +61,7 @@ test_dataset_schema = DatasetSchema(
             key_columns=["path"]
         )
     ],
-    empty_table_ref= "main"
+    empty_table_ref= "test_dataset"
 )
 
 async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None):
@@ -69,15 +72,19 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
 
     However, since the command is run in-process, things like loadable config files can be proloaded and re-used.
     """
-    captured_output = StringIO()
-    with contextlib.redirect_stdout(captured_output):
+    if expected_output is not None:
+        captured_output = StringIO()
+        with contextlib.redirect_stdout(captured_output):
+            inst, continuation = cmd.run(args, exit=False)
+            await maybe_await(continuation)
+        output = captured_output.getvalue()
+        if expected_output is not None and expected_output not in output:
+            raise AssertionError(f"Expected '{expected_output}' in output, got: {output}")
+    else:
         inst, continuation = cmd.run(args, exit=False)
         await maybe_await(continuation)
-        
-    output = captured_output.getvalue()
-    if expected_output is not None and expected_output not in output:
-        raise AssertionError(f"Expected '{expected_output}' in output, got: {output}")
 
+    
 async def create_test_filestore(path: Path, files: Iterable[bytes]) -> ContentAddressableStorage:
     annex_fs = AnnexFS(root=path)
     cas = ContentAddressableStorage(annex_fs, Sha256e)
@@ -99,7 +106,8 @@ def setup_dolt(tmp_path):
     dolt_dir = Path(tmp_path / "dolt")
     dolt_dir.mkdir()
     dolt = local.cmd.dolt.with_cwd(dolt_dir)
-    dolt("init", "--name", "A U Thor", "--email", "author@example.com")
+    shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
+    dolt("checkout", "-b", "test_dataset")
     dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, annex_key varchar(100));")
     dolt("add", ".")
     dolt("commit", "-m", "Initial commit")
