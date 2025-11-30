@@ -59,6 +59,6 @@ def Loadable(extension: str, config_dir = Path(".")):
             """
             path = config_dir / f"{name}.{extension}"
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(self.model_dump_json(), f, ensure_ascii=False, indent=4)
+                f.write(self.model_dump_json(ensure_ascii=False, indent=4))
 
     return LoadableMixin
