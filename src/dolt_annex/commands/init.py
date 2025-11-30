@@ -7,6 +7,7 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
+from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.datatypes.config import Config
 from dolt_annex.gallery_dl_plugin import skip_db_path
 from dolt_annex.data import data_dir
@@ -54,6 +55,17 @@ class Init(cli.Application):
             dolt_url = self.dolt_url,
             remote_name = self.remote_name
         )
+        base_config: Config = self.parent.config
+        # TODO: The init command using the existing config is a bit chicken-and-egg.
+        # There's probably a better way to handle this.
+        # We should ensure the default dolt port is set so that it can connect to
+        # a running dolt sql-server.
+        if base_config.dolt.port is None:
+            base_config.dolt.port = 3306
+        if base_config.uuid is None:
+            base_config.uuid = uuid.uuid4()
+        if base_config.filestore is None:
+            base_config.filestore = AnnexFS(root=Path("./filestore"))
         do_init(self.parent.config, init_config)
         return 0
 
