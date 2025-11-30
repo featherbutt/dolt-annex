@@ -7,6 +7,8 @@ RUN apt update -y && \
         curl \
         tini \
         git \
+        build-essential \
+        libleveldb-dev \
         ca-certificates && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
