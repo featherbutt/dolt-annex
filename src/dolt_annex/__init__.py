@@ -22,9 +22,6 @@ Application.subcommand("insert-record", insert_record.InsertRecord)
 Application.subcommand("read-table", read_table.ReadTable)
 
 def main():
-    import dolt_annex.commands.gallery_dl_command_test
-    import pytest
-    pytest.main([dolt_annex.commands.gallery_dl_command_test.__file__])
     """Entry point for dolt-annex package"""
     async def run():
         _, continuation = Application.run(exit=False)
