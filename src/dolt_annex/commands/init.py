@@ -9,7 +9,6 @@ from plumbum import cli, local
 from dolt_annex.application import Application
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.datatypes.config import Config
-from dolt_annex.gallery_dl_plugin import skip_db_path
 from dolt_annex.data import data_dir
 
 def is_wsl():
@@ -103,12 +102,6 @@ def do_init(base_config: Config, init_config: InitConfig):
             if init_config.dolt_url:
                 dolt("remote", "add", init_config.remote_name, init_config.dolt_url)
                 dolt("fetch", init_config.remote_name)
-
-    local_uuid = read_uuid()
-    print(f"Local UUID: {local_uuid}")
-
-    if not Path("skip.sqlite3").exists():
-        shutil.copy(skip_db_path, "skip.sqlite3")
 
     # TODO: Add .remote file?
 

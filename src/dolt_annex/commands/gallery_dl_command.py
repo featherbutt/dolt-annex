@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+from pathlib import Path
+import shutil
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.logger import logger
-from dolt_annex.gallery_dl_plugin import GalleryDLContext, gallery_dl_context, make_default_schema, run_gallery_dl
+from dolt_annex.gallery_dl_plugin import GalleryDLContext, gallery_dl_context, make_default_schema, run_gallery_dl, skip_db_path
 from dolt_annex.table import Dataset
 
 class GalleryDL(cli.Application):
@@ -38,6 +40,9 @@ class GalleryDL(cli.Application):
             logger.info(f"Dataset {dataset_name} not found, creating with default schema.")
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save_as(dataset_name)
+            
+        if not Path("skip.sqlite3").exists():
+            shutil.copy(skip_db_path, "skip.sqlite3")
             
         async with (
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset,
