@@ -90,8 +90,8 @@ class InsertRecord(cli.Application):
             else:
                 remote_uuid = base_config.get_uuid()
                 filestore = base_config.get_filestore()
-
-            await table.insert_file_source(key_columns, key, remote_uuid)
+            async with filestore.open(base_config):
+                await table.insert_file_source(key_columns, key, remote_uuid)
             print(f"Inserted row ({', '.join(key_columns)}, {key}) into table '{self.table_name}' in dataset '{self.dataset}'")
         await maybe_await(filestore.put_file_bytes(file_bytes, key))
         return 0

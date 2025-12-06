@@ -8,15 +8,19 @@ with the file key as the key and the file contents as the value.
 
 from contextlib import asynccontextmanager
 from io import BytesIO
-from pathlib import Path
 from typing import cast
 from typing_extensions import override
 
+import pathlib
+
+plyvel_imported = False
 try:
     import plyvel
+    plyvel_imported = True
 except ImportError:
     pass  # plyvel is an optional dependency
 
+from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
@@ -25,7 +29,7 @@ from .base import FileInfo, FileObject, FileStore
 
 class LevelDB(FileStore):
 
-    root: Path
+    root: pathlib.Path
 
     _db: plyvel.DB = None
 
@@ -33,13 +37,14 @@ class LevelDB(FileStore):
     @asynccontextmanager
     async def open(self, config: Config):
         """Connect to a LevelDB database."""
-
+        if not plyvel_imported:
+            raise ImportError("plyvel is required for LevelDB filestore support. Please install dolt-annex with the 'leveldb' extra.")
         with plyvel.DB(self.root.as_posix(), create_if_missing=True) as self._db:
             yield
 
     @override
-    def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
-        self._db.put(bytes(file_key), in_fd.read())
+    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
+        self._db.put(bytes(file_key), await maybe_await(in_fd.read()))
 
     @override
     def get_file_object(self, file_key: FileKey) -> FileObject:

@@ -3,24 +3,38 @@
 
 from io import BufferedWriter
 import os
-from pathlib import Path
+import pathlib
 import tempfile
+from types import TracebackType
 from typing_extensions import Any, Buffer, Optional, override
 
 import asyncssh
 from asyncssh.misc import MaybeAwait
+import fs.osfs
+from fs.base import FS as FileSystem
 
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import AnnexKey
+from dolt_annex.datatypes.file_io import Path
 from dolt_annex.filestore.base import FileInfo, FileObject, ReadableFileObject, maybe_await
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class SFTPServer(asyncssh.SFTPServer):
+
+    temp_dir: tempfile.TemporaryDirectory
+    temp_file_system: FileSystem
+
     def __init__(self, chan: asyncssh.SSHServerChannel, cas: ContentAddressableStorage):
         self.cas = cas
-        temp_dir = tempfile.TemporaryDirectory()
-        super().__init__(chan, chroot=os.path.realpath(temp_dir.name).encode('utf-8'))
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_file_system = fs.osfs.OSFS(self.temp_dir.name)
+        super().__init__(chan, chroot=os.path.realpath(self.temp_dir.name).encode('utf-8'))
+
+    def exit(self) -> None:
+        self.temp_file_system.close()
+        self.temp_dir.cleanup()
+        super().exit()
 
     def format_user(self, uid: Optional[int]) -> str:
         """Return the user name associated with a uid
@@ -113,7 +127,7 @@ class SFTPServer(asyncssh.SFTPServer):
         if await maybe_await(self.cas.file_store.exists(key)):
             raise asyncssh.SFTPOpUnsupported(f"File {key} already exists, and overwriting existing files is not supported")
 
-        return NewFileHandle(self.cas, key)
+        return NewFileHandle(self.temp_file_system, self.cas, key)
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
         return await maybe_await(self.cas.file_store.get_file_object(key))
@@ -135,7 +149,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         # Move the file to the annex location
         # When calling, indicate whether file is being moved, deleted, or neither.
-        await maybe_await(self.cas.file_store.put_file(Path(file_obj.writefile.name), file_key=file_obj.key))
+        await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.writefile.name).name), file_key=file_obj.key))
         # Delete the temporary file unless put_file moved it.
         if os.path.exists(file_obj.writefile.name):
             os.remove(file_obj.writefile.name)
@@ -497,11 +511,12 @@ class NewFileHandle:
 
     cas: ContentAddressableStorage
 
-    def __init__(self, cas: ContentAddressableStorage, key: AnnexKey):
+    def __init__(self, temp_fs: FileSystem, cas: ContentAddressableStorage, key: AnnexKey):
+        self.temp_fs = temp_fs
         self.cas = cas
         self.key = key
-        self.suffix = Path(str(key)).suffix[1:]  # Remove the leading dot
-        self.writefile = tempfile.NamedTemporaryFile(delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
+        self.suffix = pathlib.Path(str(key)).suffix[1:]  # Remove the leading dot
+        self.writefile = tempfile.NamedTemporaryFile(dir=self.temp_fs.getsyspath('/'), delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
         
     def write(self, data: Buffer, /) -> int:
         return self.writefile.write(data)
@@ -517,3 +532,9 @@ class NewFileHandle:
 
     def close(self) -> None:
         self.writefile.close()
+
+    def __enter__(self) -> 'NewFileHandle':
+        return self
+    
+    def __exit__(self, type: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
+        self.close()

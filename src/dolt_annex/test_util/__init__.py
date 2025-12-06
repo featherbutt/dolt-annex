@@ -7,7 +7,8 @@ import contextlib
 from io import StringIO
 from pathlib import Path
 import shutil
-from typing import Optional
+import sys
+from typing import Optional, TextIO
 import uuid
 
 from plumbum import local, cli
@@ -46,7 +47,7 @@ test_config = Config(
     ),
     default_file_key_type=Sha256e,
     filestore=AnnexFS(
-        root=Path("./local_files")
+        root=Path("./local_files"),
     )
 )
 
@@ -64,6 +65,19 @@ test_dataset_schema = DatasetSchema(
     empty_table_ref= "test_dataset"
 )
 
+class Tee(TextIO):
+    def __init__(self, *streams: TextIO):
+        self.streams = streams
+
+    def write(self, s: str) -> int:
+        for stream in self.streams:
+            stream.write(s)
+        return len(s)
+
+    def flush(self) -> None:
+        for stream in self.streams:
+            stream.flush()
+
 async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None):
     """
     Run a dolt-annex CLI command and optionally check for expected output.
@@ -74,7 +88,8 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
     """
     if expected_output is not None:
         captured_output = StringIO()
-        with contextlib.redirect_stdout(captured_output):
+        tee = Tee(captured_output, sys.stdout)
+        with contextlib.redirect_stdout(tee):
             inst, continuation = cmd.run(args, exit=False)
             await maybe_await(continuation)
         output = captured_output.getvalue()

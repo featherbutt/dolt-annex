@@ -11,13 +11,10 @@ from uuid import UUID
 from plumbum import local
 
 from dolt_annex.commands.init import InitConfig, do_init
-from dolt_annex.datatypes import remote
 from dolt_annex.datatypes.config import Config, DoltConfig, SshSettings
 from dolt_annex.datatypes.remote import Repo
 from dolt_annex.datatypes.common import Connection
 from dolt_annex.filestore.annexfs import AnnexFS
-
-local_filestore = AnnexFS(root=Path("./files"))
 
 base_config = Config(
     dolt=DoltConfig(
@@ -29,7 +26,7 @@ base_config = Config(
             "user": "root",
         }
     ),
-    filestore=local_filestore,
+    filestore=None,
     ssh=SshSettings(
         ssh_config=Path(__file__).parent / "config" / "ssh_config",
         #known_hosts=str(Path(__file__).parent / "test_client_keys" / "known_hosts"),
@@ -42,7 +39,7 @@ base_config = Config(
 def setup_file_remote(tmp_path):
     origin_uuid = uuid.uuid4()
     setup(tmp_path, origin_uuid)
-    init()
+    init(tmp_path)
     Path(os.path.join(tmp_path, "remote_files")).mkdir()
     return Repo.model_validate({
         "url": f"{tmp_path}/remote_files",
@@ -58,7 +55,7 @@ def setup_ssh_remote(tmp_path):
     # sshd_process = local.cmd.sshd["-f", "tests/config/sshd_config"] & BG
     origin_uuid = uuid.uuid4()
     setup(tmp_path, origin_uuid)
-    init()
+    init(tmp_path)
     Path(os.path.join(tmp_path, "remote_files")).mkdir()
     yield Repo.model_validate({
         "url": Connection(
@@ -99,11 +96,12 @@ def setup(tmp_path, origin_uuid: UUID):
     dolt("push", "origin", f"{origin_uuid}-submissions")
     dolt("push", "origin", f"{origin_uuid}-urls")
 
-def init():
+def init(tmp_path):
     init_config = InitConfig(
         init_dolt = True,
         dolt_url = "file://../dolt_origin/", 
         remote_name = "origin",
     )
+    base_config.filestore = AnnexFS(root=Path(tmp_path) / "files")
     Path(base_config.dolt.db_name).mkdir(parents=True, exist_ok=True)
     do_init(base_config, init_config)

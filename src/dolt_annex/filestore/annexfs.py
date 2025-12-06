@@ -12,37 +12,51 @@ has an md5 hash beginning with `091de9...`, and is thus found at `./091/de9/`
 relative to the filestore root.
 """
 
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 import hashlib
-from io import BufferedWriter
 import os
-from pathlib import Path
+import pathlib
+import fs.osfs
 from typing_extensions import override
 
+from fs.base import FS as FileSystem
+
+from dolt_annex.datatypes.file_io import Path, ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileObject, FileStore, copy
+from .base import FileInfo, FileObject, FileStore
 
 class AnnexFS(FileStore):
 
-    root: Path
+    root: pathlib.Path
+    _file_system: FileSystem = None
+
+    @override
+    @asynccontextmanager
+    async def open(self, config: 'Config') -> AsyncGenerator[None]:
+        """Connect to an SFTP filestore."""
+
+        if self._file_system is None:
+            self.root.mkdir(parents=True, exist_ok=True)
+            self._file_system = fs.osfs.OSFS(str(self.root))
+        yield
 
     @override
     async def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
         output_path = self.get_key_path(file_key)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdirs(exist_ok=True)
         file_path.rename(output_path)
         return
 
     @override
-    async def put_file_object(self, in_fd: FileObject, file_key: FileKey) -> None:
+    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
         """Copy a file-like object into the annex."""
         output_path = self.get_key_path(file_key)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        out_fd: BufferedWriter
+        output_path.parent.mkdirs(exist_ok=True)
         print(f"Writing file to {output_path}")
-        with open(output_path, 'wb') as out_fd:
-            await copy(src=in_fd, dst=out_fd)
+        output_path.upload(in_fd)
 
     @override
     async def get_file_object(self, file_key: FileKey) -> FileObject:
@@ -52,23 +66,23 @@ class AnnexFS(FileStore):
             annexed_file_path = self.get_old_key_path(file_key)
             if not annexed_file_path.exists():
                 raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        fd = open(annexed_file_path, 'rb')
+        fd = annexed_file_path.open()
         return fd
-    
+
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
-         return FileInfo(size=self.get_key_path(file_key).stat().st_size)
+        return self.get_key_path(file_key).stat()
 
     @override
     async def fstat(self, file_obj: FileObject) -> FileInfo:
-         return FileInfo(size=os.fstat(file_obj.fileno()).st_size)
+        return FileInfo(size=os.fstat(file_obj.fileno()).st_size)
 
     def get_key_path(self, key: FileKey) -> Path:
         """
         Get the relative path for a file in the annex from its key.
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
-        return self.root / md5[:3] / md5[3:6] / str(key)
+        return Path(self._file_system) / md5[:3] / md5[3:6] / str(key)
 
     def get_old_key_path(self, key: FileKey) -> Path:
         """
@@ -78,12 +92,7 @@ class AnnexFS(FileStore):
         Some older versions of dolt-annex used this layout, so we fall back to it when looking for files.
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
-        return self.root / md5[:3] / md5[3:6] / str(key) / str(key)
-
-    def get_absolute_file_path(self, path: Path) -> Path:
-        if path.is_absolute():
-            return path
-        return (self.root / path).resolve()
+        return Path(self._file_system) / md5[:3] / md5[3:6] / str(key) / str(key)
 
     @override
     def exists(self, file_key: FileKey) -> bool:

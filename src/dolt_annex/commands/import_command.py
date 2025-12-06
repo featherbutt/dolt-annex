@@ -1,10 +1,13 @@
-import asyncio
 from dataclasses import dataclass
 import os
-from pathlib import Path
+import pathlib
+from typing import Optional
 from uuid import UUID
 
 from typing_extensions import Dict, Iterable
+
+import fs.osfs
+from fs.base import FS as FileSystem
 
 from plumbum import cli # type: ignore
 
@@ -19,6 +22,7 @@ from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import AnnexKey
 from dolt_annex.table import Dataset
+from dolt_annex.datatypes.file_io import Path
 
 class AnnexImportError(Exception):
     pass
@@ -116,20 +120,24 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
         key_paths[table_name] = {}
         table.add_flush_hook(move_files, file_store, import_config,key_paths[table_name])
 
-    async def import_path(file_or_directory: Path):
+    async def import_path(file_or_directory: pathlib.Path):
         """Import a file or directory into the annex"""
         if file_or_directory.is_file():
-            await import_file(file_or_directory)
+            source_file_system = fs.osfs.OSFS(os.fspath(file_or_directory.parent))
+            await import_file(Path(source_file_system, pathlib.Path(file_or_directory.name)))
         elif file_or_directory.is_dir():
-            await import_directory(file_or_directory)
+            source_file_system = fs.osfs.OSFS(os.fspath(file_or_directory))
+            await import_directory(source_file_system)
         else:
             raise ValueError(f"Path {file_or_directory} is not a file or directory")
 
-    async def import_directory(path: Path):
+    async def import_directory(file_system: FileSystem, directory_path: Optional[Path] = None):
         """Import a directory into the annex"""
-        logger.debug(f"Importing directory {path}")
-        for root, _, files in os.walk(path):
-            root_path = Path(root)
+        if directory_path is None:
+            directory_path = Path(file_system, pathlib.Path('/'))
+
+        for root, _, files in file_system.walk(os.fspath(directory_path)):
+            root_path = Path(file_system, root)
             for file in files:
                 await import_file(root_path / file)
 
@@ -138,9 +146,8 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
         extension = path.suffix[1:]
         if len(extension) > dataset.MAX_EXTENSION_LENGTH+1:
             return
-        # catch both regular symlinks and windows shortcuts
-        is_symlink = path.is_symlink() or extension == '.lnk'
-        if is_symlink:
+        
+        if path.is_symlink():
             if not import_config.follow_symlinks:
                 return
             else:
@@ -161,7 +168,7 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
                 raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")
 
     for file_or_directory in files_or_directories:
-        await import_path(Path(file_or_directory))
+        await import_path(pathlib.Path(file_or_directory))
 
 async def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, AnnexKey]):
     """Move files to the annex"""

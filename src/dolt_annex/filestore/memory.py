@@ -7,12 +7,12 @@ across restarts.
 """
 
 from io import BytesIO
-from pathlib import Path
 from typing_extensions import override, BinaryIO, cast
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_io import Path
 
 from .base import FileInfo, FileObject, FileStore
 
@@ -23,7 +23,7 @@ class MemoryFS(FileStore):
     @override
     def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
-        with open(file_path, 'rb') as f:
+        with file_path.open() as f:
             self.files[file_key] = f.read()
              
     @override

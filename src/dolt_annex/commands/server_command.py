@@ -50,14 +50,16 @@ class Server(cli.Application):
     async def main(self, *args):
         """Entrypoint for server command"""
         cas = ContentAddressableStorage.from_local(self.parent.config)
-
-        async with server_context(
-            cas=cas,
-            host=self.host,
-            port=self.port,
-            authorized_keys=self.authorized_keys,
-            server_host_key=self.server_keyfile,
-        ) as server:
+        async with (
+            cas.open(self.parent.config),
+            server_context(
+                cas=cas,
+                host=self.host,
+                port=self.port,
+                authorized_keys=self.authorized_keys,
+                server_host_key=self.server_keyfile,
+            ) as server,
+        ):
             logger.info(f'Serving over sftp at {self.host}:{self.port}')
             await server.wait_closed()
 

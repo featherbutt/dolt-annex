@@ -69,7 +69,8 @@ async def sftp_filestore_factory(tmp_path, remote_file_cas: ContentAddressableSt
 
     # setup server, then create server context, then setup client.
     async with (
-            async_server_context(
+        remote_file_cas.open(base_config),
+        async_server_context(
             remote_file_cas,
             host,
             ssh_port,
