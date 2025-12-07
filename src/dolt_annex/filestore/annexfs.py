@@ -35,8 +35,6 @@ class AnnexFS(FileStore):
     @override
     @asynccontextmanager
     async def open(self, config: 'Config') -> AsyncGenerator[None]:
-        """Connect to an SFTP filestore."""
-
         if self._file_system is None:
             self.root.mkdir(parents=True, exist_ok=True)
             self._file_system = fs.osfs.OSFS(str(self.root))
@@ -74,7 +72,7 @@ class AnnexFS(FileStore):
         return self.get_key_path(file_key).stat()
 
     @override
-    async def fstat(self, file_obj: FileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
         return FileInfo(size=os.fstat(file_obj.fileno()).st_size)
 
     def get_key_path(self, key: FileKey) -> Path:

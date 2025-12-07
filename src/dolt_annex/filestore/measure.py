@@ -84,5 +84,5 @@ class Measure(FileStore):
          return self.child.stat(file_key)
 
     @override
-    def fstat(self, file_obj: FileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
          return self.child.fstat(file_obj)

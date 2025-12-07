@@ -64,7 +64,7 @@ class FileStore(AbstractBaseModel):
         """
 
     @abstractmethod
-    def fstat(self, file_obj: FileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
         """
         Returns information about a file-like object previously returned by get_file_object.
         """
@@ -92,6 +92,10 @@ class FileStore(AbstractBaseModel):
 
     async def flush(self) -> None:
         """Flush any pending operations to the filestore."""
+
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return self.__class__.__name__
 
 async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=4096):
     while True:

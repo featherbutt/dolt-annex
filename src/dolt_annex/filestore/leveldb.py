@@ -8,10 +8,20 @@ with the file key as the key and the file contents as the value.
 
 from contextlib import asynccontextmanager
 from io import BytesIO
+import pathlib
 from typing import cast
 from typing_extensions import override
 
-import pathlib
+
+
+from fs.base import FS as FileSystem
+
+from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.file_keys import FileKey
+
+from .base import FileInfo, FileObject, FileStore
 
 plyvel_imported = False
 try:
@@ -20,12 +30,6 @@ try:
 except ImportError:
     pass  # plyvel is an optional dependency
 
-from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import ReadableFileObject
-from dolt_annex.file_keys import FileKey
-
-from .base import FileInfo, FileObject, FileStore
 
 class LevelDB(FileStore):
 
@@ -39,6 +43,10 @@ class LevelDB(FileStore):
         """Connect to a LevelDB database."""
         if not plyvel_imported:
             raise ImportError("plyvel is required for LevelDB filestore support. Please install dolt-annex with the 'leveldb' extra.")
+        if self._db:
+            yield
+            return
+        
         with plyvel.DB(self.root.as_posix(), create_if_missing=True) as self._db:
             yield
 
@@ -61,7 +69,7 @@ class LevelDB(FileStore):
         return FileInfo(size=len(file_bytes))
 
     @override
-    def fstat(self, file_obj: FileObject) -> FileInfo:
+    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
          b = cast(BytesIO, file_obj)
          return FileInfo(size=len(b.getvalue()))
     

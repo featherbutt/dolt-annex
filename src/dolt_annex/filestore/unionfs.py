@@ -98,10 +98,16 @@ class UnionFS(FileStore):
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
     @override
-    async def fstat(self, file_obj: FileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
         for child in self.children:
             try:
                 return await maybe_await(child.fstat(file_obj))
             except FileNotFoundError:
                 continue
         raise FileNotFoundError("File object not found in any child filestore.")
+
+    @override
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return f"{self.__class__.__name__}({', '.join(child.type_name() for child in self.children)})"
+    
