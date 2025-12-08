@@ -7,6 +7,7 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
+from dolt_annex.datatypes.remote import Repo
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.datatypes.config import Config
 from dolt_annex.data import data_dir
@@ -61,10 +62,16 @@ class Init(cli.Application):
         # a running dolt sql-server.
         if base_config.dolt.port is None:
             base_config.dolt.port = 3306
-        if base_config.uuid is None:
-            base_config.uuid = uuid.uuid4()
-        if base_config.filestore is None:
-            base_config.filestore = AnnexFS(root=Path("./filestore"))
+
+        local_repo = Repo.load(base_config.local_repo_name)
+        if local_repo is None:
+            local_repo = Repo(
+                name=base_config.local_repo_name,
+                uuid=uuid.uuid4(),
+                filestore=AnnexFS(root=Path("./annex")),
+                key_format=base_config.default_file_key_type,
+            )
+            local_repo.save()
         do_init(self.parent.config, init_config)
         return 0
 

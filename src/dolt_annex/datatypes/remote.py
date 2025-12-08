@@ -11,7 +11,7 @@ from dolt_annex.file_keys import FileKeyType
 from .loader import Loadable
 from .common import Connection
     
-class Repo(Loadable('remote'), BaseModel):
+class Repo(Loadable, extension="repo", config_dir=pathlib.Path("remotes")):
     """
     A description of a file respository. May be local or remote.
     """

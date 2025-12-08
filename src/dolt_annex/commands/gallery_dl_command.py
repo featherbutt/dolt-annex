@@ -39,7 +39,7 @@ class GalleryDL(cli.Application):
             # Initialize the dataset if it doesn't exist
             logger.info(f"Dataset {dataset_name} not found, creating with default schema.")
             dataset_schema = make_default_schema(dataset_name)
-            dataset_schema.save_as(dataset_name)
+            dataset_schema.save()
             
         if not Path("skip.sqlite3").exists():
             shutil.copy(skip_db_path, "skip.sqlite3")

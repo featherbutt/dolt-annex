@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from dataclasses import dataclass
+import pathlib
 from pydantic import BaseModel
 from typing_extensions import List
 
 from .loader import Loadable
-from .remote import Repo
 
-class FileTableSchema(Loadable("table"), BaseModel):
+class FileTableSchema(Loadable, BaseModel, extension="schema", config_dir=pathlib.Path(".")):
     """
     The schema describing a table with a file column.
     Contains all the information needed to diff file keys between two remotes.
@@ -25,7 +24,7 @@ class FileTableSchema(Loadable("table"), BaseModel):
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
     
-class DatasetSchema(Loadable("dataset"), BaseModel):
+class DatasetSchema(Loadable, BaseModel, extension="dataset", config_dir=pathlib.Path(".")):
     """
     The schema describing one or more tables that are version controlled together.
     Contains all the information needed to diff file keys between two remotes.
