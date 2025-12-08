@@ -91,7 +91,7 @@ class Push(cli.Application):
         remote_name = self.remote or self.parent.config.dolt.default_remote
         remote_repo = Repo.must_load(remote_name)
         remote_file_store = ContentAddressableStorage.from_remote(remote_repo).file_store
-        local_file_store = self.parent.config.filestore
+        local_file_store = self.parent.config.get_filestore()
         if not local_file_store:
             raise ValueError("No local filestore configured")
         local_uuid = self.parent.config.get_uuid()
