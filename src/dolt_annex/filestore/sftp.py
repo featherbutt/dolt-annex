@@ -78,7 +78,7 @@ class SftpFileStore(FileStore):
 
     @override
     @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[None]:
+    async def open(self, config: Config) -> AsyncGenerator[None, None]:
         """Connect to an SFTP filestore."""
 
         if self._sftp is None:

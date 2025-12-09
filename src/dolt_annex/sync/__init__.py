@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 from uuid import UUID
 from dataclasses import dataclass, field
 from typing_extensions import Iterable, Optional, Tuple, List, Any

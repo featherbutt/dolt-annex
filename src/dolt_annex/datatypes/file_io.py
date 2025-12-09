@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextvars
 from dataclasses import dataclass
 import pathlib
@@ -109,5 +111,9 @@ class Path:
         assert link_target is not None, "Path is not a symlink"
         return Path(self.fs, link_target)
     
+    @property
     def name(self) -> str:
         return self.path.name
+    
+    def parts(self) -> tuple[str, ...]:
+        return self.path.parts
