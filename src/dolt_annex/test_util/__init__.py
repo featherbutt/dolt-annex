@@ -11,6 +11,7 @@ import sys
 from typing import Optional, TextIO
 import uuid
 
+import fs.memoryfs
 from plumbum import local, cli
 
 from dolt_annex.data import data_dir
@@ -23,15 +24,14 @@ from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
-public_key_path = Path(__file__).parent / "id_ed25519.pub"
-private_key_path = Path(__file__).parent / "id_ed25519"
+public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
+private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
 
 # Arbitrary UUIDs for local and remote repos
 local_uuid = uuid.UUID("3fca31d9-f0dd-424e-b0e9-3cd4a26e9d68")
 remote_uuid = uuid.UUID("36b60d94-fbdf-476b-9479-f0abc61fa5ba")
 
 test_config = Config(
-    uuid=local_uuid,
     user=UserConfig(
         name="A U Thor",
         email="author@example.com"
@@ -46,12 +46,7 @@ test_config = Config(
         spawn_dolt_server=True
     ),
     default_file_key_type=Sha256e,
-    filestore=AnnexFS(
-        root=Path("./local_files"),
-    )
 )
-
-test_remote = Repo(name="test_remote", uuid=remote_uuid, url=Path("../remote_files"), key_format=Sha256e)
 
 test_dataset_schema = DatasetSchema(
     name="test",
@@ -100,17 +95,33 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
         await maybe_await(continuation)
 
     
-async def create_test_filestore(path: Path, files: Iterable[bytes]) -> ContentAddressableStorage:
-    annex_fs = AnnexFS(root=path)
+async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
+    file_system=fs.memoryfs.MemoryFS()
+    annex_fs = AnnexFS.with_file_system(root=Path('/'), file_system=file_system)
+    repo = Repo(
+        name=name,
+        uuid=uuid,
+        key_format=Sha256e,
+        filestore= annex_fs
+    )
+    
     cas = ContentAddressableStorage(annex_fs, Sha256e)
     for file_content in files:
         await cas.put_file_bytes(file_content)
     return cas
 
 async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, remote_files: Optional[Iterable[bytes]] = None) -> tuple[ContentAddressableStorage, ContentAddressableStorage]:
-    local_filestore = await create_test_filestore(tmp_path / "local_files", local_files or [])
-    remote_filestore = await create_test_filestore(tmp_path / "remote_files", remote_files or [])
-    
+
+    local_filestore = await create_test_filestore("__local__", local_uuid, local_files or [])
+    remote_filestore = await create_test_filestore("test_remote", remote_uuid, remote_files or [])
+
+    test_remote = Repo(
+        name="test_remote",
+        uuid=remote_uuid,
+        filestore=remote_filestore.file_store,
+        key_format=Sha256e
+    )
+
     setup_dolt(tmp_path)
 
     with (tmp_path / "config.json").open("w") as f:

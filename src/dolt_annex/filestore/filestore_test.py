@@ -1,19 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 import contextlib
-from pathlib import Path
 import pathlib
 import random
 import tempfile
 from typing import override
-from typing_extensions import Callable, Generator, ContextManager, AsyncGenerator
+from typing_extensions import Generator, AsyncGenerator
 import pytest
 
 import fs.memoryfs
 
-from dolt_annex.datatypes import remote
+from dolt_annex import test_util
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import Connection
@@ -27,7 +26,7 @@ from dolt_annex.filestore.unionfs import UnionFS
 from dolt_annex.filestore.sftp import SftpFileStore
 from dolt_annex.server.ssh import server_context as async_server_context
 
-class TestSftpFileStore(SftpFileStore):
+class SftpWrappedFileStore(SftpFileStore):
     """
     A wrapper around SftpFileStore that creates a server on localhost, for testing.
     """
@@ -36,7 +35,7 @@ class TestSftpFileStore(SftpFileStore):
 
     @classmethod
     def make(cls, remote_file_store: FileStore):
-        client_key=Path(__file__).parent.parent.parent.parent / "tests" / "test_client_keys" / "id_ed25519"
+        client_key=test_util.private_key_path
         port=random.randint(21000, 22000)
         connection = Connection(
             host="localhost",
@@ -64,8 +63,8 @@ class TestSftpFileStore(SftpFileStore):
                 remote_file_cas,
                 self.url.host,
                 self.url.port,
-                str(Path(__file__).parent.parent.parent.parent / "tests" / "test_client_keys" / "id_ed25519.pub"),
-                str(Path(__file__).parent.parent.parent.parent / "tests" / "test_client_keys" / "id_ed25519")
+                str(test_util.public_key_path),
+                str(test_util.private_key_path)
             ),
             super().open(base_config)
         ):
@@ -76,13 +75,13 @@ class TestSftpFileStore(SftpFileStore):
 def local_filestore_types():
     yield MemoryFS()
     yield LevelDB(root=pathlib.Path("leveldb"))
-    yield AnnexFS(root=pathlib.Path("annex"), _file_system=fs.memoryfs.MemoryFS())
+    yield AnnexFS.with_file_system(pathlib.Path("annex"), fs.memoryfs.MemoryFS())
     yield UnionFS(children=[MemoryFS()])
 
 def all_filestore_types():
     yield from local_filestore_types()
     for fs in local_filestore_types():
-        yield TestSftpFileStore.make(fs)
+        yield SftpWrappedFileStore.make(fs)
 
 def all_filestore_type_parameters():
     for fs in all_filestore_types():
