@@ -19,6 +19,5 @@ Other filestores could be added in the future. Possible candidates include:
 """
 
 from .base import FileStore, YesNoMaybe
-from .annexfs import AnnexFS
 
-__all__ = ['FileStore', 'AnnexFS', 'YesNoMaybe']
+__all__ = ['FileStore', 'YesNoMaybe']
