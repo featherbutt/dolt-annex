@@ -21,7 +21,7 @@ from dolt_annex.file_keys import Sha256e
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset, FileTable
-from dolt_annex.gallery_dl_plugin import gallery_dl_context
+from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
 
@@ -33,7 +33,7 @@ def gallery_dl_post(metadata: dict):
 
     source.format_post_metadata(metadata)
 
-    context = gallery_dl_context.get()
+    context = _gallery_dl_context.get()
     dataset: Dataset = context.dataset
     dolt_annex_config = context.config
     tasks = context.tasks
@@ -53,6 +53,7 @@ def gallery_dl_post(metadata: dict):
                     default=json_default).encode('utf-8') + b'\n'
                 table: FileTable = dataset.get_table("metadata")
                 await import_bytes(local_uuid, file_store, table, table_row, metadata_bytes, "json")
+                context.post_metadata_files_processed += 1
     tasks.create_task(continuation())
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
@@ -68,7 +69,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     """Check whether we should skip downloading this file."""
     # First, check whether we already have the file in the annex.
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
-    context = gallery_dl_context.get()
+    context = _gallery_dl_context.get()
     dataset = context.dataset
     dolt_annex_config = context.config
     local_uuid = dolt_annex_config.get_uuid()
@@ -88,7 +89,7 @@ def gallery_dl_after(metadata: dict[str, Any]):
 def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     """Import the submission file and its metadata into the dolt-annex dataset."""
 
-    context = gallery_dl_context.get()
+    context = _gallery_dl_context.get()
     dataset: Dataset = context.dataset
     dolt_annex_config = context.config
     tasks = context.tasks
@@ -105,8 +106,10 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         local_file_store = ContentAddressableStorage.from_local(dolt_annex_config).file_store
         async with local_file_store.open(dolt_annex_config):
             await import_file(local_uuid, local_file_store, submissions_table, source.table_key(metadata), temp_path, metadata["extension"], metadata["sha256"])
+            context.submission_files_processed += 1
             for metadata_key in source.file_metadata(metadata):
                 await import_file(local_uuid, local_file_store, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
+                context.submission_metadata_files_processed += 1
 
     tasks.create_task(continuation())
 
