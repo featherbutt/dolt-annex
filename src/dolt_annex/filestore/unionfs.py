@@ -76,7 +76,7 @@ class UnionFS(FileStore):
     async def flush(self) -> None:
         """Flush any pending operations to the filestore."""
         for child in self.children:
-            await child.flush()
+            await maybe_await(child.flush())
 
 
     @override

@@ -87,10 +87,10 @@ class FileStore(AbstractBaseModel):
         """
 
         yield
-        await self.flush()
+        await maybe_await(self.flush())
 
 
-    async def flush(self) -> None:
+    def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
 
     def type_name(self) -> str:
