@@ -1,26 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from io import BufferedWriter
 import os
-from pathlib import Path
+import pathlib
 import tempfile
-from typing_extensions import Any, Buffer, Optional, override
+from typing_extensions import Any, Optional, override
 
 import asyncssh
 from asyncssh.misc import MaybeAwait
+import fs.osfs
+from fs.base import FS as FileSystem
 
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import AnnexKey
-from dolt_annex.filestore.base import FileInfo, FileObject, ReadableFileObject, maybe_await
+from dolt_annex.datatypes.file_io import Path
+from dolt_annex.filestore.base import FileObject, ReadableFileObject, maybe_await
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class SFTPServer(asyncssh.SFTPServer):
+
+    temp_dir: tempfile.TemporaryDirectory
+    temp_file_system: FileSystem
+
     def __init__(self, chan: asyncssh.SSHServerChannel, cas: ContentAddressableStorage):
         self.cas = cas
-        temp_dir = tempfile.TemporaryDirectory()
-        super().__init__(chan, chroot=os.path.realpath(temp_dir.name).encode('utf-8'))
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_file_system = fs.osfs.OSFS(self.temp_dir.name)
+        super().__init__(chan, chroot=os.path.realpath(self.temp_dir.name).encode('utf-8'))
+
+    def exit(self) -> None:
+        self.temp_file_system.close()
+        self.temp_dir.cleanup()
+        super().exit()
 
     def format_user(self, uid: Optional[int]) -> str:
         """Return the user name associated with a uid
@@ -113,7 +125,7 @@ class SFTPServer(asyncssh.SFTPServer):
         if await maybe_await(self.cas.file_store.exists(key)):
             raise asyncssh.SFTPOpUnsupported(f"File {key} already exists, and overwriting existing files is not supported")
 
-        return NewFileHandle(self.cas, key)
+        return NewFileHandle(self.temp_file_system, self.cas, key)
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
         return await maybe_await(self.cas.file_store.get_file_object(key))
@@ -135,7 +147,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         # Move the file to the annex location
         # When calling, indicate whether file is being moved, deleted, or neither.
-        await maybe_await(self.cas.file_store.put_file(Path(file_obj.writefile.name), file_key=file_obj.key))
+        await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.writefile.name).name), file_key=file_obj.key))
         # Delete the temporary file unless put_file moved it.
         if os.path.exists(file_obj.writefile.name):
             os.remove(file_obj.writefile.name)
@@ -186,7 +198,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
         if isinstance(file_obj, NewFileHandle):
-            file_info = file_obj.file_info()
+            file_info = file_obj.file_info
         else:
             file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(
@@ -478,42 +490,3 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         # TODO: Consider whether fsync should be supported
         pass
-    
-CHUNK_SIZE = 8092
-
-class NewFileHandle:
-    """A file handle for uploading a new key.
-    
-    On creation, the file is created in a temporary location.
-    After the file is closed, the correct path is computed and the file is moved to the
-    final location. This both prevents partial writes and also allows for the file contents
-    to be verified before moving it into the annex."""
-
-    # SFTPHandle checks for this attribute and uses it for IO
-    writefile: BufferedWriter
-
-    key: AnnexKey
-    suffix: str
-
-    cas: ContentAddressableStorage
-
-    def __init__(self, cas: ContentAddressableStorage, key: AnnexKey):
-        self.cas = cas
-        self.key = key
-        self.suffix = Path(str(key)).suffix[1:]  # Remove the leading dot
-        self.writefile = tempfile.NamedTemporaryFile(delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
-        
-    def write(self, data: Buffer, /) -> int:
-        return self.writefile.write(data)
-    
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
-        return self.writefile.seek(offset, whence)
-    
-    def read(self, size: int = -1) -> bytes:
-        raise NotImplementedError("Read not supported on NewFileHandle")
-
-    def file_info(self) -> FileInfo:
-        return FileInfo(size=self.writefile.tell())
-
-    def close(self) -> None:
-        self.writefile.close()

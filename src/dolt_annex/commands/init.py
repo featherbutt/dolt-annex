@@ -7,9 +7,9 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
+from dolt_annex.datatypes.remote import Repo
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.datatypes.config import Config
-from dolt_annex.gallery_dl_plugin import skip_db_path
 from dolt_annex.data import data_dir
 
 def is_wsl():
@@ -62,31 +62,22 @@ class Init(cli.Application):
         # a running dolt sql-server.
         if base_config.dolt.port is None:
             base_config.dolt.port = 3306
-        if base_config.uuid is None:
-            base_config.uuid = uuid.uuid4()
-        if base_config.filestore is None:
-            base_config.filestore = AnnexFS(root=Path("./filestore"))
+
+        local_repo = Repo.load(base_config.local_repo_name)
+        if local_repo is None:
+            local_repo = Repo(
+                name=base_config.local_repo_name,
+                uuid=uuid.uuid4(),
+                filestore=AnnexFS(root=Path("./annex")),
+                key_format=base_config.default_file_key_type,
+            )
+            local_repo.save()
         do_init(self.parent.config, init_config)
         return 0
-
-        
-
-def read_uuid() -> uuid.UUID:
-    try:
-        with open("uuid", encoding="utf-8") as fd:
-            local_uuid = uuid.UUID(fd.read().strip())
-    except FileNotFoundError:
-        # Generate a new UUID if not found
-        local_uuid = uuid.uuid4()
-        with open("uuid", "w", encoding="utf-8") as fd:
-            fd.write(str(local_uuid))
-    return local_uuid
 
 def do_init(base_config: Config, init_config: InitConfig):
     # Things that need to be created:
     # - dolt directory/repository (if it doesn't exist)
-    # - skip.sqlite3 database (if it doesn't exist)
-    # - uuid file (if it doesn't exist)
     # - If a dolt-url is provided, add it as a remote to the dolt repository
     # - If a dolt-url is provided, fetch from it and create a branch for this UUID?
 
@@ -103,12 +94,6 @@ def do_init(base_config: Config, init_config: InitConfig):
             if init_config.dolt_url:
                 dolt("remote", "add", init_config.remote_name, init_config.dolt_url)
                 dolt("fetch", init_config.remote_name)
-
-    local_uuid = read_uuid()
-    print(f"Local UUID: {local_uuid}")
-
-    if not Path("skip.sqlite3").exists():
-        shutil.copy(skip_db_path, "skip.sqlite3")
 
     # TODO: Add .remote file?
 

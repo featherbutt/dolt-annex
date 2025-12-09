@@ -7,6 +7,7 @@ RUN apt update -y && \
         curl \
         tini \
         git \
+        jq \
         build-essential \
         libleveldb-dev \
         ca-certificates && \
@@ -18,7 +19,8 @@ RUN apt update -y && \
 RUN bash -c 'curl -L https://github.com/dolthub/dolt/releases/download/v${DOLT_VERSION}/install.sh | bash'
 RUN /usr/local/bin/dolt version
 
-RUN --mount=type=bind,source=src,target=/src pip install /src
+COPY src/ /src/
+RUN pip install -e /src
 
 ENV DA_DOLT_DIR="/repo/dolt" \
     DA_FILES_DIR="/repo/filestore" \
@@ -30,11 +32,10 @@ ENV DA_DOLT_DIR="/repo/dolt" \
 
 RUN mkdir /repo && mkdir /repo/db && mkdir /repo/filestore
 
-VOLUME [ "repo/" ]
+VOLUME [ "/repo/" ]
 
-COPY docker/setup.sh /setup.sh
-RUN chmod +x /setup.sh
+COPY scripts/ /scripts/
 
 WORKDIR /repo
 
-ENTRYPOINT ["tini", "--", "/setup.sh"]
+ENTRYPOINT ["tini", "--", "/scripts/setup.sh"]

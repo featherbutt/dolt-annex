@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import asyncio
+import dataclasses
+import json
+from pathlib import Path
+import shutil
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.logger import logger
-from dolt_annex.gallery_dl_plugin import GalleryDLContext, gallery_dl_context, make_default_schema, run_gallery_dl
-from dolt_annex.table import Dataset
+from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl, skip_db_path
 
 class GalleryDL(cli.Application):
     """Downlad files using gallery-dl and import them into dolt-annex"""
@@ -32,19 +34,18 @@ class GalleryDL(cli.Application):
     async def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
         dataset_name = self.dataset
+
         dataset_schema = DatasetSchema.load(dataset_name)
         if not dataset_schema:
             # Initialize the dataset if it doesn't exist
             logger.info(f"Dataset {dataset_name} not found, creating with default schema.")
             dataset_schema = make_default_schema(dataset_name)
-            dataset_schema.save_as(dataset_name)
+            dataset_schema.save()
             
-        async with (
-            Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset,
-            asyncio.TaskGroup() as tasks,
-        ):
-            gallery_dl_context.set(GalleryDLContext(dataset=dataset, config=self.parent.config, tasks=tasks))
-            run_gallery_dl(*args)
+        if not Path("skip.sqlite3").exists():
+            shutil.copy(skip_db_path, "skip.sqlite3")
             
+        output = await run_gallery_dl(self.parent.config, self.batch_size, dataset_schema, *args)
+        print(json.dumps(dataclasses.asdict(output), indent=2))
         return 0
     

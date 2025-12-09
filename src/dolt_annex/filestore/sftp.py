@@ -70,7 +70,7 @@ class SftpFileStore(FileStore):
          return await self.fstat(file_obj)
 
     @override
-    async def fstat(self, file_obj: FileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
         sftp_file_obj = cast(asyncssh.SFTPClientFile, file_obj)
         stat_result = await sftp_file_obj.stat()
         return FileInfo(size=stat_result.size)
@@ -78,7 +78,7 @@ class SftpFileStore(FileStore):
 
     @override
     @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[None]:
+    async def open(self, config: Config) -> AsyncGenerator[None, None]:
         """Connect to an SFTP filestore."""
 
         if self._sftp is None:

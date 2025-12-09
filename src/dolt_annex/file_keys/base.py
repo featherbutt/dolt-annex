@@ -3,9 +3,10 @@
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
 from typing import BinaryIO
 from typing_extensions import Optional, Self
+
+from dolt_annex.datatypes.file_io import Path
 
 @dataclass
 class FileKey:
@@ -20,7 +21,7 @@ class FileKey:
     @classmethod
     def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file on disk."""
-        with open(file_path, 'rb') as fd:
+        with file_path.open() as fd:
             return cls.from_fo(fd, extension=extension)
 
     @classmethod

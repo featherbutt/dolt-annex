@@ -3,13 +3,12 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from io import BytesIO, TextIOWrapper
+from io import TextIOWrapper
 from pathlib import Path
-from typing import cast
-from typing_extensions import override, Self
+from typing_extensions import override
 
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileInfo, FileObject
+from dolt_annex.datatypes.file_io import FileInfo
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import MaybeAwaitable, ReadableFileObject
@@ -61,7 +60,7 @@ class Measure(FileStore):
 
     @override
     @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[Self]:
+    async def open(self, config: Config) -> AsyncGenerator[None]:
         """Open the filestore, loading or initializing metrics tracking."""
 
         with open(self.stats_file_path, 'r+', encoding='utf-8') as self._stats_file:
@@ -74,7 +73,7 @@ class Measure(FileStore):
                 self._total_file_size = 0
 
             async with self.child.open(config):
-                yield self
+                yield
 
             self.flush()
 
@@ -84,5 +83,5 @@ class Measure(FileStore):
          return self.child.stat(file_key)
 
     @override
-    def fstat(self, file_obj: FileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
          return self.child.fstat(file_obj)

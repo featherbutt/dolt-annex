@@ -1,9 +1,9 @@
 from abc import ABC as AbstractBaseClass, abstractmethod
 import importlib
-from pathlib import Path
 from typing_extensions import List, Optional, Type, Dict, override
 
 from dolt_annex.datatypes import TableRow
+from dolt_annex.datatypes.file_io import Path
 
 class Importer(AbstractBaseClass):
 

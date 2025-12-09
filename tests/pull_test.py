@@ -14,6 +14,7 @@ from dolt_annex.datatypes.common import Connection
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.commands.sync.pull import pull_dataset
@@ -41,7 +42,7 @@ remote_annex = Path(__file__).parent / "test_annex"
 async def test_pull_local(tmp_path):
     origin_uuid = uuid.uuid4()
     setup(tmp_path, origin_uuid)
-    init()
+    init(tmp_path)
     remote = Repo(
         url=Path(tmp_path) / "remote_files",
         uuid=origin_uuid,
@@ -83,24 +84,28 @@ async def test_pull_server(tmp_path):
         name="origin",
         key_format=Sha256e
     )
-    remote_file_cas = file_remote.filestore()
+    remote_file_cas = ContentAddressableStorage.from_remote(remote)
     # setup server, then create server context, then setup client.
-    async with async_server_context(
-        remote_file_cas,
-        host,
-        ssh_port,
-        str(Path(__file__).parent / "test_client_keys" / "id_ed25519.pub"),
-        str(Path(__file__).parent / "test_client_keys" / "id_ed25519")
+    async with (
+        remote_file_cas.open(base_config),
+        async_server_context(
+            remote_file_cas,
+            host,
+            ssh_port,
+            str(Path(__file__).parent / "test_client_keys" / "id_ed25519.pub"),
+            str(Path(__file__).parent / "test_client_keys" / "id_ed25519")
+        ),
     ):
-        init()
+        init(tmp_path)
         await do_test_pull(tmp_path, "submissions", remote)
 
 async def do_test_pull(tmp_path, dataset_name: str, remote: Repo):
     """Run and validate pulling content files from a remote"""
     tmp_path = Path(tmp_path)
     importer = TestImporter()
-    remote_file_store = remote.filestore().file_store
-    local_file_store = base_config.get_filestore().file_store
+    remote_file_store = ContentAddressableStorage.from_remote(remote).file_store
+    local_file_store = base_config.filestore
+    assert local_file_store is not None
     with contextlib.chdir(config_directory):
         dataset_schema = DatasetSchema.must_load(dataset_name)
     shutil.copytree(import_directory, tmp_path / "import_data")
@@ -125,7 +130,7 @@ async def do_test_pull(tmp_path, dataset_name: str, remote: Repo):
 
 async def pull_and_verify(dataset: Dataset, file_remote: Repo, remote_file_store: FileStore, local_file_store: FileStore) -> int:
 
-    files_pulled = await pull_dataset(dataset, base_config.get_uuid(), file_remote, remote_file_store, local_file_store, [])
+    files_pulled = await pull_dataset(dataset, base_config.get_uuid(), file_remote, remote_file_store, local_file_store, [], False)
     await dataset.flush()
         
     for key in files_pulled:

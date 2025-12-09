@@ -5,13 +5,11 @@ from abc import abstractmethod
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from io import BytesIO
-from pathlib import Path
-from typing import Self
 from typing_extensions import AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import FileInfo, FileObject, ReadableFileObject, WritableFileObject
+from dolt_annex.datatypes.file_io import FileInfo, FileObject, ReadableFileObject, WritableFileObject, Path
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 
@@ -22,12 +20,12 @@ class FileStore(AbstractBaseModel):
         Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
         return self.copy_file(file_path, file_key)
-    
+
     async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
         """
         Upload an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        with open(file_path, 'rb') as fd:
+        with file_path.open() as fd:
             return await maybe_await(self.put_file_object(fd, file_key))
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> MaybeAwaitable[None]:
@@ -35,7 +33,7 @@ class FileStore(AbstractBaseModel):
         Upload an in-memory file to the remote.
         """
         return self.put_file_object(BytesIO(file_bytes), file_key=file_key)
-    
+
     @abstractmethod
     def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> MaybeAwaitable[None]:
         """Upload a file-like object to the remote."""
@@ -43,7 +41,7 @@ class FileStore(AbstractBaseModel):
     @abstractmethod
     def get_file_object(self, file_key: FileKey) -> MaybeAwaitable[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
-    
+
     def with_file_object(self, file_key: FileKey) -> AsyncContextManager[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         @asynccontextmanager
@@ -66,7 +64,7 @@ class FileStore(AbstractBaseModel):
         """
 
     @abstractmethod
-    def fstat(self, file_obj: FileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
         """
         Returns information about a file-like object previously returned by get_file_object.
         """
@@ -81,19 +79,23 @@ class FileStore(AbstractBaseModel):
         return YesNoMaybe.NO
 
     @asynccontextmanager
-    async def open(self, config: 'Config') -> AsyncGenerator[Self]:
+    async def open(self, config: 'Config') -> AsyncGenerator[None]:
         """
         Open the filestore for use. This may involve setting up connections, opening files, etc.
 
         Returns a context manager that yields the opened filestore instance.
-        """ 
+        """
 
-        yield self
-        await self.flush()
-    
+        yield
+        await maybe_await(self.flush())
 
-    async def flush(self) -> None:
+
+    def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
+
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return self.__class__.__name__
 
 async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=4096):
     while True:

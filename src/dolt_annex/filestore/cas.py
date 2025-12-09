@@ -12,9 +12,6 @@ from dolt_annex.datatypes.remote import Repo
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
-from dolt_annex.filestore.annexfs import AnnexFS
-from dolt_annex.filestore.sftp import SftpFileStore
-
 
 @dataclass
 class ContentAddressableStorage:
@@ -35,20 +32,10 @@ class ContentAddressableStorage:
     @classmethod
     def from_remote(cls, remote: Repo) -> Self:
         """Return a FileStore instance for this repository. The type of FileStore returned depends on the URL scheme"""
-        if isinstance(remote.url, Path):
-            return cls(
-                file_store=AnnexFS(
-                    root=remote.url,
-                ),
-                file_key_format=remote.key_format
-            )
-        else:
-            return cls(
-                file_store=SftpFileStore(
-                    url=remote.url
-                ),
-                file_key_format=remote.key_format
-            )
+        return cls(
+            file_store=remote.filestore,
+            file_key_format=remote.key_format
+        )
 
     def open(self, config: 'Config') -> AsyncContextManager[Self]:
         """

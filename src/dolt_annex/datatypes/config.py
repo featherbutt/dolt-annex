@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel, SerializeAsAny
+from pydantic import BaseModel
 from typing_extensions import Optional, Any
 
+from dolt_annex.datatypes.remote import Repo
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
-from dolt_annex.filestore import FileStore
+if TYPE_CHECKING:
+    from dolt_annex.filestore import FileStore
 
 class UserConfig(BaseModel):
     email: str = "user@localhost"
@@ -49,18 +52,12 @@ class Config(BaseModel):
     user: UserConfig = UserConfig()
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
-    uuid: Optional[UUID] = None
-    filestore: Optional[SerializeAsAny[FileStore]] = None
-    repo_directory: Path = Path('.')
+    local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e
 
-    def get_filestore(self) -> FileStore:
-        if self.filestore is None:
-            raise ValueError("No filestore configured in config")
-        return self.filestore
+    def get_filestore(self) -> 'FileStore':
+        return Repo.must_load(self.local_repo_name).filestore
     
     def get_uuid(self) -> UUID:
-        if self.uuid is None:
-            raise ValueError("No UUID configured in config")
-        return self.uuid
+        return Repo.must_load(self.local_repo_name).uuid

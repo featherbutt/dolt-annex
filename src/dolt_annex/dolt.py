@@ -63,7 +63,7 @@ class DoltSqlServer:
             try:
                 return dolt_server_process, pymysql.connect(**self.db_config)
             except Exception as e:
-                logger.info(f"Waiting for SQL server: {str(e)}")
+                logger.verbose(f"Waiting for SQL server: {str(e)}")
                 time.sleep(1)
 
     def executemany(self, sql: str, values):

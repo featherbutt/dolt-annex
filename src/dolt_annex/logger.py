@@ -72,5 +72,5 @@ class Logger:
 null_logger = Logger(lambda *args, **kwargs: None)
 """null_logger is a logger that swallows all messages"""
 
-logger = Logger(print, DEBUG)
+logger = Logger(print, ERROR)
 """logger is a logger that prints all messages with maximum verbosity"""
