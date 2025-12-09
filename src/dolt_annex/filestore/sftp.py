@@ -17,10 +17,7 @@ import hashlib
 from pathlib import Path
 from typing import AsyncGenerator, cast
 import asyncssh
-import paramiko
 from typing_extensions import override
-
-import sftpretty
 
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import Connection
@@ -28,17 +25,6 @@ from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileObject, FileStore, copy
-
-def exists(sftp: sftpretty.Connection | paramiko.SFTPClient, remotepath: str) -> bool:
-    try:
-        sftp.stat(remotepath)
-    except IOError as err:
-        if err.errno == 2:
-            return False
-        else:
-            raise err
-
-    return True
 
 class SftpFileStore(FileStore):
 
