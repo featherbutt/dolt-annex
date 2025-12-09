@@ -75,24 +75,9 @@ class Init(cli.Application):
         do_init(self.parent.config, init_config)
         return 0
 
-        
-
-def read_uuid() -> uuid.UUID:
-    try:
-        with open("uuid", encoding="utf-8") as fd:
-            local_uuid = uuid.UUID(fd.read().strip())
-    except FileNotFoundError:
-        # Generate a new UUID if not found
-        local_uuid = uuid.uuid4()
-        with open("uuid", "w", encoding="utf-8") as fd:
-            fd.write(str(local_uuid))
-    return local_uuid
-
 def do_init(base_config: Config, init_config: InitConfig):
     # Things that need to be created:
     # - dolt directory/repository (if it doesn't exist)
-    # - skip.sqlite3 database (if it doesn't exist)
-    # - uuid file (if it doesn't exist)
     # - If a dolt-url is provided, add it as a remote to the dolt repository
     # - If a dolt-url is provided, fetch from it and create a branch for this UUID?
 
