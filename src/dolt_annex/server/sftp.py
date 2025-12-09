@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from io import BufferedWriter
 import os
 import pathlib
 import tempfile
-from types import TracebackType
-from typing_extensions import Any, Buffer, Optional, override
+from typing_extensions import Any, Optional, override
 
 import asyncssh
 from asyncssh.misc import MaybeAwait
@@ -14,10 +12,10 @@ import fs.osfs
 from fs.base import FS as FileSystem
 
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import AnnexKey
 from dolt_annex.datatypes.file_io import Path
-from dolt_annex.filestore.base import FileInfo, FileObject, ReadableFileObject, maybe_await
+from dolt_annex.filestore.base import FileObject, ReadableFileObject, maybe_await
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class SFTPServer(asyncssh.SFTPServer):
@@ -200,7 +198,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
         if isinstance(file_obj, NewFileHandle):
-            file_info = file_obj.file_info()
+            file_info = file_obj.file_info
         else:
             file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(
@@ -492,49 +490,3 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         # TODO: Consider whether fsync should be supported
         pass
-    
-CHUNK_SIZE = 8092
-
-class NewFileHandle:
-    """A file handle for uploading a new key.
-    
-    On creation, the file is created in a temporary location.
-    After the file is closed, the correct path is computed and the file is moved to the
-    final location. This both prevents partial writes and also allows for the file contents
-    to be verified before moving it into the annex."""
-
-    # SFTPHandle checks for this attribute and uses it for IO
-    writefile: BufferedWriter
-
-    key: AnnexKey
-    suffix: str
-
-    cas: ContentAddressableStorage
-
-    def __init__(self, temp_fs: FileSystem, cas: ContentAddressableStorage, key: AnnexKey):
-        self.temp_fs = temp_fs
-        self.cas = cas
-        self.key = key
-        self.suffix = pathlib.Path(str(key)).suffix[1:]  # Remove the leading dot
-        self.writefile = tempfile.NamedTemporaryFile(dir=self.temp_fs.getsyspath('/'), delete=False, suffix=self.suffix, buffering=CHUNK_SIZE) # type: ignore
-        
-    def write(self, data: Buffer, /) -> int:
-        return self.writefile.write(data)
-    
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
-        return self.writefile.seek(offset, whence)
-    
-    def read(self, size: int = -1) -> bytes:
-        raise NotImplementedError("Read not supported on NewFileHandle")
-
-    def file_info(self) -> FileInfo:
-        return FileInfo(size=self.writefile.tell())
-
-    def close(self) -> None:
-        self.writefile.close()
-
-    def __enter__(self) -> 'NewFileHandle':
-        return self
-    
-    def __exit__(self, type: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
-        self.close()

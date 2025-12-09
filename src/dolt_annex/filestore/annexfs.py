@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import os
 import pathlib
+from typing import cast
 import fs.osfs
 from typing_extensions import override
 
@@ -24,6 +25,7 @@ from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.file_io import Path, ReadableFileObject
 from dolt_annex.file_keys import FileKey
+from dolt_annex.filestore.file_handles import ExistingFileHandle
 
 from .base import FileInfo, FileObject, FileStore
 
@@ -31,6 +33,12 @@ class AnnexFS(FileStore):
 
     root: pathlib.Path
     _file_system: FileSystem = None
+
+    @classmethod
+    def with_file_system(cls, root: pathlib.Path, file_system: FileSystem) -> 'AnnexFS':
+        result = cls(root=root)
+        result._file_system = file_system
+        return result
 
     @override
     @asynccontextmanager
@@ -53,11 +61,10 @@ class AnnexFS(FileStore):
         """Copy a file-like object into the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
-        print(f"Writing file to {output_path}")
         output_path.upload(in_fd)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> FileObject:
+    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
         annexed_file_path = self.get_key_path(file_key)
         if not annexed_file_path.exists():
             # If the file does not exist at the expected path, try the deprecated path.
@@ -65,7 +72,7 @@ class AnnexFS(FileStore):
             if not annexed_file_path.exists():
                 raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         fd = annexed_file_path.open()
-        return fd
+        return ExistingFileHandle(readfile=fd, file_info=await self.stat(file_key))
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
@@ -73,7 +80,7 @@ class AnnexFS(FileStore):
 
     @override
     async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-        return FileInfo(size=os.fstat(file_obj.fileno()).st_size)
+        return cast(ExistingFileHandle, file_obj).file_info
 
     def get_key_path(self, key: FileKey) -> Path:
         """
