@@ -12,6 +12,7 @@ class AbstractBaseModel(BaseModel, ABC):
 
     def __init_subclass__(cls: type[Self], **kwargs):
         cls._init()
+        return super().__init_subclass__(**kwargs)
 
     @classmethod
     def _init(cls: type[Self]) -> None:
