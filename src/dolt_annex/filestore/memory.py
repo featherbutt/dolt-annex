@@ -18,18 +18,18 @@ from .base import FileInfo, FileObject, FileStore
 
 class MemoryFS(FileStore):
 
-    files: dict[FileKey, bytes] = {}
+    files: dict[bytes, bytes] = {}
 
     @override
     def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
         with file_path.open() as f:
-            self.files[file_key] = f.read()
+            self.files[bytes(file_key)] = f.read()
              
     @override
     async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
         """Copy a file-like object into the annex."""
-        self.files[file_key] = await maybe_await(in_fd.read())
+        self.files[bytes(file_key)] = await maybe_await(in_fd.read())
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
@@ -37,16 +37,16 @@ class MemoryFS(FileStore):
 
         If file_key is not provided, it will be computed.
         """
-        self.files[file_key] = file_bytes
+        self.files[bytes(file_key)] = file_bytes
 
     async def get_file_object(self, file_key: FileKey) -> BinaryIO:
-        if file_key not in self.files:
+        if bytes(file_key) not in self.files:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return BytesIO(self.files[file_key])
+        return BytesIO(self.files[bytes(file_key)])
         
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
-         return FileInfo(size=len(self.files[file_key]))
+         return FileInfo(size=len(self.files[bytes(file_key)]))
 
     @override
     def fstat(self, file_obj: FileObject) -> FileInfo:
