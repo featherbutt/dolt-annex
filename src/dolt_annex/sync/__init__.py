@@ -55,7 +55,7 @@ async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey
         if to_file_store.exists(key):
             logger.debug(f"file {key} already exists in destination filestore")
             continue
-        if ignore_missing and not from_file_store.exists(key):
+        if ignore_missing and not await maybe_await(from_file_store.exists(key)):
             logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
             continue
         async with from_file_store.with_file_object(key) as remote_file_obj:
