@@ -69,11 +69,11 @@ class Application(cli.Application):
         if self.dolt_server_socket:
             self.config.dolt.connection["server_socket"] = self.dolt_server_socket
         
-        if self.nested_command is None:
-            self.help()
-            return 0
         if args:
             print(f"Unknown command: {args[0]}")
             return 1
+        if self.nested_command is None:
+            self.help()
+            return 0
         return 0
     
