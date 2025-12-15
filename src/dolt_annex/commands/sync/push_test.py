@@ -9,9 +9,7 @@ from dolt_annex.test_util import run, setup
 
 @pytest.mark.asyncio
 async def test_push_local(tmp_path):
-    await setup(tmp_path)
-
-    with contextlib.chdir(tmp_path):
+    async with setup(tmp_path):
         await run(
             args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key1", "--file-bytes", "file_content_1"],
             expected_output="Inserted row"

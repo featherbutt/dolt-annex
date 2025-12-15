@@ -13,6 +13,7 @@ import uuid
 
 import fs.memoryfs
 from plumbum import local, cli
+import pytest
 
 from dolt_annex.data import data_dir
 from dolt_annex.application import Application
@@ -23,6 +24,7 @@ from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.filestore.memory import MemoryFS
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
@@ -73,7 +75,7 @@ class Tee(TextIO):
         for stream in self.streams:
             stream.flush()
 
-async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None):
+async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None, expected_exception: Optional[type[Exception]] = None, expected_error_code: int = 0) -> None:
     """
     Run a dolt-annex CLI command and optionally check for expected output.
     
@@ -81,23 +83,25 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
 
     However, since the command is run in-process, things like loadable config files can be proloaded and re-used.
     """
+    async def inner():
+        with pytest.raises(expected_exception) if expected_exception is not None else contextlib.nullcontext():
+            inst, continuation = cmd.run(args, exit=False)
+            error_code = await maybe_await(continuation)
+            assert error_code == expected_error_code, f"Command exited with code {error_code}"
     if expected_output is not None:
         captured_output = StringIO()
         tee = Tee(captured_output, sys.stdout)
         with contextlib.redirect_stdout(tee):
-            inst, continuation = cmd.run(args, exit=False)
-            await maybe_await(continuation)
+            await inner()
         output = captured_output.getvalue()
         if expected_output is not None and expected_output not in output:
             raise AssertionError(f"Expected '{expected_output}' in output, got: {output}")
     else:
-        inst, continuation = cmd.run(args, exit=False)
-        await maybe_await(continuation)
+        await inner()
 
     
 async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
-    file_system=fs.memoryfs.MemoryFS()
-    annex_fs = AnnexFS.with_file_system(root=Path('/'), file_system=file_system)
+    annex_fs = MemoryFS()
     repo = Repo(
         name=name,
         uuid=uuid,
@@ -110,7 +114,8 @@ async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[byte
         await cas.put_file_bytes(file_content)
     return cas
 
-async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, remote_files: Optional[Iterable[bytes]] = None) -> tuple[ContentAddressableStorage, ContentAddressableStorage]:
+@contextlib.asynccontextmanager
+async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, remote_files: Optional[Iterable[bytes]] = None):
 
     local_filestore = await create_test_filestore("__local__", local_uuid, local_files or [])
     remote_filestore = await create_test_filestore("test_remote", remote_uuid, remote_files or [])
@@ -126,7 +131,13 @@ async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, r
 
     with (tmp_path / "config.json").open("w") as f:
         f.write(test_config.model_dump_json())
-    return local_filestore, remote_filestore
+    async with (
+        local_filestore.open(test_config),
+        remote_filestore.open(test_config)
+    ):
+        with contextlib.chdir(tmp_path):
+            yield local_filestore, remote_filestore
+
 
 def setup_dolt(tmp_path):
     dolt_dir = Path(tmp_path / "dolt")

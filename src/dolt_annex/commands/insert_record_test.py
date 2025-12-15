@@ -13,8 +13,10 @@ from dolt_annex.test_util import run, setup, local_uuid, test_config, test_datas
 
 @pytest.mark.asyncio
 async def test_insert_record(tmp_path):
-    local_file_store, remote_file_store = await setup(tmp_path)
-    async with local_file_store.open(test_config):
+    async with (
+        setup(tmp_path) as (local_file_store, remote_file_store),
+        local_file_store.open(test_config)
+    ):
         await do_test_insert_record(tmp_path, local_file_store)
 
 async def do_test_insert_record(tmp_path, local_file_store: ContentAddressableStorage):
