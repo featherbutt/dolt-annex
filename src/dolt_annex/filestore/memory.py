@@ -55,4 +55,4 @@ class MemoryFS(FileStore):
 
     @override
     def exists(self, file_key: FileKey) -> bool:
-        return file_key in self.files
+        return bytes(file_key) in self.files
