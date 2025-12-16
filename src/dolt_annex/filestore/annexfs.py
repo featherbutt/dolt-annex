@@ -15,7 +15,6 @@ relative to the filestore root.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import hashlib
-import os
 import pathlib
 from typing import cast
 import fs.osfs
@@ -25,9 +24,10 @@ from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.file_io import Path, ReadableFileObject
 from dolt_annex.file_keys import FileKey
+from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 
-from .base import FileInfo, FileObject, FileStore
+from .base import FileInfo, FileStore
 
 class AnnexFS(FileStore):
 
@@ -61,7 +61,8 @@ class AnnexFS(FileStore):
         """Copy a file-like object into the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
-        output_path.upload(in_fd)
+        with output_path.open('wb') as out_fd:
+            await copy(src=in_fd, dst=out_fd)
 
     @override
     async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
