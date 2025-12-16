@@ -35,11 +35,13 @@ class FileKey:
     @abstractmethod
     def from_bytes(cls, file_bytes: bytes, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from bytes in memory."""
+        raise NotImplementedError()
 
     @classmethod
     @abstractmethod
     def try_parse(cls, key: bytes) -> Optional[Self]:
         """Validate a key."""
+        raise NotImplementedError()
 
     def __bytes__(self) -> bytes:
         return self.key
