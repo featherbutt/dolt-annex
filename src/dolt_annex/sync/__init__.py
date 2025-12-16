@@ -52,7 +52,7 @@ async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey
         has_more = True
         logger.info(f"moving {table_row}: {key}")
 
-        if to_file_store.exists(key):
+        if await maybe_await(to_file_store.exists(key)):
             logger.debug(f"file {key} already exists in destination filestore")
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
