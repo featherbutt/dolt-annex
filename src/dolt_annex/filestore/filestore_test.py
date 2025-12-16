@@ -111,5 +111,8 @@ async def test_file_stores(cas: ContentAddressableStorage):
                 read_bytes = await maybe_await(f.read())
                 assert read_bytes == b"test"
 
+            # Check that exist for non-existent file returns false
+            assert not await maybe_await(cas.file_store.exists(Sha256e.from_bytes(b"nonexistent")))
+
 if __name__ == "__main__":
     pytest.main([__file__])
