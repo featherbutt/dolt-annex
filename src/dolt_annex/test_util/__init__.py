@@ -75,7 +75,15 @@ class Tee(TextIO):
         for stream in self.streams:
             stream.flush()
 
-async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], expected_output: Optional[str] = None, expected_exception: Optional[type[Exception]] = None, expected_error_code: int = 0) -> None:
+async def run(
+        *,
+        cmd: type[cli.Application] = Application,
+        args: Iterable[str],
+        expected_output: Optional[str] = None,
+        expected_output_does_not_contain: Optional[str] = None,
+        expected_exception: Optional[type[Exception]] = None,
+        expected_error_code: int = 0
+) -> None:
     """
     Run a dolt-annex CLI command and optionally check for expected output.
     
@@ -88,7 +96,7 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
             inst, continuation = cmd.run(args, exit=False)
             error_code = await maybe_await(continuation)
             assert error_code == expected_error_code, f"Command exited with code {error_code}"
-    if expected_output is not None:
+    if expected_output is not None or expected_output_does_not_contain is not None:
         captured_output = StringIO()
         tee = Tee(captured_output, sys.stdout)
         with contextlib.redirect_stdout(tee):
@@ -96,6 +104,8 @@ async def run(*, cmd: type[cli.Application] = Application, args: Iterable[str], 
         output = captured_output.getvalue()
         if expected_output is not None and expected_output not in output:
             raise AssertionError(f"Expected '{expected_output}' in output, got: {output}")
+        if expected_output_does_not_contain is not None and expected_output_does_not_contain in output:
+            raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
     else:
         await inner()
 
