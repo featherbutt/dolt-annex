@@ -1,0 +1,11 @@
+name: 'Run tests'
+description: 'Run the test suite for the project'
+runs:
+  using: 'docker'
+  image: './Dockerfile'
+  entrypoint: '/bin/bash'
+  args:
+    - '-c'
+    - |
+      pytest /src/
+      chmod u+x /scripts/cli_tests.sh && /scripts/cli_tests.sh

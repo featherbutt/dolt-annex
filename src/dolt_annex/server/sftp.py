@@ -172,6 +172,8 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         if key := self.cas.file_key_format.try_parse(path.rsplit(b'/')[-1]):
             # If the last part is a valid key, assume it's a file
+            if not await maybe_await(self.cas.file_store.exists(key)):
+                raise asyncssh.SFTPNoSuchFile(f"Key {key} does not exist on this filestore.")
             file_info = await maybe_await(self.cas.file_store.stat(key))
             if file_info:
                 return asyncssh.SFTPAttrs(

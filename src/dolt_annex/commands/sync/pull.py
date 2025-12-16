@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import asyncio
 from pathlib import Path
 from uuid import UUID
 
@@ -9,6 +8,7 @@ from typing_extensions import Optional, List
 
 from plumbum import cli
 
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
@@ -83,7 +83,7 @@ class Pull(cli.Application):
 
     async def main(self, *args: list[str]) -> int:
         """Entrypoint for pull command"""
-        base_config = self.parent.config
+        base_config: Config = self.parent.config
         if self.ssh_config:
             base_config.ssh.ssh_config = Path(self.ssh_config)
         if self.known_hosts:

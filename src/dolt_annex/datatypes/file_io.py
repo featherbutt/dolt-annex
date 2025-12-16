@@ -83,7 +83,7 @@ class Path:
     def rename(self, target: Path) -> None:
         fs.move.move_file(self.fs, self.path.as_posix(), target.fs, target.path.as_posix())
 
-    def upload(self, in_fd: ReadableFileObject) -> None:
+    def upload(self, in_fd: BinaryIO) -> None:
         self.fs.upload(self.path.as_posix(), in_fd)
 
     def stat(self) -> FileInfo:

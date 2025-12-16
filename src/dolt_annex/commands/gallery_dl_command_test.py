@@ -13,9 +13,7 @@ async def test_gallery_dl(tmp_path):
     Test the basic functionality of the gallery-dl subcommand,
     downloading files using gallery-dl and inserting them into a dolt-annex dataset.
     """
-    await setup(tmp_path)
-
-    with contextlib.chdir(tmp_path):
+    async with setup(tmp_path):
         await run(
             args=["dolt-annex", "init"],
         )

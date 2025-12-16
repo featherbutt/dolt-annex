@@ -29,8 +29,8 @@ class Loadable(BaseModel):
         registered_subclasses.add(cls)
         return super().__init_subclass__(**kwargs)
 
-    @contextmanager
     @classmethod
+    @contextmanager
     def context(cls):
         """
         A contect manager that reverts the cache on exit.
