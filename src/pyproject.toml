@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dolt_annex"
-version = "0.3.1"
+version = "0.3.2"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
