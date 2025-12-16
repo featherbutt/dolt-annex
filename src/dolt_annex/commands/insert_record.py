@@ -77,7 +77,11 @@ class InsertRecord(cli.Application):
         BATCH_SIZE = 1000 # Arbitrary batch size for this command
         async with Dataset.connect(base_config, BATCH_SIZE, dataset_schema) as dataset:
             file_bytes = self.file_bytes.encode('utf-8')
-            key = file_key_type.from_bytes(file_bytes, self.extension)
+            if self.extension == "":
+                extension = None
+            else:
+                extension = self.extension
+            key = file_key_type.from_bytes(file_bytes, extension)
 
             key_columns = cast(TableRow, self.key_columns.split(','))
             table = dataset.get_table(self.table_name)
