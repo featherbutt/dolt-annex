@@ -50,3 +50,7 @@ Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.
 ## `dolt-annex pull` and `dolt-annex push`
 
 ## `dolt-annex gallery-dl`
+
+Format: `dolt-annex gallery-dl [SWITCHES] args`
+
+Example: `dolt-annex gallery-dl https://www.furaffinity.net/view/63142315/`
