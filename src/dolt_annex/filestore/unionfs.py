@@ -8,7 +8,7 @@ from typing_extensions import override, Any
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileObject, FileStore, MaybeAwaitable, YesNoMaybe, maybe_await
+from .base import FileInfo, FileStore, MaybeAwaitable, YesNoMaybe, maybe_await
 
 class UnionFS(FileStore):
     """

@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
-import json
 import pathlib
 import pyjson5
 from typing_extensions import Self, Optional, ClassVar
 
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 
-registered_subclasses: set[type['Loadable']] = set()
+registered_subclasses: set[type[Loadable]] = set()
 
 class Loadable(StrictBaseModel):
     """

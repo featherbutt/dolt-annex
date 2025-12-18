@@ -4,7 +4,7 @@
 from enum import Enum
 import getpass
 from pathlib import Path
-from pydantic import BaseModel
+from typing import Optional
 from typing_extensions import NewType
 
 from dolt_annex.datatypes.pydantic import StrictBaseModel

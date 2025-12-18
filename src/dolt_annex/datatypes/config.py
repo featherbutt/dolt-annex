@@ -4,10 +4,11 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel
-from typing_extensions import Optional, Any
+from typing_extensions import Optional
 
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.common import MySQLConnection
+from dolt_annex.datatypes.pydantic import StrictBaseModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
 if TYPE_CHECKING:

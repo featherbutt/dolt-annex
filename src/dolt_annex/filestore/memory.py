@@ -10,11 +10,11 @@ from io import BytesIO
 from typing_extensions import override, BinaryIO, cast
 
 from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 
-from .base import FileInfo, FileObject, FileStore
+from .base import FileInfo, FileStore
 
 class MemoryFS(FileStore):
 
