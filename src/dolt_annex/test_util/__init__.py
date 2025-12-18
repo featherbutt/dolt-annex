@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import cmd
 from collections.abc import Iterable
 import contextlib
 from io import StringIO
@@ -11,7 +10,6 @@ import sys
 from typing import Optional, TextIO
 import uuid
 
-import fs.memoryfs
 from plumbum import local, cli
 import pytest
 
@@ -22,7 +20,6 @@ from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
-from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFS
 
@@ -39,12 +36,8 @@ test_config = Config(
         email="author@example.com"
     ),
     dolt=DoltConfig(
-        db_name="dolt",
         default_remote="origin",
         default_commit_message="update",
-        connection={
-            "user": "root"
-        },
         spawn_dolt_server=True
     ),
     default_file_key_type=Sha256e,

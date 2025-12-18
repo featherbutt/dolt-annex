@@ -187,21 +187,24 @@ class Dataset:
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
         dolt_config = base_config.dolt
-        port = dolt_config.port or (random.randint(20000, 30000) if dolt_config.spawn_dolt_server else 3306)
+        connection = dolt_config.connection
         db_config = {
-            "user": dolt_config.user,
-            "database": dolt_config.db_name,
-            "autocommit": dolt_config.autocommit,
-            "port": port,
-            **dolt_config.connection,
+            "user": dolt_config.connection.user,
+            "database": dolt_config.connection.database,
+            "autocommit": dolt_config.connection.autocommit,
+            **dolt_config.connection.extra_params,
         }
-        if os.name != 'nt' and dolt_config.server_socket:
-            db_config["unix_socket"] = dolt_config.server_socket.as_posix()
-        elif dolt_config.hostname:
-            db_config["host"] = dolt_config.hostname
+        if os.name != 'nt' and connection.server_socket:
+            db_config["unix_socket"] = connection.server_socket.as_posix()
+        elif connection.hostname:
+            db_config["host"] = connection.hostname
+            port = connection.port or (random.randint(20000, 30000) if dolt_config.spawn_dolt_server else 3306)
+            db_config["port"] = port
+        else:
+            raise ValueError("Either server_socket or hostname must be set in the Dolt connection configuration.")
 
         with (
-            DoltSqlServer(dolt_config.dolt_dir, dolt_config.db_name, db_config, dolt_config.spawn_dolt_server) as dolt_server,
+            DoltSqlServer(dolt_config.dolt_dir, connection.database, db_config, dolt_config.spawn_dolt_server) as dolt_server,
         ):
             async with Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset:
                 yield dataset

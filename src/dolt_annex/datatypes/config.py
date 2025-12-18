@@ -21,14 +21,9 @@ class DoltConfig(BaseModel):
     db_name: str = "dolt"
     default_remote: str = "origin"
     default_commit_message: str = "update dolt-annex"
-    connection: dict[str, Any] = {}
+    connection: MySQLConnection = MySQLConnection()
     spawn_dolt_server: bool = True
     dolt_dir: Path = Path("dolt")
-    port: Optional[int] = None
-    hostname: str = "localhost"
-    user: str = "root"
-    server_socket: Optional[Path] = None
-    autocommit: bool = False
 
 def default_ssh_config_path() -> Optional[Path]:
     path = Path("~/.ssh/config").expanduser()
@@ -49,7 +44,7 @@ class SshSettings(BaseModel):
 
 class Config(BaseModel):
     """Global configuration settings"""
-    user: UserConfig = UserConfig()
+    user: UserConfig = UserConfig(name="user", email="user@localhost")
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
     local_repo_name: str = "__local__"

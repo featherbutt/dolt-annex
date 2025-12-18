@@ -20,15 +20,15 @@ import asyncssh
 from typing_extensions import override
 
 from dolt_annex.datatypes.config import Config, resolve_path
-from dolt_annex.datatypes.common import Connection
-from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.datatypes.common import SSHConnection
+from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileObject, FileStore, copy
+from .base import FileInfo, FileStore, copy
 
 class SftpFileStore(FileStore):
 
-    url: Connection
+    connection: SSHConnection
 
     _sftp: asyncssh.SFTPClient = None
 
@@ -74,12 +74,12 @@ class SftpFileStore(FileStore):
                 pass
             
             client_keys = []
-            if self.url.client_key is not None:
-                client_keys.append(self.url.client_key)
+            if self.connection.client_key is not None:
+                client_keys.append(self.connection.client_key)
 
             async with asyncssh.connect(
-                host=self.url.host,
-                port=self.url.port,
+                host=self.connection.hostname,
+                port=self.connection.port,
                 known_hosts=None,
                 subsystem="sftp",
                 config=resolve_path(config.ssh.ssh_config),

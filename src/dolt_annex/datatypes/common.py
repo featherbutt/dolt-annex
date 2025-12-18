@@ -23,7 +23,17 @@ __all__ = ['TableRow', 'YesNoMaybe', 'AnnexKey']
 
 class Connection(BaseModel):
     user: str = getpass.getuser()
-    host: str
+    hostname: str = "localhost"
     port: int = 22
     client_key: Path | None = None
     path: Path = Path(".")
+
+class MySQLConnection(StrictBaseModel):
+    hostname: str = "localhost"
+    port: int = 3306
+    server_socket: Optional[Path] = None
+    user: str = "root"
+    password: str | None = None
+    database: str = "dolt"
+    autocommit: bool = True
+    extra_params: dict[str, str] = {}
