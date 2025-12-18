@@ -1,5 +1,0 @@
-{
-    "name": "local",
-    "url": "{user}@localhost:{tmp_path}/git_origin",
-    "uuid": ""
-}

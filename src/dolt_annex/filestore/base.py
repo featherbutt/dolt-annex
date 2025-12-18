@@ -9,7 +9,7 @@ from typing_extensions import AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import FileInfo, FileObject, ReadableFileObject, WritableFileObject, Path
+from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, WritableFileObject, Path
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 

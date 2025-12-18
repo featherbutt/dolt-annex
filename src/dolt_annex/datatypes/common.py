@@ -4,9 +4,10 @@
 from enum import Enum
 import getpass
 from pathlib import Path
-from pydantic import BaseModel
+from typing import Optional
 from typing_extensions import NewType
 
+from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.file_keys.base import FileKey as AnnexKey
 
 TableRow = NewType('TableRow', tuple)  # A row in a FileKeyTable
@@ -21,9 +22,19 @@ class YesNoMaybe(Enum):
 
 __all__ = ['TableRow', 'YesNoMaybe', 'AnnexKey']
 
-class Connection(BaseModel):
+class SSHConnection(StrictBaseModel):
     user: str = getpass.getuser()
-    host: str
+    hostname: str = "localhost"
     port: int = 22
     client_key: Path | None = None
     path: Path = Path(".")
+
+class MySQLConnection(StrictBaseModel):
+    hostname: str = "localhost"
+    port: int = 3306
+    server_socket: Optional[Path] = None
+    user: str = "root"
+    password: str | None = None
+    database: str = "dolt"
+    autocommit: bool = True
+    extra_params: dict[str, str] = {}

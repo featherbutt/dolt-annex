@@ -7,5 +7,6 @@ runs:
   args:
     - '-c'
     - |
-      pytest /src/
+      set -e
+      pytest /src/ /example_config/
       chmod u+x /scripts/cli_tests.sh && /scripts/cli_tests.sh

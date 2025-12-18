@@ -15,7 +15,7 @@ import fs.memoryfs
 from dolt_annex import test_util
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.common import Connection
+from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.base import FileStore
@@ -37,12 +37,12 @@ class SftpWrappedFileStore(SftpFileStore):
     def make(cls, remote_file_store: FileStore):
         client_key=test_util.private_key_path
         port=random.randint(21000, 22000)
-        connection = Connection(
-            host="localhost",
+        connection = SSHConnection(
+            hostname="localhost",
             port=port,
             client_key=client_key
         )
-        return cls(remote_file_store=remote_file_store, url=connection)
+        return cls(remote_file_store=remote_file_store, connection=connection)
 
     @override
     def type_name(self) -> str:
@@ -61,8 +61,8 @@ class SftpWrappedFileStore(SftpFileStore):
             remote_file_cas.open(config),
             async_server_context(
                 remote_file_cas,
-                self.url.host,
-                self.url.port,
+                self.connection.hostname,
+                self.connection.port,
                 str(test_util.public_key_path),
                 str(test_util.private_key_path)
             ),

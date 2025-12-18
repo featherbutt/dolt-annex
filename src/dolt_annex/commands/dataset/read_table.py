@@ -3,7 +3,7 @@ from typing import List
 from plumbum import cli # type: ignore
 
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.table import Dataset, TableFilter

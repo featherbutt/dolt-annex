@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
-import json
 import pathlib
-from typing import ClassVar
-from pydantic import BaseModel
-from typing_extensions import Self, Optional
+import pyjson5
+from typing_extensions import Self, Optional, ClassVar
 
-registered_subclasses: set[type['Loadable']] = set()
+from dolt_annex.datatypes.pydantic import StrictBaseModel
 
-class Loadable(BaseModel):
+registered_subclasses: set[type[Loadable]] = set()
+
+class Loadable(StrictBaseModel):
     """
     A class that can be loaded from a JSON file.
 
@@ -68,9 +69,11 @@ class Loadable(BaseModel):
         path = cls.config_dir / f"{name}.{cls.extension}"
         if path.exists():
             with path.open() as f:
-                data = json.load(f)
+                data = pyjson5.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError(f"{cls} loaded from {path} is not an object")
                 if data.get("name") != name:
-                    raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
+                    raise ValueError(f"{cls} name {data.get('name')} does not match expected name {name}")
                 instance = cls(**data)
                 cache[name] = instance
                 return instance

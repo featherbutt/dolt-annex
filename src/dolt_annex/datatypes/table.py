@@ -7,7 +7,7 @@ from typing_extensions import List
 
 from .loader import Loadable
 
-class FileTableSchema(Loadable, BaseModel, extension="schema", config_dir=pathlib.Path(".")):
+class FileTableSchema(Loadable, extension="schema", config_dir=pathlib.Path(".")):
     """
     The schema describing a table with a file column.
     Contains all the information needed to diff file keys between two remotes.
@@ -24,7 +24,7 @@ class FileTableSchema(Loadable, BaseModel, extension="schema", config_dir=pathli
         placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
     
-class DatasetSchema(Loadable, BaseModel, extension="dataset", config_dir=pathlib.Path(".")):
+class DatasetSchema(Loadable, extension="dataset", config_dir=pathlib.Path(".")):
     """
     The schema describing one or more tables that are version controlled together.
     Contains all the information needed to diff file keys between two remotes.

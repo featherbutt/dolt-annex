@@ -14,14 +14,13 @@ from typing_extensions import override
 
 
 
-from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileObject, FileStore
+from .base import FileInfo, FileStore
 
 plyvel_imported = False
 try:

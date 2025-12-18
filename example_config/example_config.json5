@@ -1,0 +1,63 @@
+/* This is an example base config. You can use this config as a template.
+/* All config files are JSON5 (https://json5.org/), which means they support comments like this one.
+/*/
+
+{
+    // The user section stores the identity that will be used in Dolt commits made by the client.
+    // If you're not worried about tracking the history of the dataset, you can omit this.
+    "user": {
+        "name": "A U Thor",
+        "email": "author@example.com"
+    },
+
+    // The dolt section specifies how to interact with the Dolt database.
+    // If you don't know what that means, it's perfectly fine to omit this section
+    // and the default values will likely work for your case.
+    "dolt": {
+        // The path to the Dolt database directory.
+        // Usually this will be a directory named `dolt` in the same directory as your config file.
+        "dolt_dir": "./dolt",
+        // If your Dolt database is a clone from a remote repository, the name of the Dolt remote.
+        "default_remote": "origin",
+        // The default commit message to used when making changes to the Dolt database.
+        "default_commit_message": "update",
+        // The connection section specifies how to connect to a Dolt server.
+        // Either hostname and port or server_socket should be specified.
+        // All provided fields will be passed to the MySQL client.
+        "connection": {
+            "hostname": "localhost",
+            "port": 3306,
+            // Local Dolt servers on Unix can connect via a Unix domain socket
+            // instead of a hostname and port.
+            "server_socket": "/tmp/dolt.sock",
+            // The username to use when connecting to the Dolt server.
+            // For local connections this is usually "root".
+            "user": "root",
+            // The name of the Dolt database is usually the same as 
+            // the name of the Dolt database directory.
+            "database": "dolt",
+            // Any additional parameters to pass to the MySQL client are specified here.
+            "extra_params": {}
+        },
+        // If spawn_dolt_server is true, the client will start a Dolt server for every command.
+        // Otherwise, it will attempt to connect to an already-running Dolt server at the specified host and port.
+        "spawn_dolt_server": true
+    },
+
+    "ssh": {
+        // The path to the SSH config file.
+        "ssh_config": "~/.ssh/config",
+        // The path to the known hosts file.
+        "known_hosts": "~/.ssh/known_hosts",
+        // The path to the SSH client private key.
+        "client_key": "~/.ssh/id_rsa",
+        // Whether the SSH key is encrypted and requires a passphrase.
+        "encrypted_ssh_key": false,
+    },
+    
+    // The format used to key files in newly created filestores.
+    // Currently only "Sha256e" is supported.
+    "default_file_key_type": "Sha256e",
+
+    "local_repo_name": "__local__",
+}

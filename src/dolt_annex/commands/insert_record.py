@@ -6,7 +6,7 @@ from dolt_annex.commands.import_command import move_files
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type

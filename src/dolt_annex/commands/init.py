@@ -7,7 +7,7 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.datatypes.config import Config
 from dolt_annex.data import data_dir
@@ -60,8 +60,8 @@ class Init(cli.Application):
         # There's probably a better way to handle this.
         # We should ensure the default dolt port is set so that it can connect to
         # a running dolt sql-server.
-        if base_config.dolt.port is None:
-            base_config.dolt.port = 3306
+        if base_config.dolt.connection.port is None:
+            base_config.dolt.connection.port = 3306
 
         local_repo = Repo.load(base_config.local_repo_name)
         if local_repo is None:

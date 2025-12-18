@@ -6,7 +6,7 @@ import json
 import pytest
 
 from dolt_annex.datatypes.loader import Loadable
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.test_util import run, setup
 
@@ -19,7 +19,7 @@ from dolt_annex.test_util import run, setup
         "foo_remote",
         {
             "uuid": "123e4567-e89b-12d3-a456-426614174000",
-            "filestore": {"type": "AnnexFS", "root": "."},
+            "filestore": {"type": "annexfs", "root": "."},
             "key_format": "Sha256e"
         }
     ),
@@ -50,7 +50,7 @@ async def test_create_remote(tmp_path, create_class: type[Loadable], create_type
         assert name not in create_class.cache.get()
         test_remote = create_class.must_load(name)
         assert name in create_class.cache.get()
-        assert test_remote.model_dump(mode='json') == {"name": name, **create_json}
+        assert test_remote == create_class(name=name, **create_json)
 
 @pytest.mark.asyncio
 async def test_create_invalid_type(tmp_path):

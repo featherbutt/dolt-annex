@@ -1,0 +1,20 @@
+/* This is an example dataset definition.
+/* All definition files are JSON5 (https://json5.org/), which means they support comments like this one.
+/*/
+{
+    // The name of the dataset, which must match the filename.
+    "name": "file_archive",
+    // The list of tables in this dataset.
+    // Every table is backed by a table in the Dolt database.
+    "tables": [
+        {
+            "name": "files",
+            // The name of the column that stores the file keys.
+            "file_column": "annex_key",
+            // The name of the columns that store the table's primary index.
+            "key_columns": ["path"],
+        },
+    ],
+    // When a dataset is added to a repo, this Dolt ref will be used to create empty tables with the correct schema.
+    "empty_table_ref": "file_archive"
+}

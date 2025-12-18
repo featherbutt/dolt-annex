@@ -4,31 +4,26 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
-from pydantic import BaseModel
-from typing_extensions import Optional, Any
+from typing_extensions import Optional
 
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.common import MySQLConnection
+from dolt_annex.datatypes.pydantic import StrictBaseModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
 if TYPE_CHECKING:
     from dolt_annex.filestore import FileStore
 
-class UserConfig(BaseModel):
-    email: str = "user@localhost"
-    name: str = "user"
+class UserConfig(StrictBaseModel):
+    email: str
+    name: str
 
-class DoltConfig(BaseModel):
-    db_name: str = "dolt"
+class DoltConfig(StrictBaseModel):
     default_remote: str = "origin"
     default_commit_message: str = "update dolt-annex"
-    connection: dict[str, Any] = {}
+    connection: MySQLConnection = MySQLConnection()
     spawn_dolt_server: bool = True
     dolt_dir: Path = Path("dolt")
-    port: Optional[int] = None
-    hostname: str = "localhost"
-    user: str = "root"
-    server_socket: Optional[Path] = None
-    autocommit: bool = False
 
 def default_ssh_config_path() -> Optional[Path]:
     path = Path("~/.ssh/config").expanduser()
@@ -41,15 +36,15 @@ def resolve_path(path: Optional[Path]) -> Optional[str]:
         return path.expanduser().as_posix()
     return None
 
-class SshSettings(BaseModel):
+class SshSettings(StrictBaseModel):
     ssh_config: Optional[Path] = default_ssh_config_path()
     known_hosts: Optional[Path] = None
     encrypted_ssh_key: bool = False
     client_key: Optional[Path] = None
 
-class Config(BaseModel):
+class Config(StrictBaseModel):
     """Global configuration settings"""
-    user: UserConfig = UserConfig()
+    user: UserConfig = UserConfig(name="user", email="user@localhost")
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
     local_repo_name: str = "__local__"

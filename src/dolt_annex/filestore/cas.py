@@ -8,7 +8,7 @@ from typing_extensions import Optional, AsyncContextManager, Self
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import ReadableFileObject
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
