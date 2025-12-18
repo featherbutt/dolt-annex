@@ -7,6 +7,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from typing_extensions import NewType
 
+from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.file_keys.base import FileKey as AnnexKey
 
 TableRow = NewType('TableRow', tuple)  # A row in a FileKeyTable
@@ -21,7 +22,7 @@ class YesNoMaybe(Enum):
 
 __all__ = ['TableRow', 'YesNoMaybe', 'AnnexKey']
 
-class Connection(BaseModel):
+class SSHConnection(StrictBaseModel):
     user: str = getpass.getuser()
     hostname: str = "localhost"
     port: int = 22

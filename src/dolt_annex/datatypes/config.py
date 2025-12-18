@@ -13,12 +13,11 @@ from dolt_annex.file_keys.sha256e import Sha256e
 if TYPE_CHECKING:
     from dolt_annex.filestore import FileStore
 
-class UserConfig(BaseModel):
-    email: str = "user@localhost"
-    name: str = "user"
+class UserConfig(StrictBaseModel):
+    email: str
+    name: str
 
-class DoltConfig(BaseModel):
-    db_name: str = "dolt"
+class DoltConfig(StrictBaseModel):
     default_remote: str = "origin"
     default_commit_message: str = "update dolt-annex"
     connection: MySQLConnection = MySQLConnection()
@@ -36,13 +35,13 @@ def resolve_path(path: Optional[Path]) -> Optional[str]:
         return path.expanduser().as_posix()
     return None
 
-class SshSettings(BaseModel):
+class SshSettings(StrictBaseModel):
     ssh_config: Optional[Path] = default_ssh_config_path()
     known_hosts: Optional[Path] = None
     encrypted_ssh_key: bool = False
     client_key: Optional[Path] = None
 
-class Config(BaseModel):
+class Config(StrictBaseModel):
     """Global configuration settings"""
     user: UserConfig = UserConfig(name="user", email="user@localhost")
     dolt: DoltConfig = DoltConfig()

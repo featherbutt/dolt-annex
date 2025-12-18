@@ -3,10 +3,15 @@
 
 from abc import ABC
 import importlib
-from typing import Any, ClassVar, Self
-from pydantic import ModelWrapValidatorHandler, BaseModel, SerializerFunctionWrapHandler, model_serializer, model_validator
+from typing import Any, ClassVar, Optional, Self
+from pydantic import ConfigDict, ModelWrapValidatorHandler, SerializerFunctionWrapHandler, model_serializer, model_validator
+import pydantic
 
-class AbstractBaseModel(BaseModel, ABC):
+class StrictBaseModel(pydantic.BaseModel):
+    """A pydantic base model that disallows extra fields."""
+    model_config = ConfigDict(extra='forbid')
+    
+class AbstractBaseModel(StrictBaseModel, ABC):
 
     _type_map: ClassVar[dict[str, type[Self]]]
 

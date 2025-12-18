@@ -5,13 +5,14 @@ from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 import json
 import pathlib
-from typing import ClassVar
-from pydantic import BaseModel
-from typing_extensions import Self, Optional
+import pyjson5
+from typing_extensions import Self, Optional, ClassVar
+
+from dolt_annex.datatypes.pydantic import StrictBaseModel
 
 registered_subclasses: set[type['Loadable']] = set()
 
-class Loadable(BaseModel):
+class Loadable(StrictBaseModel):
     """
     A class that can be loaded from a JSON file.
 
