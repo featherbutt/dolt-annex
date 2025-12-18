@@ -19,7 +19,7 @@ from dolt_annex.test_util import run, setup
         "foo_remote",
         {
             "uuid": "123e4567-e89b-12d3-a456-426614174000",
-            "filestore": {"type": "AnnexFS", "root": "."},
+            "filestore": {"type": "annexfs", "root": "."},
             "key_format": "Sha256e"
         }
     ),
