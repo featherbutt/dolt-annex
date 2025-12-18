@@ -1,6 +1,0 @@
-{
-    "name": "submissions",
-    "file_column": "annex_key",
-    "key_columns": ["source", "id", "updated", "part"],
-    "empty_table_ref": "submissions" # Defaults to the table name. Can be a dolt ref, including a hash
-}

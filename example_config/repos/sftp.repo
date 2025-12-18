@@ -1,0 +1,21 @@
+/* This is an example repo definition, describing a remote repo accessible over SFTP.
+/* All definition files are JSON5 (https://json5.org/), which means they support comments like this one.
+/*/
+{
+    // The name of the repo, which must match the filename.
+    "name": "sftp",
+    "uuid": "12345678-9abc-def0-cafe-cba987654321",
+    "filestore": {
+        "type": "sftp",
+        "connection": {
+            "user": "your_username",
+            "hostname": "sftp.example.com",
+            "port": 22,
+            "client_key": "~/.ssh/id_rsa",
+            "path": "."
+        }
+    },
+    // The format used to key files in newly created filestores.
+    // Currently only "Sha256e" is supported.
+    "key_format": "Sha256e",
+}

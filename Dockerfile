@@ -36,6 +36,9 @@ VOLUME [ "/repo/" ]
 
 COPY scripts/ /scripts/
 
+# Copy example configuration files for testing
+COPY example_config/ /example_config/
+
 WORKDIR /repo
 
 ENTRYPOINT ["tini", "--", "/scripts/setup.sh"]
