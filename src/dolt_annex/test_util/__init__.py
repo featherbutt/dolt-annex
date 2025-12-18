@@ -19,7 +19,7 @@ from dolt_annex.data import data_dir
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFS

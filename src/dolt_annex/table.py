@@ -11,7 +11,7 @@ from uuid import UUID
 from typing_extensions import Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer

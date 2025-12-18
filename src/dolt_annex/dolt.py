@@ -15,7 +15,7 @@ import pymysql
 
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.logger import logger
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 
 class DoltSqlServer:
     """A connection to a Dolt SQL server."""

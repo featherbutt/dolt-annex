@@ -6,7 +6,7 @@ import json
 import pytest
 
 from dolt_annex.datatypes.loader import Loadable
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.test_util import run, setup
 

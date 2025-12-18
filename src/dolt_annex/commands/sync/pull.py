@@ -16,7 +16,7 @@ from dolt_annex.sync import move_table
 from dolt_annex.table import Dataset, TableFilter
 from dolt_annex.application import Application
 from dolt_annex.datatypes import AnnexKey
-from dolt_annex.datatypes.remote import Repo
+from dolt_annex.datatypes.repo import Repo
 
 class Pull(cli.Application):
     """Pull imported files from a remote repository"""
