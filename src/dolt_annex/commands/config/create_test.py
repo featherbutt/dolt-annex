@@ -50,7 +50,7 @@ async def test_create_remote(tmp_path, create_class: type[Loadable], create_type
         assert name not in create_class.cache.get()
         test_remote = create_class.must_load(name)
         assert name in create_class.cache.get()
-        assert test_remote.model_dump(mode='json') == {"name": name, **create_json}
+        assert test_remote == create_class(name=name, **create_json)
 
 @pytest.mark.asyncio
 async def test_create_invalid_type(tmp_path):
