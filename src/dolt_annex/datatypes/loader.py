@@ -68,9 +68,11 @@ class Loadable(BaseModel):
         path = cls.config_dir / f"{name}.{cls.extension}"
         if path.exists():
             with path.open() as f:
-                data = json.load(f)
+                data = pyjson5.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError(f"{cls} loaded from {path} is not an object")
                 if data.get("name") != name:
-                    raise ValueError(f"Table name {data.get('name')} does not match expected name {name}")
+                    raise ValueError(f"{cls} name {data.get('name')} does not match expected name {name}")
                 instance = cls(**data)
                 cache[name] = instance
                 return instance

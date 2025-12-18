@@ -5,6 +5,7 @@ from pathlib import Path
 from typing_extensions import Literal
 
 from plumbum import cli
+import pyjson5
 
 from dolt_annex.datatypes.config import Config
 
@@ -20,12 +21,17 @@ class Env:
     ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
     AUTO_PUSH = "DA_AUTO_PUSH"
 
+default_config_file_locations = [
+    Path("config.json5"),
+    Path("config.json"),
+]
+
 class Application(cli.Application):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
     VERSION = "0.3.2"
 
-    config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE, default="./config.json")
+    config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
 
     files_dir = cli.SwitchAttr("--files-dir", cli.ExistingDirectory, envname=Env.FILES_DIR)
 
@@ -52,11 +58,16 @@ class Application(cli.Application):
         # 3. Existing config file passed in with -c
         # 4. Existing config file in default location
         # 5. Default value
-        config_path = Path(self.config_file)
-        if config_path.exists():
-            with open(config_path, 'rb') as fd:
-                config_json = fd.read()
-            self.config = Config.model_validate_json(config_json)
+        if self.config_file is not None:
+            config_file_locations = [Path(self.config_file)]
+        else:
+            config_file_locations = default_config_file_locations
+        for config_path in config_file_locations:
+            if config_path.exists():
+                with open(config_path, encoding="utf-8") as fd:
+                    config_json = pyjson5.load(fd)
+                self.config = Config(**config_json)
+                break
         else:
             self.config = Config()
 
@@ -64,10 +75,10 @@ class Application(cli.Application):
         self.config.user.email = self.email or self.config.user.email
         self.config.dolt.default_commit_message = self.annexcommitmessage or self.config.dolt.default_commit_message
         self.config.dolt.spawn_dolt_server = self.spawn_dolt_server or self.config.dolt.spawn_dolt_server
-        self.config.dolt.db_name = self.dolt_db or self.config.dolt.db_name
+        self.config.dolt.connection.database = self.dolt_db or self.config.dolt.connection.database
 
         if self.dolt_server_socket:
-            self.config.dolt.connection["server_socket"] = self.dolt_server_socket
+            self.config.dolt.connection.server_socket = self.dolt_server_socket
         
         if args:
             print(f"Unknown command: {args[0]}")
