@@ -20,14 +20,18 @@ gallery-dl = {git = "https://github.com/featherbutt/gallery-dl"}
 tzdata = "^2025.2"
 pydantic = "^2.12.3"
 asyncssh = "^2.21.1"
-plyvel = "^1.5.1"
 pytest-dotenv = "^0.5.2"
 pytest-asyncio = "^1.3.0"
 fs = {git = "https://github.com/milahu/pyfilesystem2", rev = "6ba132f"}
 pyjson5 = "^2.0.0"
+plyvel = {version = "^1.5.1", optional = true}
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
+
+[tool.poetry.extras]
+leveldb = ["plyvel"]
+
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

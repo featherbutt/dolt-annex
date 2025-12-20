@@ -20,7 +20,7 @@ RUN bash -c 'curl -L https://github.com/dolthub/dolt/releases/download/v${DOLT_V
 RUN /usr/local/bin/dolt version
 
 COPY src/ /src/
-RUN pip install -e /src
+RUN pip install -e "/src[leveldb]"
 
 ENV DA_DOLT_DIR="/repo/dolt" \
     DA_FILES_DIR="/repo/filestore" \
