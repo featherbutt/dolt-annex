@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from uuid import UUID
 from dataclasses import dataclass, field
 from typing_extensions import Iterable, Optional, Tuple, List, Any
@@ -50,24 +51,27 @@ async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey
     has_more = False
     for key, table_row in keys_and_submissions:
         has_more = True
-        logger.info(f"moving {table_row}: {key}")
-
-        if await maybe_await(to_file_store.exists(key)):
-            logger.debug(f"file {key} already exists in destination filestore")
-            # The file may have come from a different dataset, so we don't need to copy it.
-            # We still record that we have a copy of it for this dataset.
-            await file_table.insert_file_source(table_row, key, destination_uuid)
-            continue
-        if ignore_missing and not await maybe_await(from_file_store.exists(key)):
-            logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-            continue
-        async with from_file_store.with_file_object(key) as remote_file_obj:
-            await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
-            await file_table.insert_file_source(table_row, key, destination_uuid)
+        await move_submission_and_key(key, table_row, file_table, from_file_store, to_file_store, destination_uuid, ignore_missing)
         
         files_moved.append(key)
     await file_table.flush()
     return has_more
+
+async def move_submission_and_key(key: FileKey, table_row: TableRow, file_table: FileTable, from_file_store: FileStore, to_file_store: FileStore, destination_uuid: UUID, ignore_missing: bool) -> None:
+    logger.info(f"moving {table_row}: {key}")
+
+    if await maybe_await(to_file_store.exists(key)):
+        logger.debug(f"file {key} already exists in destination filestore")
+        # The file may have come from a different dataset, so we don't need to copy it.
+        # We still record that we have a copy of it for this dataset.
+        await file_table.insert_file_source(table_row, key, destination_uuid)
+        return
+    if ignore_missing and not await maybe_await(from_file_store.exists(key)):
+        logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
+        return
+    async with from_file_store.with_file_object(key) as remote_file_obj:
+        await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
+        await file_table.insert_file_source(table_row, key, destination_uuid)
 
 def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[FileKey, TableRow]]:
     refs = [in_ref, not_in_ref]
