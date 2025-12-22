@@ -6,6 +6,7 @@ from dolt_annex.commands import gallery_dl_command, insert_record, init, server_
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import read_table
+from dolt_annex.commands.filestore import whereis
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from .application import Application
@@ -22,6 +23,7 @@ Application.subcommand("gallery-dl", gallery_dl_command.GalleryDL)
 Application.subcommand("insert-record", insert_record.InsertRecord)
 Application.subcommand("read-table", read_table.ReadTable)
 Application.subcommand("create", create.Create)
+Application.subcommand("whereis", whereis.WhereIs)
 
 def main():
     """Entry point for dolt-annex package"""
