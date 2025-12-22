@@ -36,7 +36,6 @@ class SftpFileStore(FileStore):
     async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        # self._sftp.mkdir_p(Path(remote_file_path).parent.as_posix())
         await self._sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
         async with self._sftp.open(remote_file_path, 'wb') as out_fd:
             await copy(src=in_fd, dst=out_fd)
