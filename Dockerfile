@@ -23,7 +23,6 @@ COPY src/ /src/
 RUN pip install -e "/src[leveldb]"
 
 ENV DA_DOLT_DIR="/repo/dolt" \
-    DA_FILES_DIR="/repo/filestore" \
     DA_SPAWN_DOLT_SERVER=false \
     DA_DOLT_DB="dolt" \
     DA_EMAIL="anonymous@localhost" \
