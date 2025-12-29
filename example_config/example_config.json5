@@ -49,10 +49,6 @@
         "ssh_config": "~/.ssh/config",
         // The path to the known hosts file.
         "known_hosts": "~/.ssh/known_hosts",
-        // The path to the SSH client private key.
-        "client_key": "~/.ssh/id_rsa",
-        // Whether the SSH key is encrypted and requires a passphrase.
-        "encrypted_ssh_key": false,
     },
     
     // The format used to key files in newly created filestores.

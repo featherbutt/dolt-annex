@@ -26,6 +26,7 @@ class SSHConnection(StrictBaseModel):
     hostname: str = "localhost"
     port: int = 22
     client_key: Path | None = None
+    key_is_encrypted: bool = False
     path: Path = Path(".")
 
 class MySQLConnection(StrictBaseModel):

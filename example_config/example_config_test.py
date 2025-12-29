@@ -37,8 +37,6 @@ example_config = Config(
     ssh = SshSettings(
         ssh_config=pathlib.Path("~/.ssh/config"),
         known_hosts=pathlib.Path("~/.ssh/known_hosts"),
-        encrypted_ssh_key=False,
-        client_key=pathlib.Path("~/.ssh/id_rsa"),
     ),
     local_repo_name="__local__",
     default_annex_remote="origin",
