@@ -83,12 +83,13 @@ class Loadable(StrictBaseModel):
     @classmethod
     def all(cls) -> Iterable[Self]:
         """Returns all configuration objects of this type."""
-        for file in cls.config_dir.iterdir():
-            if '.' not in file.name:
-                continue
-            name, extension = file.name.split('.', 1)
-            if extension == cls.extension:
-                cls.load(name)
+        if cls.config_dir.exists():
+            for file in cls.config_dir.iterdir():
+                if '.' not in file.name:
+                    continue
+                name, extension = file.name.split('.', 1)
+                if extension == cls.extension:
+                    cls.load(name)
         return cls.cache.get().values()
 
     @classmethod
