@@ -119,7 +119,7 @@ class DoltSqlServer:
             self.cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
         except pymysql.err.OperationalError as e:
             if "already exists" not in str(e):
-                raise DoltException(f"Failed to create branch {branch} from {start_point}") from e
+                raise DoltException(f"Failed to create branch {branch} from {start_point}: {e}") from e
         return DoltBranch(self, branch)
         
     def set_branch(self, branch: str):
