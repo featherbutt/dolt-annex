@@ -3,8 +3,7 @@
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import BinaryIO
-from typing_extensions import Optional, Self
+from typing_extensions import BinaryIO, Optional, Self
 
 from dolt_annex.datatypes.file_io import Path
 

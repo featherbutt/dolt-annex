@@ -1,4 +1,4 @@
-from typing import cast
+from typing_extensions import cast
 
 from plumbum import cli # type: ignore
 

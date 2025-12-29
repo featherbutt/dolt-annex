@@ -5,7 +5,7 @@
 Utilities for managing IO during tests.
 """
 
-from typing import TextIO
+from typing_extensions import TextIO
 
 
 class Tee(TextIO):
@@ -14,7 +14,7 @@ class Tee(TextIO):
     
     Most commonly used to split output between stdout and a file.
     """
-    
+
     def __init__(self, *streams: TextIO):
         self.streams = streams
 

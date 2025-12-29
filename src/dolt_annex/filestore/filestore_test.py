@@ -6,8 +6,7 @@ import contextlib
 import pathlib
 import random
 import tempfile
-from typing import override
-from typing_extensions import Generator, AsyncGenerator
+from typing_extensions import Generator, AsyncGenerator, override
 import pytest
 
 import fs.memoryfs

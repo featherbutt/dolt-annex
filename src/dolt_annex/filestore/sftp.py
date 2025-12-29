@@ -15,9 +15,8 @@ A single SFTP connection can only transfer one file at a time.
 from contextlib import asynccontextmanager
 import hashlib
 from pathlib import Path
-from typing import AsyncGenerator, cast
 import asyncssh
-from typing_extensions import override
+from typing_extensions import AsyncGenerator, cast, override
 
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection

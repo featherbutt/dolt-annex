@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 import os
 import pathlib
-from typing import Optional
 from uuid import UUID
 
-from typing_extensions import Dict, Iterable
+from typing_extensions import Dict, Iterable, Optional
 
 import fs.osfs
 from fs.base import FS as FileSystem

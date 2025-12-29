@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing import cast
+from typing_extensions import cast
 
 import pytest
 

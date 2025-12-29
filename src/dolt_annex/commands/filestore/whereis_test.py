@@ -7,34 +7,40 @@ import pytest
 
 from dolt_annex.file_keys.sha256e import Sha256e
 
-# test_util contains fixtures that need to imported into the test namespace,
+from dolt_annex.test_util import run
+# fixtures need to imported into the test namespace,
 # even though they are not used directly here.
-from dolt_annex.test_util import *
+from dolt_annex.test_util.fixtures import *
+
+local_repo_key = Sha256e.from_bytes(b"only in local repo", "txt")
+both_repos_key = Sha256e.from_bytes(b"in both repos", "txt")
+
+@pytest.fixture
+def temp_dir(tmp_path):
+    with contextlib.chdir(tmp_path):
+        yield
+     
+@pytest_asyncio.fixture
+async def whereis_setup(temp_dir, setup: TestSetup, scope="module"):
+    """Run and validate pushing content files to a remote"""
+    await run(
+        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "only in local repo"],
+        expected_output="Inserted row"
+    )
+
+    await run(
+        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
+        expected_output="Inserted row"
+    )
+
+    await run(
+        args=["dolt-annex", "insert-record", "--repo", "test_remote", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
+        expected_output="Inserted row"
+    )
 
 
 @pytest.mark.asyncio
-async def test_whereis(tmp_path, setup: TestSetup):
-    """Run and validate pushing content files to a remote"""
-
-    local_repo_key = Sha256e.from_bytes(b"only in local repo", "txt")
-    both_repos_key = Sha256e.from_bytes(b"in both repos", "txt")
-
-    with contextlib.chdir(tmp_path):
-        await run(
-            args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "only in local repo"],
-            expected_output="Inserted row"
-        )
-
-        await run(
-            args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
-            expected_output="Inserted row"
-        )
-
-        await run(
-            args=["dolt-annex", "insert-record", "--repo", "test_remote", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
-            expected_output="Inserted row"
-        )
-
+async def test1(temp_dir, whereis_setup):
         # Without --repo flag
 
         await run(

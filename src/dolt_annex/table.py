@@ -6,9 +6,8 @@ from dataclasses import dataclass
 import os
 import random
 import time
-from typing import Any, Awaitable, Optional
 from uuid import UUID
-from typing_extensions import Callable, Dict, List, Tuple, Iterable
+from typing_extensions import Any, Awaitable, Optional, Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo

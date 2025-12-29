@@ -5,8 +5,7 @@ from dataclasses import dataclass
 import pathlib
 
 from types import TracebackType
-from typing import BinaryIO, Protocol, Self, cast
-from typing_extensions import Buffer, Literal
+from typing_extensions import BinaryIO, Protocol, Self, cast, Buffer, Literal
 
 import fs.move
 from fs.base import FS

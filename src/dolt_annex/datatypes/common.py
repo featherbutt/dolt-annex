@@ -4,8 +4,7 @@
 from enum import Enum
 import getpass
 from pathlib import Path
-from typing import Optional
-from typing_extensions import NewType
+from typing_extensions import NewType, Optional
 
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.file_keys.base import FileKey as AnnexKey

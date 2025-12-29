@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 from uuid import UUID
-from typing_extensions import Optional
+from typing_extensions import Optional, TYPE_CHECKING
 
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.pydantic import StrictBaseModel

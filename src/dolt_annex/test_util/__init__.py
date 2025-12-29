@@ -3,19 +3,15 @@
 
 from collections.abc import Iterable
 import contextlib
-from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-import shutil
 import sys
-from typing import Optional, TextIO
 import uuid
+from typing_extensions import Optional
 
-from plumbum import local, cli
+from plumbum import cli
 import pytest
-import pytest_asyncio
 
-from dolt_annex.data import data_dir
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
@@ -105,51 +101,3 @@ async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[byte
     for file_content in files:
         await cas.put_file_bytes(file_content)
     return cas
-
-@dataclass
-class TestSetup:
-    local_file_store: ContentAddressableStorage
-    remote_file_store: ContentAddressableStorage
-
-@pytest.fixture()
-def dolt(tmp_path):
-    dolt_dir = Path(tmp_path / "dolt")
-    dolt_dir.mkdir()
-    dolt = local.cmd.dolt.with_cwd(dolt_dir)
-    shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
-    yield dolt
-    shutil.rmtree(dolt_dir)
-
-@pytest.fixture
-def init_dolt(dolt):
-    dolt("checkout", "-b", "test_dataset")
-    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, annex_key varchar(100));")
-    dolt("add", ".")
-    dolt("commit", "-m", "Initial commit")
-    yield dolt
-
-@pytest_asyncio.fixture 
-async def setup(tmp_path: Path, init_dolt):
-
-    local_filestore = await create_test_filestore("__local__", local_uuid, [])
-    remote_filestore = await create_test_filestore("test_remote", remote_uuid, [])
-
-    Repo(
-        name="test_remote",
-        uuid=remote_uuid,
-        filestore=remote_filestore.file_store,
-        key_format=Sha256e
-    )
-
-    with (tmp_path / "config.json").open("w") as f:
-        f.write(test_config.model_dump_json())
-
-    async with (
-        local_filestore.open(test_config),
-        remote_filestore.open(test_config)
-    ):
-        with contextlib.chdir(tmp_path):
-            yield TestSetup(
-                local_file_store=local_filestore,
-                remote_file_store=remote_filestore,
-            )
