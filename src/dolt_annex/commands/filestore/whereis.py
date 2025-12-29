@@ -1,5 +1,4 @@
 import json
-from math import e
 
 from plumbum import cli
 
@@ -24,7 +23,6 @@ class WhereIs(cli.Application):
         "--repo",
         str,
         help="If set, limit the search to a single named repo",
-        mandatory = True
     )
         
     async def main(self, *args) -> int:
@@ -32,10 +30,17 @@ class WhereIs(cli.Application):
             print("This command does not take positional arguments")
             return 1
 
+        queried_key = FileKey(bytes(self.file_key, encoding='utf-8'))
         locations = []
-        repo = Repo.must_load(self.repo)
-        if repo.filestore.exists(FileKey(bytes(self.file_key, encoding='utf-8'))):
-            locations.append({"name": repo.name, "uuid": str(repo.uuid)})
+        if self.repo:
+            repos = [Repo.must_load(self.repo)]
+        else:
+            repos = Repo.all()
+
+        for repo in repos:
+            async with repo.filestore.open(self.parent.config):
+                if repo.filestore.exists(queried_key):
+                    locations.append({"name": repo.name, "uuid": str(repo.uuid)})
 
         print(json.dumps(locations))
         
