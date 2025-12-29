@@ -85,9 +85,10 @@ class FileStore(AbstractBaseModel):
 
         Returns a context manager that yields the opened filestore instance.
         """
-
-        yield
-        await maybe_await(self.flush())
+        try:
+            yield
+        finally:
+            await maybe_await(self.flush())
 
 
     def flush(self) -> MaybeAwaitable[None]:
