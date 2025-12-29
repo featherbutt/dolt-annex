@@ -60,10 +60,10 @@ class InsertRecord(cli.Application):
         default = "txt",
     )
 
-    remote = cli.SwitchAttr(
-        "--remote",
+    repo = cli.SwitchAttr(
+        "--repo",
         str,
-        help="If set, insert the record into the specified remote instead of the local annex",
+        help="If set, insert the record into the specified repo instead of the local annex",
     )
         
     async def main(self, *args) -> int:
@@ -86,8 +86,8 @@ class InsertRecord(cli.Application):
             key_columns = cast(TableRow, self.key_columns.split(','))
             table = dataset.get_table(self.table_name)
 
-            if self.remote:
-                remote_repo = Repo.must_load(self.remote)
+            if self.repo:
+                remote_repo = Repo.must_load(self.repo)
                 remote_uuid = remote_repo.uuid
                 filestore = ContentAddressableStorage.from_remote(remote_repo).file_store
                 dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo.uuid)
