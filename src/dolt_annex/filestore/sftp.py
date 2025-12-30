@@ -86,6 +86,7 @@ class SftpFileStore(FileStore):
                 **extra_opts
             ) as conn:
                 async with conn.start_sftp_client() as self._sftp:
+                    await self._sftp.chdir(self.connection.path.as_posix())
                     yield
         else:
             yield
@@ -110,6 +111,7 @@ class SftpFileStore(FileStore):
         try:
             # We don't call SFTPClient.exists because it checks for the type attribute,
             # which does not exist prior to SFTP protocol version 4.
-            return bool(await self._sftp.stat(self.get_key_path(file_key).as_posix()))
+            stat = await self._sftp.stat(self.get_key_path(file_key).as_posix())
+            return bool(stat)
         except asyncssh.SFTPNoSuchFile:
             return False
