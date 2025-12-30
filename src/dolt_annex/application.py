@@ -5,6 +5,7 @@ from pathlib import Path
 from typing_extensions import Literal
 
 from plumbum import cli
+from pydantic import ValidationError
 import pyjson5
 
 from dolt_annex.datatypes.config import Config
@@ -63,7 +64,11 @@ class Application(cli.Application):
             if config_path.exists():
                 with open(config_path, encoding="utf-8") as fd:
                     config_json = pyjson5.load(fd)
-                self.config = Config(**config_json)
+                try:
+                    self.config = Config(**config_json)
+                except ValidationError as e:
+                    print(e)
+                    return 1
                 break
         else:
             self.config = Config()
