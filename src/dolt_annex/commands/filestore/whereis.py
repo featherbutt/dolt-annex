@@ -1,6 +1,7 @@
 import json
 
 from plumbum import cli
+from dolt_annex.datatypes.async_utils import maybe_await
 
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.application import Application
@@ -39,7 +40,7 @@ class WhereIs(cli.Application):
 
         for repo in repos:
             async with repo.filestore.open(self.parent.config):
-                if repo.filestore.exists(queried_key):
+                if await maybe_await(repo.filestore.exists(queried_key)):
                     locations.append({"name": repo.name, "uuid": str(repo.uuid)})
 
         print(json.dumps(locations))
