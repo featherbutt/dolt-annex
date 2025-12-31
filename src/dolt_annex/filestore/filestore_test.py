@@ -9,6 +9,7 @@ import tempfile
 from typing_extensions import Generator, AsyncGenerator, override
 import pytest
 
+import asyncssh
 import fs.memoryfs
 
 from dolt_annex import test_util
@@ -24,6 +25,41 @@ from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.filestore.unionfs import UnionFS
 from dolt_annex.filestore.sftp import SftpFileStore
 from dolt_annex.server.ssh import server_context as async_server_context
+
+class SimpleSftpFilestore(SftpFileStore):
+    """
+    A wrapper around SftpFileStore that creates a plain SFTP server.
+    """
+
+    @classmethod
+    def make(cls):
+        client_key=test_util.private_key_path
+        port=random.randint(21000, 22000)
+        connection = SSHConnection(
+            hostname="localhost",
+            port=port,
+            client_key=client_key
+        )
+        return cls(connection=connection)
+    
+    @override
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return "SimpleSftpFileStore"
+    
+    @override
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[None]:
+
+        # setup server, then create server context, then setup client.
+        server = await asyncssh.listen(self.connection.hostname, self.connection.port, server_host_keys=[test_util.private_key_path],
+                          authorized_client_keys=self.connection.client_key,
+                          sftp_factory=True)
+        try:
+            yield
+        finally:
+            server.close()
+            await server.wait_closed()
 
 class SftpWrappedFileStore(SftpFileStore):
     """
@@ -81,6 +117,7 @@ def all_filestore_types():
     yield from local_filestore_types()
     for fs in local_filestore_types():
         yield SftpWrappedFileStore.make(fs)
+    yield SimpleSftpFilestore.make()
 
 def all_filestore_type_parameters():
     for fs in all_filestore_types():
