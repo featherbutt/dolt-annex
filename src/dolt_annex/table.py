@@ -197,7 +197,7 @@ class Dataset:
             db_config["unix_socket"] = connection.server_socket.as_posix()
         elif connection.hostname:
             db_config["host"] = connection.hostname
-            port = connection.port or (random.randint(20000, 30000) if dolt_config.spawn_dolt_server else 3306)
+            port = random.randint(20000, 30000) if dolt_config.spawn_dolt_server else (connection.port or 3306)
             db_config["port"] = port
         else:
             raise ValueError("Either server_socket or hostname must be set in the Dolt connection configuration.")
