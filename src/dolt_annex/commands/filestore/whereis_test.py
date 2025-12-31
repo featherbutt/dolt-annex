@@ -1,27 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import contextlib
+import os
 
 import pytest
+import pytest_asyncio
 
 from dolt_annex.file_keys.sha256e import Sha256e
 
-from dolt_annex.test_util import run
-# fixtures need to imported into the test namespace,
-# even though they are not used directly here.
-from dolt_annex.test_util.fixtures import *
+from dolt_annex.test_util import run, EnvironmentForTest, local_uuid, remote_uuid
 
 local_repo_key = Sha256e.from_bytes(b"only in local repo", "txt")
 both_repos_key = Sha256e.from_bytes(b"in both repos", "txt")
-
-@pytest.fixture
-def temp_dir(tmp_path):
-    with contextlib.chdir(tmp_path):
-        yield
      
 @pytest_asyncio.fixture
-async def whereis_setup(temp_dir, setup: TestSetup, scope="module"):
+async def whereis_setup(temp_dir, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
     await run(
         args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "only in local repo"],
