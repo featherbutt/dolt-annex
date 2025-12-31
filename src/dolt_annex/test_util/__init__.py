@@ -3,6 +3,7 @@
 
 from collections.abc import Iterable
 import contextlib
+from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
 import sys
@@ -21,6 +22,11 @@ from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.test_util.io import Tee
+
+@dataclass
+class EnvironmentForTest:
+    local_file_store: ContentAddressableStorage
+    remote_file_store: ContentAddressableStorage
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"

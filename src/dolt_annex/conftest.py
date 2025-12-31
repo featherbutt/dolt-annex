@@ -24,15 +24,15 @@ from dolt_annex.data import data_dir
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.test_util import create_test_filestore, local_uuid, remote_uuid, test_config
+from dolt_annex.test_util import create_test_filestore, local_uuid, remote_uuid, test_config, EnvironmentForTest
 
-@dataclass
-class TestSetup:
-    local_file_store: ContentAddressableStorage
-    remote_file_store: ContentAddressableStorage
+@pytest.fixture
+def temp_dir(tmp_path):
+    with contextlib.chdir(tmp_path):
+        yield
 
 @pytest.fixture()
-def dolt(tmp_path):
+def dolt(temp_dir, tmp_path):
     dolt_dir = pathlib.Path(tmp_path / "dolt")
     dolt_dir.mkdir()
     dolt = local.cmd.dolt.with_cwd(dolt_dir)
@@ -69,7 +69,7 @@ async def setup(tmp_path: pathlib.Path, init_dolt):
         remote_filestore.open(test_config)
     ):
         with contextlib.chdir(tmp_path):
-            yield TestSetup(
+            yield EnvironmentForTest(
                 local_file_store=local_filestore,
                 remote_file_store=remote_filestore,
             )
