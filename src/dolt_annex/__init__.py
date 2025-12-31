@@ -6,12 +6,12 @@ from dolt_annex.commands import gallery_dl_command, insert_record, init, server_
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import read_table
-from dolt_annex.commands.filestore import whereis
+from dolt_annex.commands.filestore import whereis, copy
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from .application import Application
 
-# gallery-dl postprocessors callbacks must be in the top level package, so we import them here
+# gallery-dl postprocessor callbacks must be in the top level package, so we import them here
 from .gallery_dl_plugin.postprocessors import gallery_dl_post, gallery_dl_prepare, gallery_dl_after
 
 Application.subcommand("import", import_command.Import)
@@ -24,6 +24,7 @@ Application.subcommand("insert-record", insert_record.InsertRecord)
 Application.subcommand("read-table", read_table.ReadTable)
 Application.subcommand("create", create.Create)
 Application.subcommand("whereis", whereis.WhereIs)
+Application.subcommand("copy", copy.Copy)
 
 def main():
     """Entry point for dolt-annex package"""
