@@ -50,8 +50,11 @@ class Config(StrictBaseModel):
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e
 
+    def get_default_repo(self) -> Repo:
+        return Repo.must_load(self.local_repo_name)
+
     def get_filestore(self) -> 'FileStore':
-        return Repo.must_load(self.local_repo_name).filestore
+        return self.get_default_repo().filestore
     
     def get_uuid(self) -> UUID:
-        return Repo.must_load(self.local_repo_name).uuid
+        return self.get_default_repo().uuid
