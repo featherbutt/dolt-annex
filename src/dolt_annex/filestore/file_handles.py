@@ -9,7 +9,7 @@ from typing_extensions import Optional, Buffer
 
 from fs.base import FS as FileSystem
 
-from dolt_annex.datatypes import AnnexKey
+from dolt_annex.datatypes import FileKey
 from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, WritableFileObject
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
@@ -49,12 +49,12 @@ class NewFileHandle(FileHandle, WritableFileObject):
 
     writefile: BufferedWriter
 
-    key: AnnexKey
+    key: FileKey
     suffix: str
 
     cas: ContentAddressableStorage
 
-    def __init__(self, temp_fs: FileSystem, cas: ContentAddressableStorage, key: AnnexKey):
+    def __init__(self, temp_fs: FileSystem, cas: ContentAddressableStorage, key: FileKey):
         self.temp_fs = temp_fs
         self.cas = cas
         self.key = key

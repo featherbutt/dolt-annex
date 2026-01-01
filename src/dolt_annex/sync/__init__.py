@@ -36,7 +36,7 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} has different content on both remotes")
 
-async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[AnnexKey]] = None, ignore_missing = False) -> List[AnnexKey]:
+async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
     if moved_files is None:
         moved_files = []
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
