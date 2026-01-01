@@ -8,6 +8,7 @@ from typing_extensions import List
 from plumbum import cli
 
 from dolt_annex.application import Application
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.table import Dataset, TableFilter
 from dolt_annex.datatypes.repo import Repo
@@ -96,6 +97,7 @@ class Push(cli.Application):
             remote_repo.filestore.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            pushed_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.ignore_missing, self.limit)
+            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo.uuid)
+            pushed_files = await move_dataset(dataset, local_repo, remote_repo, self.filters, self.limit, None, self.ignore_missing)
             print(f"Pushed {len(pushed_files)} files to remote {remote_name}")
         return 0
