@@ -15,7 +15,7 @@ from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer
 from .logger import logger
-from .datatypes import AnnexKey, TableRow
+from .datatypes import FileKey, TableRow
 from .datatypes.table import FileTableSchema
 
 # We must prevent data loss in the event the process is interrupted:
@@ -39,8 +39,8 @@ class TableFilter:
 class FileTable:
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
-    sources: Dict[AnnexKey, List[str]]
-    added_rows: Dict[UUID, List[Tuple[AnnexKey, TableRow]]]
+    sources: Dict[FileKey, List[str]]
+    added_rows: Dict[UUID, List[Tuple[FileKey, TableRow]]]
     dolt: DoltSqlServer
     auto_push: bool
     batch_size: int
@@ -71,7 +71,7 @@ class FileTable:
             await self.flush()
             self.count = 0
 
-    async def insert_file_source(self, table_row: TableRow, key: AnnexKey, source: UUID):
+    async def insert_file_source(self, table_row: TableRow, key: FileKey, source: UUID):
         if source not in self.added_rows:
             self.added_rows[source] = []
         self.added_rows[source].append((key, table_row))

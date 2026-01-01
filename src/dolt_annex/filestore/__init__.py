@@ -4,7 +4,7 @@
 """
 The logic for interacting with the filestore.
 
-A filestore is an interface that maps AnnexKeys to files.
+A filestore is an interface that maps FileKeys to files.
 
 Currently the only supported filestore is a local filesystem filestore,
 which stores files in a directory structure based on the md5 hash of the key.
