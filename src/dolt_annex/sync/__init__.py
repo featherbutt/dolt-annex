@@ -43,17 +43,17 @@ async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: 
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        await move_table(table, from_repo.uuid, to_repo.uuid, from_repo.filestore, to_repo.filestore, where, ignore_missing, limit, moved_files)
+        await move_table(table, from_repo, to_repo, where, ignore_missing, limit, moved_files)
     return moved_files
 
-async def move_table(table: FileTable, from_uuid: UUID, to_uuid: UUID, from_file_store: FileStore, to_file_store: FileStore, where: List[TableFilter], ignore_missing, limit: Optional[int] = None, out_moved_keys: Optional[List[FileKey]] = None) -> List[FileKey]:
+async def move_table(table: FileTable, from_repo: Repo, to_repo: Repo, where: List[TableFilter], ignore_missing, limit: Optional[int] = None, out_moved_keys: Optional[List[FileKey]] = None) -> List[FileKey]:
     if out_moved_keys is None:
         out_moved_keys = []
     dolt = table.dolt
 
     while True:
-        keys_and_submissions = list(diff_keys(dolt, str(from_uuid), str(to_uuid), table.dataset_name, table.schema, where, limit))
-        has_more = await move_submissions_and_keys(keys_and_submissions, table, from_file_store, to_file_store, to_uuid, out_moved_keys, ignore_missing)
+        keys_and_submissions = list(diff_keys(dolt, str(from_repo.uuid), str(to_repo.uuid), table.dataset_name, table.schema, where, limit))
+        has_more = await move_submissions_and_keys(keys_and_submissions, table, from_repo.filestore, to_repo.filestore, to_repo.uuid, out_moved_keys, ignore_missing)
         if not has_more:
             break
     return out_moved_keys
