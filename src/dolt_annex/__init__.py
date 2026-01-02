@@ -6,7 +6,7 @@ from dolt_annex.commands import gallery_dl_command, init, server_command, import
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import read_table, insert_record
-from dolt_annex.commands.filestore import whereis, copy
+from dolt_annex.commands.filestore import whereis, insert, copy
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from .application import Application
@@ -24,6 +24,7 @@ Application.subcommand("insert-record", insert_record.InsertRecord)
 Application.subcommand("read-table", read_table.ReadTable)
 Application.subcommand("create", create.Create)
 Application.subcommand("whereis", whereis.WhereIs)
+Application.subcommand("insert-file", insert.Insert)
 Application.subcommand("copy", copy.Copy)
 
 def main():
