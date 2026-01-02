@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-from dolt_annex.commands import gallery_dl_command, insert_record, init, server_command, import_command
+from dolt_annex.commands import gallery_dl_command, init, server_command, import_command
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
-from dolt_annex.commands.dataset import read_table
+from dolt_annex.commands.dataset import read_table, insert_record
 from dolt_annex.commands.filestore import whereis, copy
 
 from dolt_annex.datatypes.async_utils import maybe_await
