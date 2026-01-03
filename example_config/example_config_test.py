@@ -17,70 +17,70 @@ from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.datatypes.config import Config, UserConfig, DoltConfig, SshSettings
 from dolt_annex.file_keys.sha256e import Sha256e
 
-example_config = Config(
-    user = UserConfig(
-        name="A U Thor",
-        email="author@example.com",
-    ),
-    dolt = DoltConfig(
-        default_remote="origin",
-        default_commit_message="update",
-        connection=MySQLConnection(
-            user="root",
-            hostname="localhost",
-            port=3306,
-            server_socket=pathlib.Path("/tmp/dolt.sock"),
-            database="dolt",
-        ),
-        spawn_dolt_server=True,
-    ),
-    ssh = SshSettings(
-        ssh_config=pathlib.Path("~/.ssh/config"),
-        known_hosts=pathlib.Path("~/.ssh/known_hosts"),
-    ),
-    local_repo_name="__local__",
-    default_annex_remote="origin",
-    default_file_key_type=Sha256e,
-)
-
-example_local_repo = Repo(
-    name = "__local__",
-    uuid = uuid.UUID("fedcba98-7654-3210-ca11-8675309abcde"),
-    filestore = AnnexFS(
-        root=pathlib.Path("./annex"),
-    ),
-    key_format = Sha256e,
-)
-
-example_remote_repo = Repo(
-    name = "sftp",
-    uuid = uuid.UUID("12345678-9abc-def0-cafe-cba987654321"),
-    filestore = SftpFileStore(
-        connection=SSHConnection(
-            user="your_username",
-            hostname="sftp.example.com",
-            port=22,
-            client_key=pathlib.Path("~/.ssh/id_rsa"),
-            path=pathlib.Path("."),
-        )
-    ),
-    key_format = Sha256e,
-)
-
-example_dataset_schema = DatasetSchema(
-    name="file_archive",
-    
-    tables = [
-        FileTableSchema(
-            name="files",
-            file_column="annex_key",
-            key_columns=["path"],
-        ),
-    ],
-    empty_table_ref = "file_archive"
-)
-
 def test_example_config():
+    example_config = Config(
+        user = UserConfig(
+            name="A U Thor",
+            email="author@example.com",
+        ),
+        dolt = DoltConfig(
+            default_remote="origin",
+            default_commit_message="update",
+            connection=MySQLConnection(
+                user="root",
+                hostname="localhost",
+                port=3306,
+                server_socket=pathlib.Path("/tmp/dolt.sock"),
+                database="dolt",
+            ),
+            spawn_dolt_server=True,
+        ),
+        ssh = SshSettings(
+            ssh_config=pathlib.Path("~/.ssh/config"),
+            known_hosts=pathlib.Path("~/.ssh/known_hosts"),
+        ),
+        local_repo_name="__local__",
+        default_annex_remote="origin",
+        default_file_key_type=Sha256e,
+    )
+
+    example_local_repo = Repo(
+        name = "__local__",
+        uuid = uuid.UUID("fedcba98-7654-3210-ca11-8675309abcde"),
+        filestore = AnnexFS(
+            root=pathlib.Path("./annex"),
+        ),
+        key_format = Sha256e,
+    )
+
+    example_remote_repo = Repo(
+        name = "sftp",
+        uuid = uuid.UUID("12345678-9abc-def0-cafe-cba987654321"),
+        filestore = SftpFileStore(
+            connection=SSHConnection(
+                user="your_username",
+                hostname="sftp.example.com",
+                port=22,
+                client_key=pathlib.Path("~/.ssh/id_rsa"),
+                path=pathlib.Path("."),
+            )
+        ),
+        key_format = Sha256e,
+    )
+
+    example_dataset_schema = DatasetSchema(
+        name="file_archive",
+        
+        tables = [
+            FileTableSchema(
+                name="files",
+                file_column="annex_key",
+                key_columns=["path"],
+            ),
+        ],
+        empty_table_ref = "file_archive"
+    )
+
     with contextlib.chdir(os.path.dirname(__file__)):
         with open("example_config.json5", encoding="utf-8") as f:
             loaded_config = Config.model_validate(pyjson5.decode(f.read()))
