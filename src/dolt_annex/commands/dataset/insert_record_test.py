@@ -16,7 +16,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
 
     key = Sha256e.from_bytes(b"new file content", "txt")
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "new file content"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "new file content"],
         expected_output="Inserted row"
     )
 

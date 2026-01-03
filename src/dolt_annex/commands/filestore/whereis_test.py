@@ -17,17 +17,17 @@ both_repos_key = Sha256e.from_bytes(b"in both repos", "txt")
 async def whereis_setup(temp_dir, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "only in local repo"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "only in local repo"],
         expected_output="Inserted row"
     )
 
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
         expected_output="Inserted row"
     )
 
     await run(
-        args=["dolt-annex", "insert-record", "--repo", "test_remote", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
+        args=["dolt-annex", "dataset", "insert-record", "--repo", "test_remote", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "in both repos"],
         expected_output="Inserted row"
     )
 

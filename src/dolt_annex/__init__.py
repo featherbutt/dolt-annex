@@ -5,8 +5,8 @@ import asyncio
 from dolt_annex.commands import gallery_dl_command, init, server_command, import_command
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
-from dolt_annex.commands.dataset import read_table, insert_record
-import dolt_annex.commands.filestore
+from dolt_annex.commands.dataset import DatasetSubcommand
+from dolt_annex.commands.filestore import FilestoreSubcommand
 
 from dolt_annex.datatypes.async_utils import maybe_await
 from .application import Application
@@ -20,10 +20,9 @@ Application.subcommand("push", push.Push)
 Application.subcommand("pull", pull.Pull)
 Application.subcommand("server", server_command.Server)
 Application.subcommand("gallery-dl", gallery_dl_command.GalleryDL)
-Application.subcommand("insert-record", insert_record.InsertRecord)
-Application.subcommand("read-table", read_table.ReadTable)
+Application.subcommand("dataset", DatasetSubcommand)
 Application.subcommand("create", create.Create)
-Application.subcommand("filestore", dolt_annex.commands.filestore.FilestoreSubcommand)
+Application.subcommand("filestore", FilestoreSubcommand)
 
 def main():
     """Entry point for dolt-annex package"""

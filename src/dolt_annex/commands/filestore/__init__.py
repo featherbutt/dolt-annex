@@ -9,8 +9,6 @@ class FilestoreSubcommand(CommandGroup, SubCommand):
     Low-level commands for interacting directly with filestores.
     
     These commands are primarily intended for testing and debugging.
-
-    Users should prefer to operate on datasets.
     """
 
 FilestoreSubcommand.subcommand("insert-file", insert.Insert)

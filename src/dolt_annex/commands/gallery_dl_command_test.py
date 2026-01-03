@@ -18,7 +18,7 @@ async def test_gallery_dl(tmp_path, setup):
         args=["dolt-annex", "gallery-dl", "https://www.furaffinity.net/view/63142315/"],
     )
     await run(
-        args=["dolt-annex", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions"],
+        args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions"],
         expected_output="SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png, furaffinity.net, 63142315"
     )
         

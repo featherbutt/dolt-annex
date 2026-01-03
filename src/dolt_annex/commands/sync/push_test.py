@@ -10,11 +10,11 @@ from dolt_annex.test_util import run, EnvironmentForTest
 @pytest.mark.asyncio
 async def test_push_local(tmp_path, setup: EnvironmentForTest):
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key1", "--file-bytes", "file_content_1"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key1", "--file-bytes", "file_content_1"],
         expected_output="Inserted row"
     )
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key2", "--file-bytes", "file_content_2"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key2", "--file-bytes", "file_content_2"],
         expected_output="Inserted row"
     )
 
@@ -31,7 +31,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
 
     # But if we add more files, it should push them
     await run(
-        args=["dolt-annex", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key3", "--file-bytes", "file_content_3"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key3", "--file-bytes", "file_content_3"],
         expected_output="Inserted row"
     )
     await run(

@@ -12,7 +12,7 @@ from dolt_annex.test_util import run, EnvironmentForTest
 @pytest.mark.asyncio
 async def test_pull_local(tmp_path, setup: EnvironmentForTest):
     await run(
-        args=["dolt-annex", "insert-record",
+        args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
                 "--key-columns", "test_key1",
@@ -21,7 +21,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
         expected_output="Inserted row"
     )
     await run(
-        args=["dolt-annex", "insert-record",
+        args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
                 "--key-columns", "test_key2",
@@ -43,7 +43,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
 
     # But if we add more files, it should push them
     await run(
-        args=["dolt-annex", "insert-record",
+        args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
                 "--key-columns", "test_key3",
@@ -61,7 +61,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     # If --ignore-missing is set, missing files should be skipped
     # Otherwise, an error should be raised, and the database should reflect files already pulled
     await run(
-        args=["dolt-annex", "insert-record",
+        args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
                 "--key-columns", "test_key1",
@@ -70,7 +70,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
         expected_output="Inserted row"
     )
     await run(
-        args=["dolt-annex", "insert-record",
+        args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
                 "--key-columns", "test_key2",
@@ -93,7 +93,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
 
     # Assert that the record was added to the local database
     await run(
-        args=["dolt-annex", "read-table", "--dataset", "test", "--table-name", "test_table"],
+        args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
         expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt, test_key1"
     )
 
@@ -107,7 +107,7 @@ async def test_file_already_in_local_filestore(tmp_path):
         local_files=[b"file_content_1"],
     ) as (local_filestore, remote_filestore):
         await run(
-            args=["dolt-annex", "insert-record",
+            args=["dolt-annex", "dataset", "insert-record",
                   "--dataset", "test",
                   "--table-name", "test_table",
                   "--key-columns", "test_key1",
@@ -123,7 +123,7 @@ async def test_file_already_in_local_filestore(tmp_path):
 
         # Assert that the local db does not contain any records.
         await run(
-            args=["dolt-annex", "read-table", "--dataset", "test", "--table-name", "test_table"],
+            args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
             expected_output_does_not_contain="SHA256E"
         )
 
@@ -133,7 +133,7 @@ async def test_file_already_in_local_filestore(tmp_path):
 
         # Assert that the local db now has a record
         await run(
-            args=["dolt-annex", "read-table", "--dataset", "test", "--table-name", "test_table"],
+            args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
             expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
         )
 
