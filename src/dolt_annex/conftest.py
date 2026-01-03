@@ -11,7 +11,6 @@ this module with:
 from dolt_annex.test_util import *
 """
 
-from dataclasses import dataclass
 import pathlib
 import shutil
 import contextlib
@@ -23,7 +22,6 @@ import pytest_asyncio
 from dolt_annex.data import data_dir
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.sha256e import Sha256e
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.test_util import create_test_filestore, local_uuid, remote_uuid, test_config, EnvironmentForTest
 
 @pytest.fixture

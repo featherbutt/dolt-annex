@@ -98,46 +98,46 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     )
 
 @pytest.mark.asyncio
-async def test_file_already_in_local_filestore(tmp_path):
+async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTest):
     # Sometimes we may have files already in the local filestore, because the file is in a different dataset.
     # In this case, we don't need to copy the file, but we do need to record that we have a copy of it for this dataset.
     # We test that we don't copy the file by altering it in the remote before the pull
-    async with setup(
-        tmp_path,
-        local_files=[b"file_content_1"],
-    ) as (local_filestore, remote_filestore):
-        await run(
-            args=["dolt-annex", "dataset", "insert-record",
-                  "--dataset", "test",
-                  "--table-name", "test_table",
-                  "--key-columns", "test_key1",
-                  "--file-bytes", "file_content_1",
-                  "--repo", "test_remote",
-                  "--extension", "",
-                ],
-            expected_output="Inserted row"
-        )
+    await run(
+        args=["dolt-annex", "filestore", "insert-file", "--repo", "__local__", "--file-bytes", "file_content_1", "--extension", ""],
+        expected_output="Inserted file with key"
+    )
+    await run(
+        args=["dolt-annex", "dataset", "insert-record",
+                "--dataset", "test",
+                "--table-name", "test_table",
+                "--key-columns", "test_key1",
+                "--file-bytes", "file_content_1",
+                "--repo", "test_remote",
+                "--extension", "",
+            ],
+        expected_output="Inserted row"
+    )
 
-        remote_memory_store = cast(MemoryFS, remote_filestore.file_store)
-        remote_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] = b"modified_content"
+    remote_memory_store = cast(MemoryFS, setup.remote_file_store.file_store)
+    remote_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] = b"modified_content"
 
-        # Assert that the local db does not contain any records.
-        await run(
-            args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-            expected_output_does_not_contain="SHA256E"
-        )
+    # Assert that the local db does not contain any records.
+    await run(
+        args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
+        expected_output_does_not_contain="SHA256E"
+    )
 
-        await run(
-            args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
-        )
+    await run(
+        args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
+    )
 
-        # Assert that the local db now has a record
-        await run(
-            args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-            expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
-        )
+    # Assert that the local db now has a record
+    await run(
+        args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
+        expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
+    )
 
-        # Assert that the file in the local filestore was not modified
-        local_memory_store = cast(MemoryFS, local_filestore.file_store)
-        assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] == b"file_content_1"
+    # Assert that the file in the local filestore was not modified
+    local_memory_store = cast(MemoryFS, setup.local_file_store.file_store)
+    assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] == b"file_content_1"
 
