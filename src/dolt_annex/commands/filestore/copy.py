@@ -1,17 +1,17 @@
-import json
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-from plumbum import cli
-from dolt_annex.datatypes.async_utils import maybe_await
+from plumbum import cli # type: ignore
 
+from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.application import Application
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.base import copy, filestore_copy
+from dolt_annex.filestore.base import filestore_copy
 
-class Copy(cli.Application):
+class Copy(SubCommand):
     """Copy one or more files from one repo to another."""
 
-    parent: Application
+    parent: CommandGroup
 
     file_key = cli.SwitchAttr(
         "--file-key",
@@ -45,9 +45,13 @@ class Copy(cli.Application):
         from_repo = Repo.must_load(self.from_repo)
         to_repo = Repo.must_load(self.to_repo)
         async with (
-            from_repo.filestore.open(self.parent.config),
-            to_repo.filestore.open(self.parent.config),
+            from_repo.filestore.open(self.config),
+            to_repo.filestore.open(self.config),
         ):
-            await filestore_copy(from_repo.filestore, to_repo.filestore, queried_key)
+            await filestore_copy(
+                src=from_repo.filestore,
+                dst=to_repo.filestore,
+                key=queried_key
+            )
         
         return 0

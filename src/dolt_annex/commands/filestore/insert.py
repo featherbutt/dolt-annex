@@ -1,16 +1,18 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from plumbum import cli # type: ignore
 
+from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type
 
-class Insert(cli.Application):
+class Insert(SubCommand):
     """Insert a single record into a filestore. Primarily used for testing."""
 
-    parent: Application
+    parent: CommandGroup
 
     file_bytes = cli.SwitchAttr(
         "--file-bytes",
@@ -43,7 +45,7 @@ class Insert(cli.Application):
         if args:
             print("This command does not take positional arguments")
             return 1
-        base_config: Config = self.parent.config
+        base_config: Config = self.config
 
         file_key_type = get_file_key_type(self.file_key_type)
         file_bytes = self.file_bytes.encode('utf-8')

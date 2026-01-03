@@ -4,10 +4,11 @@
 from pathlib import Path
 from typing_extensions import Literal
 
-from plumbum import cli
+from plumbum import cli # type: ignore
 from pydantic import ValidationError
 import pyjson5
 
+from dolt_annex.commands import CommandGroup
 from dolt_annex.datatypes.config import Config
 
 class Env:
@@ -26,7 +27,7 @@ default_config_file_locations = [
     Path("config.json"),
 ]
 
-class Application(cli.Application):
+class Application(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
     VERSION = "0.3.3"
@@ -81,12 +82,11 @@ class Application(cli.Application):
 
         if self.dolt_server_socket:
             self.config.dolt.connection.server_socket = self.dolt_server_socket
-        
+
         if args:
-            print(f"Unknown command: {args[0]}")
+            print(f"Unknown command: dolt-annex {args[0]}")
             return 1
         if self.nested_command is None:
             self.help()
             return 0
         return 0
-    

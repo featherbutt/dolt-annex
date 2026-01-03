@@ -33,42 +33,42 @@ async def whereis_setup(temp_dir, setup: EnvironmentForTest):
 
 
 @pytest.mark.asyncio
-async def test1(temp_dir, whereis_setup):
+async def test_basic(temp_dir, whereis_setup):
         # Without --repo flag
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8')],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8')],
             expected_output=f'[{{"name": "__local__", "uuid": "{str(local_uuid)}"}}]'
         )
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8')],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8')],
             expected_output=f'[{{"name": "__local__", "uuid": "{str(local_uuid)}"}}, {{"name": "test_remote", "uuid": "{str(remote_uuid)}"}}]'
         )
         
         await run( 
-            args=["dolt-annex", "whereis", "--file-key", "nonexistentkey"],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", "nonexistentkey"],
             expected_output='[]'
         )
 
         # With --repo flag
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8'), "--repo", "__local__"],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8'), "--repo", "__local__"],
             expected_output=f'[{{"name": "__local__", "uuid": "{str(local_uuid)}"}}]'
         )
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8'), "--repo", "__local__"],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8'), "--repo", "__local__"],
             expected_output=f'[{{"name": "__local__", "uuid": "{str(local_uuid)}"}}]'
         )
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8'), "--repo", "test_remote"],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(local_repo_key).decode('utf-8'), "--repo", "test_remote"],
             expected_output='[]'
         )
 
         await run(
-            args=["dolt-annex", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8'), "--repo", "test_remote"],
+            args=["dolt-annex", "filestore", "whereis", "--file-key", bytes(both_repos_key).decode('utf-8'), "--repo", "test_remote"],
             expected_output=f'[{{"name": "test_remote", "uuid": "{str(remote_uuid)}"}}]'
         )

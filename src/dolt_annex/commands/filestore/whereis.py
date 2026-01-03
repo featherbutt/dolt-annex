@@ -1,16 +1,17 @@
+from ast import Sub
 import json
 
-from plumbum import cli
+from plumbum import cli # type: ignore
+from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.async_utils import maybe_await
 
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.application import Application
 from dolt_annex.file_keys.base import FileKey
 
-class WhereIs(cli.Application):
+class WhereIs(SubCommand):
     """List the repos that contain a file key."""
 
-    parent: Application
+    parent: CommandGroup
 
     file_key = cli.SwitchAttr(
         "--file-key",

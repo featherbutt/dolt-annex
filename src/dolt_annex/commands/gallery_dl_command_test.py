@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import contextlib
-
 import pytest
 
 from dolt_annex.test_util import run
