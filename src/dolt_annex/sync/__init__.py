@@ -3,14 +3,16 @@
 
 from __future__ import annotations
 
+import re
 from uuid import UUID
 from dataclasses import dataclass, field
 from typing_extensions import Iterable, Optional, Tuple, List, Any
+from dolt_annex.datatypes.repo import Repo
 
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
-from dolt_annex.table import FileTable
+from dolt_annex.table import Dataset, FileTable, TableFilter
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import TableRow
 from dolt_annex.dolt import DoltSqlServer
@@ -34,14 +36,24 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} has different content on both remotes")
 
-async def move_table(table: FileTable, from_uuid: UUID, to_uuid: UUID, from_file_store: FileStore, to_file_store: FileStore, where: List[TableFilter], ignore_missing, limit: Optional[int] = None, out_moved_keys: Optional[List[FileKey]] = None) -> List[FileKey]:
+async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
+    if moved_files is None:
+        moved_files = []
+    # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
+    # There may not be A Dolt remote to pull from
+    # dataset.pull_from(remote_repo)
+    for table in dataset.tables.values():
+        await move_table(table, from_repo, to_repo, where, ignore_missing, limit, moved_files)
+    return moved_files
+
+async def move_table(table: FileTable, from_repo: Repo, to_repo: Repo, where: List[TableFilter], ignore_missing, limit: Optional[int] = None, out_moved_keys: Optional[List[FileKey]] = None) -> List[FileKey]:
     if out_moved_keys is None:
         out_moved_keys = []
     dolt = table.dolt
 
     while True:
-        keys_and_submissions = list(diff_keys(dolt, str(from_uuid), str(to_uuid), table.dataset_name, table.schema, where, limit))
-        has_more = await move_submissions_and_keys(keys_and_submissions, table, from_file_store, to_file_store, to_uuid, out_moved_keys, ignore_missing)
+        keys_and_submissions = list(diff_keys(dolt, str(from_repo.uuid), str(to_repo.uuid), table.dataset_name, table.schema, where, limit))
+        has_more = await move_submissions_and_keys(keys_and_submissions, table, from_repo.filestore, to_repo.filestore, to_repo.uuid, out_moved_keys, ignore_missing)
         if not has_more:
             break
     return out_moved_keys
@@ -50,26 +62,29 @@ async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey
     has_more = False
     for key, table_row in keys_and_submissions:
         has_more = True
-        logger.info(f"moving {table_row}: {key}")
-
-        if await maybe_await(to_file_store.exists(key)):
-            logger.debug(f"file {key} already exists in destination filestore")
-            # The file may have come from a different dataset, so we don't need to copy it.
-            # We still record that we have a copy of it for this dataset.
-            await file_table.insert_file_source(table_row, key, destination_uuid)
-            continue
-        if ignore_missing and not await maybe_await(from_file_store.exists(key)):
-            logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-            continue
-        async with from_file_store.with_file_object(key) as remote_file_obj:
-            await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
-            await file_table.insert_file_source(table_row, key, destination_uuid)
+        await move_submission_and_key(key, table_row, file_table, from_file_store, to_file_store, destination_uuid, ignore_missing)
         
         files_moved.append(key)
     await file_table.flush()
     return has_more
 
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit = None) -> Iterable[Tuple[FileKey, TableRow]]:
+async def move_submission_and_key(key: FileKey, table_row: TableRow, file_table: FileTable, from_file_store: FileStore, to_file_store: FileStore, destination_uuid: UUID, ignore_missing: bool) -> None:
+    logger.info(f"moving {table_row}: {key}")
+
+    if await maybe_await(to_file_store.exists(key)):
+        logger.debug(f"file {key} already exists in destination filestore")
+        # The file may have come from a different dataset, so we don't need to copy it.
+        # We still record that we have a copy of it for this dataset.
+        await file_table.insert_file_source(table_row, key, destination_uuid)
+        return
+    if ignore_missing and not await maybe_await(from_file_store.exists(key)):
+        logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
+        return
+    async with from_file_store.with_file_object(key) as remote_file_obj:
+        await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
+        await file_table.insert_file_source(table_row, key, destination_uuid)
+
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[FileKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}-{dataset_name}"

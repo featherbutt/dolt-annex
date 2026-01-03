@@ -16,9 +16,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import hashlib
 import pathlib
-from typing import cast
 import fs.osfs
-from typing_extensions import override
+from typing_extensions import cast, override
 
 from fs.base import FS as FileSystem
 

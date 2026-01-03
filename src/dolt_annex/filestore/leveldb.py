@@ -6,11 +6,12 @@ LevelDB is a filestore type that stores every file in a LevelDB key-value store,
 with the file key as the key and the file contents as the value.
 """
 
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
 from io import BytesIO
 import pathlib
-from typing import cast
-from typing_extensions import override
+from typing_extensions import cast, override
 
 
 

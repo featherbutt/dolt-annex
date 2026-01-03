@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+from collections.abc import Iterable
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 import pathlib
@@ -79,6 +80,18 @@ class Loadable(StrictBaseModel):
                 return instance
         return None
     
+    @classmethod
+    def all(cls) -> Iterable[Self]:
+        """Returns all configuration objects of this type."""
+        if cls.config_dir.exists():
+            for file in cls.config_dir.iterdir():
+                if '.' not in file.name:
+                    continue
+                name, extension = file.name.split('.', 1)
+                if extension == cls.extension:
+                    cls.load(name)
+        return cls.cache.get().values()
+
     @classmethod
     def must_load(cls, name: str) -> Self:
         """

@@ -8,7 +8,7 @@ import pytest
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.test_util import run, setup
+from dolt_annex.test_util import run
 
 
 @pytest.mark.asyncio
@@ -39,24 +39,22 @@ from dolt_annex.test_util import run, setup
         }
     ),
 ])
-async def test_create_remote(tmp_path, create_class: type[Loadable], create_type, name, create_json):
-    async with setup(tmp_path):
-        # Use new Loadable context to unload created remote so we can test reloading it.
-        with Loadable.context():
-            await run(
-                args=["dolt-annex", "create", create_type, name, json.dumps(create_json)],
-            )
-        # Check that remote has been unloaded
-        assert name not in create_class.cache.get()
-        test_remote = create_class.must_load(name)
-        assert name in create_class.cache.get()
-        assert test_remote == create_class(name=name, **create_json)
+async def test_create_remote(tmp_path, setup, create_class: type[Loadable], create_type, name, create_json):
+    # Use new Loadable context to unload created remote so we can test reloading it.
+    with Loadable.context():
+        await run(
+            args=["dolt-annex", "create", create_type, name, json.dumps(create_json)],
+        )
+    # Check that remote has been unloaded
+    assert name not in create_class.cache.get()
+    test_remote = create_class.must_load(name)
+    assert name in create_class.cache.get()
+    assert test_remote == create_class(name=name, **create_json)
 
 @pytest.mark.asyncio
-async def test_create_invalid_type(tmp_path):
-    async with setup(tmp_path):
-        await run(
-            args=["dolt-annex", "create", "invalid", "name", "{}"],
-            expected_error_code=1,
-            expected_output="Unknown command: create invalid. Accepted values are: repo, dataset",
-        )
+async def test_create_invalid_type(tmp_path, setup):
+    await run(
+        args=["dolt-annex", "create", "invalid", "name", "{}"],
+        expected_error_code=1,
+        expected_output="Unknown command: create invalid. Accepted values are: repo, dataset",
+    )

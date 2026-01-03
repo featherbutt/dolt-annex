@@ -58,6 +58,8 @@ class DoltSqlServer:
             args.extend(["--socket", self.db_config["unix_socket"]])
         if (server_logfile := os.getenv("DA_SERVER_LOGFILE")) is not None:
             dolt = (dolt > server_logfile)
+        if (server_err_logfile := os.getenv("DA_SERVER_ERR_LOGFILE")) is not None:
+            dolt = (dolt >= server_err_logfile)
         dolt_server_process = dolt.popen(["sql-server", *args])
         while True:
             try:
@@ -119,7 +121,7 @@ class DoltSqlServer:
             self.cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
         except pymysql.err.OperationalError as e:
             if "already exists" not in str(e):
-                raise DoltException(f"Failed to create branch {branch} from {start_point}") from e
+                raise DoltException(f"Failed to create branch {branch} from {start_point}: {e}") from e
         return DoltBranch(self, branch)
         
     def set_branch(self, branch: str):

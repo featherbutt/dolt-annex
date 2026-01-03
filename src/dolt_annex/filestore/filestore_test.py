@@ -6,10 +6,10 @@ import contextlib
 import pathlib
 import random
 import tempfile
-from typing import override
-from typing_extensions import Generator, AsyncGenerator
+from typing_extensions import Generator, AsyncGenerator, override
 import pytest
 
+import asyncssh
 import fs.memoryfs
 
 from dolt_annex import test_util
@@ -25,6 +25,41 @@ from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.filestore.unionfs import UnionFS
 from dolt_annex.filestore.sftp import SftpFileStore
 from dolt_annex.server.ssh import server_context as async_server_context
+
+class SimpleSftpFilestore(SftpFileStore):
+    """
+    A wrapper around SftpFileStore that creates a plain SFTP server.
+    """
+
+    @classmethod
+    def make(cls):
+        port=random.randint(21000, 22000)
+        connection = SSHConnection(
+            hostname="localhost",
+            port=port,
+            client_key=test_util.private_key_path
+        )
+        return cls(connection=connection)
+    
+    @override
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return "SimpleSftpFileStore"
+    
+    @override
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[None]:
+
+        # setup server, then create server context, then setup client.
+        server = await asyncssh.listen(self.connection.hostname, self.connection.port, server_host_keys=[str(test_util.private_key_path)],
+                          authorized_client_keys=str(test_util.public_key_path),
+                          sftp_factory=True)
+        try:
+            async with super().open(config):
+                yield
+        finally:
+            server.close()
+            await server.wait_closed()
 
 class SftpWrappedFileStore(SftpFileStore):
     """
@@ -82,6 +117,7 @@ def all_filestore_types():
     yield from local_filestore_types()
     for fs in local_filestore_types():
         yield SftpWrappedFileStore.make(fs)
+    yield SimpleSftpFilestore.make()
 
 def all_filestore_type_parameters():
     for fs in all_filestore_types():

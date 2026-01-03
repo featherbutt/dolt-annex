@@ -15,7 +15,7 @@ from dolt_annex.table import Dataset, FileTable
 from dolt_annex.commands.import_command import ImportConfig, do_import
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex import importers, move_functions
-from dolt_annex.datatypes import AnnexKey, TableRow
+from dolt_annex.datatypes import FileKey, TableRow
 from dolt_annex.datatypes.table import FileTableSchema
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
@@ -111,7 +111,7 @@ def get_annex_key_from_submission_id(dolt: DoltSqlServer, row: TableRow, uuid: U
         return row[0]
     return None
 
-def assert_submission_id(dolt: DoltSqlServer, repo_uuid: UUID, table_schema: FileTableSchema, key: AnnexKey, expected_submission_id: TableRow):
+def assert_submission_id(dolt: DoltSqlServer, repo_uuid: UUID, table_schema: FileTableSchema, key: FileKey, expected_submission_id: TableRow):
     """Assert that the key and its associated submission ID is present in the annex and the Dolt database"""
     # 4. Check that the key exists in the personal Dolt branch
     assert get_annex_key_from_submission_id(dolt, expected_submission_id, repo_uuid, table_schema) == key

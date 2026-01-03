@@ -34,6 +34,6 @@ def get_file_key_type(name: str) -> type[FileKey]:
         return getattr(file_key_module, class_name)
     return getattr(file_key_module, module_name)
 
-type FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.__name__)]
+FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.__name__)]
 
 __all__ = ['FileKey', 'FileKeyType', 'Sha256e']

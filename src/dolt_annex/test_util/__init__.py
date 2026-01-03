@@ -3,17 +3,16 @@
 
 from collections.abc import Iterable
 import contextlib
+from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-import shutil
 import sys
-from typing import Optional, TextIO
 import uuid
+from typing_extensions import Optional
 
-from plumbum import local, cli
+from plumbum import cli
 import pytest
 
-from dolt_annex.data import data_dir
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
@@ -22,6 +21,12 @@ from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFS
+from dolt_annex.test_util.io import Tee
+
+@dataclass
+class EnvironmentForTest:
+    local_file_store: ContentAddressableStorage
+    remote_file_store: ContentAddressableStorage
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
@@ -54,19 +59,6 @@ test_dataset_schema = DatasetSchema(
     ],
     empty_table_ref= "test_dataset"
 )
-
-class Tee(TextIO):
-    def __init__(self, *streams: TextIO):
-        self.streams = streams
-
-    def write(self, s: str) -> int:
-        for stream in self.streams:
-            stream.write(s)
-        return len(s)
-
-    def flush(self) -> None:
-        for stream in self.streams:
-            stream.flush()
 
 async def run(
         *,
@@ -101,7 +93,6 @@ async def run(
             raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
     else:
         await inner()
-
     
 async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
     annex_fs = MemoryFS()
@@ -116,38 +107,3 @@ async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[byte
     for file_content in files:
         await cas.put_file_bytes(file_content)
     return cas
-
-@contextlib.asynccontextmanager
-async def setup(tmp_path: Path, local_files: Optional[Iterable[bytes]] = None, remote_files: Optional[Iterable[bytes]] = None):
-
-    local_filestore = await create_test_filestore("__local__", local_uuid, local_files or [])
-    remote_filestore = await create_test_filestore("test_remote", remote_uuid, remote_files or [])
-
-    test_remote = Repo(
-        name="test_remote",
-        uuid=remote_uuid,
-        filestore=remote_filestore.file_store,
-        key_format=Sha256e
-    )
-
-    setup_dolt(tmp_path)
-
-    with (tmp_path / "config.json").open("w") as f:
-        f.write(test_config.model_dump_json())
-    async with (
-        local_filestore.open(test_config),
-        remote_filestore.open(test_config)
-    ):
-        with contextlib.chdir(tmp_path):
-            yield local_filestore, remote_filestore
-
-
-def setup_dolt(tmp_path):
-    dolt_dir = Path(tmp_path / "dolt")
-    dolt_dir.mkdir()
-    dolt = local.cmd.dolt.with_cwd(dolt_dir)
-    shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
-    dolt("checkout", "-b", "test_dataset")
-    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, annex_key varchar(100));")
-    dolt("add", ".")
-    dolt("commit", "-m", "Initial commit")

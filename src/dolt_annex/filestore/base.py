@@ -85,9 +85,10 @@ class FileStore(AbstractBaseModel):
 
         Returns a context manager that yields the opened filestore instance.
         """
-
-        yield
-        await maybe_await(self.flush())
+        try:
+            yield
+        finally:
+            await maybe_await(self.flush())
 
 
     def flush(self) -> MaybeAwaitable[None]:
@@ -96,6 +97,10 @@ class FileStore(AbstractBaseModel):
     def type_name(self) -> str:
         """Get the type name of the filestore. Used in tests."""
         return self.__class__.__name__
+
+async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey):
+    async with src.get_file_object(key) as fd:
+        await maybe_await(dst.put_file_object(fd, key))
 
 async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=4096):
     while True:

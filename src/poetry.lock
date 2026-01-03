@@ -497,9 +497,10 @@ test = ["coverage[toml]", "paramiko", "psutil", "pytest (>=6.0)", "pytest-cov", 
 name = "plyvel"
 version = "1.5.1"
 description = "Plyvel, a fast and feature-rich Python interface to LevelDB"
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"leveldb\""
 files = [
     {file = "plyvel-1.5.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a8394aed946000fca2c92d7ae8537d9907c8169debf7f55c7ecb53751f3bf4e7"},
     {file = "plyvel-1.5.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:54f364f566470f5acaed0a00fea8860736120a711214190a17ee73dcbe1a2261"},
@@ -1139,7 +1140,10 @@ h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
+[extras]
+leveldb = ["plyvel"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "e509972d99b6d21d4182877e09c4976e9ef25fdcef649f6657e62123cab02657"
+content-hash = "2728b2f85a7b92d64b36acaade6085369083aac19370e5a298f85c8ed7e7ab0f"

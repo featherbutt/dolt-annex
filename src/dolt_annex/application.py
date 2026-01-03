@@ -4,14 +4,15 @@
 from pathlib import Path
 from typing_extensions import Literal
 
-from plumbum import cli
+from plumbum import cli # type: ignore
+from pydantic import ValidationError
 import pyjson5
 
+from dolt_annex.commands import CommandGroup
 from dolt_annex.datatypes.config import Config
 
 class Env:
     CONFIG_FILE = "DA_CONFIG"
-    FILES_DIR = "DA_FILES_DIR"
     SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
     DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
     DOLT_DB = "DA_DOLT_DB"
@@ -26,14 +27,12 @@ default_config_file_locations = [
     Path("config.json"),
 ]
 
-class Application(cli.Application):
+class Application(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
-    VERSION = "0.3.3"
+    VERSION = "0.4.0"
 
     config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
-
-    files_dir = cli.SwitchAttr("--files-dir", cli.ExistingDirectory, envname=Env.FILES_DIR)
 
     spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname=Env.SPAWN_DOLT_SERVER,
                                  help = "If set, spawn a new Dolt server instead of connecting to an existing one.")
@@ -66,7 +65,11 @@ class Application(cli.Application):
             if config_path.exists():
                 with open(config_path, encoding="utf-8") as fd:
                     config_json = pyjson5.load(fd)
-                self.config = Config(**config_json)
+                try:
+                    self.config = Config(**config_json)
+                except ValidationError as e:
+                    print(e)
+                    return 1
                 break
         else:
             self.config = Config()
@@ -79,12 +82,11 @@ class Application(cli.Application):
 
         if self.dolt_server_socket:
             self.config.dolt.connection.server_socket = self.dolt_server_socket
-        
+
         if args:
-            print(f"Unknown command: {args[0]}")
+            print(f"Unknown command: dolt-annex {args[0]}")
             return 1
         if self.nested_command is None:
             self.help()
             return 0
         return 0
-    

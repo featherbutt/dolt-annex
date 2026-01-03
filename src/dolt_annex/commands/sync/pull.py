@@ -2,20 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
-from uuid import UUID
 
-from typing_extensions import Optional, List
+from typing_extensions import List
 
 from plumbum import cli
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.sync import move_table
+from dolt_annex.sync import move_dataset
 from dolt_annex.table import Dataset, TableFilter
 from dolt_annex.application import Application
-from dolt_annex.datatypes import AnnexKey
 from dolt_annex.datatypes.repo import Repo
 
 class Pull(cli.Application):
@@ -92,27 +88,13 @@ class Pull(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or base_config.dolt.default_remote
         remote_repo = Repo.must_load(remote_name)
-        remote_file_store = ContentAddressableStorage.from_remote(remote_repo).file_store
-        local_file_store = base_config.get_filestore()
-        if not local_file_store:
-            raise ValueError("No local filestore configured")
-        local_uuid = self.parent.config.get_uuid()
+        local_repo = base_config.get_default_repo()
 
         async with (
-            local_file_store.open(base_config),
-            remote_file_store.open(base_config),
+            local_repo.filestore.open(base_config),
+            remote_repo.filestore.open(base_config),
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
-            pulled_files = await pull_dataset(dataset, local_uuid, remote_repo, remote_file_store, local_file_store, self.filters, self.ignore_missing, self.limit)
+            pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, None, self.ignore_missing)
             print(f"Pulled {len(pulled_files)} files from remote {remote_name}")
         return 0
-
-async def pull_dataset(dataset: Dataset, local_uuid: UUID, remote_repo: Repo, remote_file_store: FileStore, local_file_store: FileStore, where: List[TableFilter], ignore_missing: bool, limit: Optional[int] = None, out_pulled_keys: Optional[List[AnnexKey]] = None) -> List[AnnexKey]:
-    if out_pulled_keys is None:
-        out_pulled_keys = []
-    # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
-    # There may not be A Dolt remote to pull from
-    # dataset.pull_from(remote_repo)
-    for table in dataset.tables.values():
-        await move_table(table, remote_repo.uuid, local_uuid, remote_file_store, local_file_store, where, ignore_missing, limit, out_pulled_keys)
-    return out_pulled_keys

@@ -1,8 +1,7 @@
-from typing import cast
+from typing_extensions import cast
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.commands.import_command import move_files
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
@@ -10,7 +9,6 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset
 
 class InsertRecord(cli.Application):
@@ -60,10 +58,10 @@ class InsertRecord(cli.Application):
         default = "txt",
     )
 
-    remote = cli.SwitchAttr(
-        "--remote",
+    repo = cli.SwitchAttr(
+        "--repo",
         str,
-        help="If set, insert the record into the specified remote instead of the local annex",
+        help="If set, insert the record into the specified repo instead of the local annex",
     )
         
     async def main(self, *args) -> int:
@@ -86,16 +84,13 @@ class InsertRecord(cli.Application):
             key_columns = cast(TableRow, self.key_columns.split(','))
             table = dataset.get_table(self.table_name)
 
-            if self.remote:
-                remote_repo = Repo.must_load(self.remote)
-                remote_uuid = remote_repo.uuid
-                filestore = ContentAddressableStorage.from_remote(remote_repo).file_store
-                dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo.uuid)
+            if self.repo:
+                repo = Repo.must_load(self.repo)
+                dataset.dolt.initialize_dataset_source(dataset_schema, repo.uuid)
             else:
-                remote_uuid = base_config.get_uuid()
-                filestore = base_config.get_filestore()
-            async with filestore.open(base_config):
-                await table.insert_file_source(key_columns, key, remote_uuid)
+                repo = base_config.get_default_repo()
+            async with repo.filestore.open(base_config):
+                await table.insert_file_source(key_columns, key, repo.uuid)
+                await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
             print(f"Inserted row ({', '.join(key_columns)}, {key}) into table '{self.table_name}' in dataset '{self.dataset}'")
-        await maybe_await(filestore.put_file_bytes(file_bytes, key))
         return 0

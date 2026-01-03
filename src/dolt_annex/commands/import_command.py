@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 import os
 import pathlib
-from typing import Optional
 from uuid import UUID
 
-from typing_extensions import Dict, Iterable
+from typing_extensions import Dict, Iterable, Optional
 
 import fs.osfs
 from fs.base import FS as FileSystem
@@ -20,7 +19,7 @@ from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.importers.base import get_importer
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import AnnexKey
+from dolt_annex.datatypes import FileKey
 from dolt_annex.table import Dataset
 from dolt_annex.datatypes.file_io import Path
 
@@ -170,7 +169,7 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
     for file_or_directory in files_or_directories:
         await import_path(pathlib.Path(file_or_directory))
 
-async def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, AnnexKey]):
+async def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, FileKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():

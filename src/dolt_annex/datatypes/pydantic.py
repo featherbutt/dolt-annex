@@ -3,7 +3,8 @@
 
 from abc import ABC
 import importlib
-from typing import Any, ClassVar, Optional, Self
+from typing_extensions import Any, ClassVar, Optional, Self
+
 from pydantic import ConfigDict, ModelWrapValidatorHandler, SerializerFunctionWrapHandler, model_serializer, model_validator
 import pydantic
 

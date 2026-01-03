@@ -13,11 +13,11 @@ A single SFTP connection can only transfer one file at a time.
 # TODO: Add support for parallel connections to increase throughput.
 
 from contextlib import asynccontextmanager
+import getpass
 import hashlib
 from pathlib import Path
-from typing import AsyncGenerator, cast
 import asyncssh
-from typing_extensions import override
+from typing_extensions import AsyncGenerator, cast, override
 
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
@@ -36,7 +36,6 @@ class SftpFileStore(FileStore):
     async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        # self._sftp.mkdir_p(Path(remote_file_path).parent.as_posix())
         await self._sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
         async with self._sftp.open(remote_file_path, 'wb') as out_fd:
             await copy(src=in_fd, dst=out_fd)
@@ -69,9 +68,9 @@ class SftpFileStore(FileStore):
 
         if self._sftp is None:
             extra_opts = {}
-            if config.ssh.encrypted_ssh_key:
-                # TODO: Support passphrase input for encrypted SSH keys
-                pass
+            if self.connection.key_is_encrypted:
+                passphrase = getpass.getpass("Enter passphrase for SSH key: ")
+                extra_opts["passphrase"] = passphrase
             
             client_keys = []
             if self.connection.client_key is not None:
@@ -87,6 +86,7 @@ class SftpFileStore(FileStore):
                 **extra_opts
             ) as conn:
                 async with conn.start_sftp_client() as self._sftp:
+                    await self._sftp.chdir(self.connection.path.as_posix())
                     yield
         else:
             yield
@@ -111,6 +111,7 @@ class SftpFileStore(FileStore):
         try:
             # We don't call SFTPClient.exists because it checks for the type attribute,
             # which does not exist prior to SFTP protocol version 4.
-            return bool(await self._sftp.stat(self.get_key_path(file_key).as_posix()))
+            stat = await self._sftp.stat(self.get_key_path(file_key).as_posix())
+            return bool(stat)
         except asyncssh.SFTPNoSuchFile:
             return False

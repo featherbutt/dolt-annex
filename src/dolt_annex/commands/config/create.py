@@ -1,6 +1,6 @@
 import json
 import types
-from typing import Optional
+from typing_extensions import Optional
 
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.loader import Loadable

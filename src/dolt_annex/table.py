@@ -6,9 +6,8 @@ from dataclasses import dataclass
 import os
 import random
 import time
-from typing import Any, Awaitable, Optional
 from uuid import UUID
-from typing_extensions import Callable, Dict, List, Tuple, Iterable
+from typing_extensions import Any, Awaitable, Optional, Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
@@ -16,7 +15,7 @@ from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer
 from .logger import logger
-from .datatypes import AnnexKey, TableRow
+from .datatypes import FileKey, TableRow
 from .datatypes.table import FileTableSchema
 
 # We must prevent data loss in the event the process is interrupted:
@@ -40,8 +39,8 @@ class TableFilter:
 class FileTable:
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     urls: Dict[str, List[str]]
-    sources: Dict[AnnexKey, List[str]]
-    added_rows: Dict[UUID, List[Tuple[AnnexKey, TableRow]]]
+    sources: Dict[FileKey, List[str]]
+    added_rows: Dict[UUID, List[Tuple[FileKey, TableRow]]]
     dolt: DoltSqlServer
     auto_push: bool
     batch_size: int
@@ -72,7 +71,7 @@ class FileTable:
             await self.flush()
             self.count = 0
 
-    async def insert_file_source(self, table_row: TableRow, key: AnnexKey, source: UUID):
+    async def insert_file_source(self, table_row: TableRow, key: FileKey, source: UUID):
         if source not in self.added_rows:
             self.added_rows[source] = []
         self.added_rows[source].append((key, table_row))
@@ -198,7 +197,7 @@ class Dataset:
             db_config["unix_socket"] = connection.server_socket.as_posix()
         elif connection.hostname:
             db_config["host"] = connection.hostname
-            port = connection.port or (random.randint(20000, 30000) if dolt_config.spawn_dolt_server else 3306)
+            port = random.randint(20000, 30000) if dolt_config.spawn_dolt_server else (connection.port or 3306)
             db_config["port"] = port
         else:
             raise ValueError("Either server_socket or hostname must be set in the Dolt connection configuration.")

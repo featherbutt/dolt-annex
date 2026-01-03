@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 from uuid import UUID
-from typing_extensions import Optional
+from typing_extensions import Optional, TYPE_CHECKING
 
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.pydantic import StrictBaseModel
@@ -51,8 +50,11 @@ class Config(StrictBaseModel):
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e
 
+    def get_default_repo(self) -> Repo:
+        return Repo.must_load(self.local_repo_name)
+
     def get_filestore(self) -> 'FileStore':
-        return Repo.must_load(self.local_repo_name).filestore
+        return self.get_default_repo().filestore
     
     def get_uuid(self) -> UUID:
-        return Repo.must_load(self.local_repo_name).uuid
+        return self.get_default_repo().uuid
