@@ -33,12 +33,11 @@ class SimpleSftpFilestore(SftpFileStore):
 
     @classmethod
     def make(cls):
-        client_key=test_util.private_key_path
         port=random.randint(21000, 22000)
         connection = SSHConnection(
             hostname="localhost",
             port=port,
-            client_key=client_key
+            client_key=test_util.private_key_path
         )
         return cls(connection=connection)
     
@@ -52,11 +51,12 @@ class SimpleSftpFilestore(SftpFileStore):
     async def open(self, config: Config) -> AsyncGenerator[None]:
 
         # setup server, then create server context, then setup client.
-        server = await asyncssh.listen(self.connection.hostname, self.connection.port, server_host_keys=[test_util.private_key_path],
-                          authorized_client_keys=self.connection.client_key,
+        server = await asyncssh.listen(self.connection.hostname, self.connection.port, server_host_keys=[str(test_util.private_key_path)],
+                          authorized_client_keys=str(test_util.public_key_path),
                           sftp_factory=True)
         try:
-            yield
+            async with super().open(config):
+                yield
         finally:
             server.close()
             await server.wait_closed()
