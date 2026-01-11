@@ -8,6 +8,7 @@ from types import TracebackType
 from typing_extensions import BinaryIO, Protocol, Self, cast, Buffer, Literal
 
 import fs.move
+import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
@@ -69,8 +70,11 @@ class Path:
     def exists(self) -> bool:
         return self.fs.exists(self.path.as_posix())
     
-    def open(self, mode: Literal['rb', 'wb'] = 'rb') -> BinaryIO:
+    def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> BinaryIO:
         return cast(BinaryIO, self.fs.open(self.path.as_posix(), mode))
+    
+    def touch(self) -> None:
+        self.fs.create(self.path.as_posix())
 
     @property
     def parent(self) -> Path:
@@ -87,10 +91,10 @@ class Path:
 
     def stat(self) -> FileInfo:
         return FileInfo(size=self.fs.getinfo(self.path.as_posix(), namespaces=['details']).size)
-    
+
     def hexdigest(self, name: Literal["sha256", "md5"]) -> str:
         return self.fs.hash(self.path.as_posix(), name=name)
-    
+
     @property
     def suffix(self) -> str:
         """
@@ -99,20 +103,27 @@ class Path:
         This includes the leading period. For example: '.txt'
         """
         return self.path.suffix
-    
+
     def is_symlink(self, match_windows_shortcut: bool = True) -> bool:
         if match_windows_shortcut and self.path.suffix.lower() == '.lnk':
             return True
         return self.fs.getinfo(self.path.as_posix()).is_link
-    
+
     def readlink(self) -> Path:
         link_target = self.fs.getinfo(self.path.as_posix()).target
         assert link_target is not None, "Path is not a symlink"
         return Path(self.fs, link_target)
-    
+
     @property
     def name(self) -> str:
         return self.path.name
-    
+
     def parts(self) -> tuple[str, ...]:
         return self.path.parts
+
+    def delete(self, *, allow_missing: bool = False) -> None:
+        try:
+            self.fs.remove(self.path.as_posix())
+        except fs.errors.ResourceNotFound:
+            if not allow_missing:
+                raise

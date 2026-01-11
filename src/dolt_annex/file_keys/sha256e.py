@@ -13,9 +13,13 @@ class Sha256e(FileKey):
     @classmethod
     def make(cls, size: int, sha256: str, extension: Optional[str] = None):
         if extension:
-            return cls(b"SHA256E-s%s--%s.%s" % (str(size).encode('utf-8'), sha256.encode('utf-8'), extension.encode('utf-8')))
+            return cls(
+                key=b"SHA256E-s%s--%s.%s" % (str(size).encode('utf-8'), sha256.encode('utf-8'), extension.encode('utf-8'))
+            )
         else:
-            return cls(b"SHA256E-s%s--%s" % (str(size).encode('utf-8'), sha256.encode('utf-8')))
+            return cls(
+                key=b"SHA256E-s%s--%s" % (str(size).encode('utf-8'), sha256.encode('utf-8'))
+            )
 
     @classmethod
     @override
@@ -41,3 +45,9 @@ class Sha256e(FileKey):
         if key.startswith(b"SHA256E-s"):
             return cls(key=key)
         return None
+
+    @override
+    def size(self) -> int:
+        """Return the size of the file represented by this key, if known."""
+        size_str = self.key.split(b'--')[0].split(b'-s')[1]
+        return int(size_str)

@@ -109,6 +109,8 @@ def local_filestore_types():
     yield LevelDBModel(root=pathlib.Path("leveldb"))
     yield AnnexFSModel(root=fs.memoryfs.MemoryFS())
     yield UnionFSModel(children=[MemoryFSModel()])
+    yield ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
+
 
 def all_filestore_types() -> Generator[FileStoreModel]:
     yield from local_filestore_types()

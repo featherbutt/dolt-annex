@@ -50,3 +50,7 @@ class FileKey:
 
     def __hash__(self) -> int:
         return hash(self.key)
+    
+    def size(self) -> int:
+        """Return the size of the file represented by this key, if known."""
+        raise NotImplementedError()
