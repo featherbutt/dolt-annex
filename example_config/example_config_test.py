@@ -7,12 +7,12 @@ import os
 import pathlib
 import uuid
 
-from dolt_annex.filestore.annexfs import AnnexFS
-from dolt_annex.filestore.sftp import SftpFileStore
+from dolt_annex.filestore.annexfs import AnnexFSModel
+from dolt_annex.filestore.sftp import SftpFileStoreModel
 import pyjson5
 
 from dolt_annex.datatypes.common import MySQLConnection, SSHConnection
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.datatypes.config import Config, UserConfig, DoltConfig, SshSettings
 from dolt_annex.file_keys.sha256e import Sha256e
@@ -44,19 +44,19 @@ def test_example_config():
         default_file_key_type=Sha256e,
     )
 
-    example_local_repo = Repo(
+    example_local_repo = RepoModel(
         name = "__local__",
         uuid = uuid.UUID("fedcba98-7654-3210-ca11-8675309abcde"),
-        filestore = AnnexFS(
+        filestore = AnnexFSModel(
             root=pathlib.Path("./annex"),
         ),
         key_format = Sha256e,
     )
 
-    example_remote_repo = Repo(
+    example_remote_repo = RepoModel(
         name = "sftp",
         uuid = uuid.UUID("12345678-9abc-def0-cafe-cba987654321"),
-        filestore = SftpFileStore(
+        filestore = SftpFileStoreModel(
             connection=SSHConnection(
                 user="your_username",
                 hostname="sftp.example.com",
@@ -87,11 +87,11 @@ def test_example_config():
             assert loaded_config == example_config
         
         with open("repos/__local__.repo", encoding="utf-8") as f:
-            loaded_local_repo = Repo.model_validate(pyjson5.decode(f.read()))
+            loaded_local_repo = RepoModel.model_validate(pyjson5.decode(f.read()))
             assert loaded_local_repo == example_local_repo
 
         with open("repos/sftp.repo", encoding="utf-8") as f:
-            loaded_remote_repo = Repo.model_validate(pyjson5.decode(f.read()))
+            loaded_remote_repo = RepoModel.model_validate(pyjson5.decode(f.read()))
             assert loaded_remote_repo == example_remote_repo
 
         with open("file_archive.dataset", encoding="utf-8") as f:

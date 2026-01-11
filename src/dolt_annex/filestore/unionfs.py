@@ -8,7 +8,7 @@ from typing_extensions import override, Any
 from dolt_annex.datatypes.file_io import ReadableFileObject
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileStore, MaybeAwaitable, YesNoMaybe, maybe_await
+from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
 
 class UnionFS(FileStore):
     """
@@ -18,6 +18,9 @@ class UnionFS(FileStore):
     """
 
     children: list[FileStore]
+
+    def __init__(self, *, children: list[FileStore]):
+        self.children = children
 
     @override
     async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
@@ -111,3 +114,15 @@ class UnionFS(FileStore):
         """Get the type name of the filestore. Used in tests."""
         return f"{self.__class__.__name__}({', '.join(child.type_name() for child in self.children)})"
     
+class UnionFSModel(FileStoreModel):
+    children: list[FileStoreModel]
+
+    @override
+    @asynccontextmanager
+    async def open(self, config: Any) -> AsyncGenerator[UnionFS]:
+        children_filestores = []
+        async with AsyncExitStack() as stack:
+            for child_model in self.children:
+                child_instance = await stack.enter_async_context(child_model.open(config))
+                children_filestores.append(child_instance)
+            yield UnionFS(children=children_filestores)

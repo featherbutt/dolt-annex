@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 from abc import abstractmethod
+import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from io import BytesIO
+from typing import TYPE_CHECKING
 from typing_extensions import AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
@@ -13,7 +17,10 @@ from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, WritableF
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 
-class FileStore(AbstractBaseModel):
+if TYPE_CHECKING:
+    from dolt_annex.datatypes.config import Config
+
+class FileStore(abc.ABC):
 
     def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[None]:
         """
@@ -51,6 +58,13 @@ class FileStore(AbstractBaseModel):
             await maybe_await(file.close())
         return inner()
 
+    async def get_file_bytes(self, file_key: FileKey) -> bytes:
+        """
+        Get the contents of a file in the remote by its key.
+        """
+        async with self.with_file_object(file_key) as fd:
+            return await maybe_await(fd.read())
+
     @abstractmethod
     def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
         """
@@ -78,28 +92,11 @@ class FileStore(AbstractBaseModel):
             return YesNoMaybe.YES
         return YesNoMaybe.NO
 
-    @asynccontextmanager
-    async def open(self, config: 'Config') -> AsyncGenerator[None]:
-        """
-        Open the filestore for use. This may involve setting up connections, opening files, etc.
-
-        Returns a context manager that yields the opened filestore instance.
-        """
-        try:
-            yield
-        finally:
-            await maybe_await(self.flush())
-
-
     def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
 
-    def type_name(self) -> str:
-        """Get the type name of the filestore. Used in tests."""
-        return self.__class__.__name__
-
 async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey):
-    async with src.get_file_object(key) as fd:
+    async with src.with_file_object(key) as fd:
         await maybe_await(dst.put_file_object(fd, key))
 
 async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=4096):
@@ -108,3 +105,31 @@ async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=
         if not buf:
             break
         await maybe_await(dst.write(buf))
+
+class FileStoreModel(AbstractBaseModel):
+    """
+    Subclasses must implement either open() or create().
+    """
+    
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[FileStore]:
+        """
+        Open the filestore for use. This may involve setting up connections, opening files, etc.
+
+        Returns a context manager that yields the opened filestore instance.
+        """
+        filestore = self.create(config)
+        try:
+            yield filestore
+        finally:
+            await maybe_await(filestore.flush())
+
+    def create(self, config: Config) -> FileStore:
+        """
+        Create a new instance of the filestore from the model.
+        """
+        raise NotImplementedError()
+
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return self.__class__.__name__

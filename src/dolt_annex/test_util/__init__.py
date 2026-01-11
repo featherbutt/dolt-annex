@@ -10,21 +10,24 @@ import sys
 import uuid
 from typing_extensions import Optional
 
-from plumbum import cli
+from plumbum import cli # type: ignore[import]
 import pytest
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.filestore.memory import MemoryFS
+from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
 from dolt_annex.test_util.io import Tee
 
 @dataclass
 class EnvironmentForTest:
+    """
+    The output of dolt_annex.conftest.setup
+    """
     local_file_store: ContentAddressableStorage
     remote_file_store: ContentAddressableStorage
 
@@ -95,14 +98,14 @@ async def run(
         await inner()
     
 async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
-    annex_fs = MemoryFS()
-    repo = Repo(
+    annex_fs_model = MemoryFSModel()
+    repo = RepoModel(
         name=name,
         uuid=uuid,
         key_format=Sha256e,
-        filestore= annex_fs
+        filestore= annex_fs_model
     )
-    
+    annex_fs = MemoryFS(files=annex_fs_model.files)
     cas = ContentAddressableStorage(annex_fs, Sha256e)
     for file_content in files:
         await cas.put_file_bytes(file_content)

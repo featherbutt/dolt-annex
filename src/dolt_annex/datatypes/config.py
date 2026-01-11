@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from contextlib import asynccontextmanager
 from pathlib import Path
-from uuid import UUID
-from typing_extensions import Optional, TYPE_CHECKING
+from typing import AsyncGenerator
+from typing_extensions import Optional
 
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.pydantic import StrictBaseModel
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.sha256e import Sha256e
-if TYPE_CHECKING:
-    from dolt_annex.filestore import FileStore
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -50,11 +49,16 @@ class Config(StrictBaseModel):
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256e
 
-    def get_default_repo(self) -> Repo:
-        return Repo.must_load(self.local_repo_name)
+    def get_default_repo(self) -> RepoModel:
+        return RepoModel.must_load(self.local_repo_name)
 
-    def get_filestore(self) -> 'FileStore':
-        return self.get_default_repo().filestore
-    
-    def get_uuid(self) -> UUID:
-        return self.get_default_repo().uuid
+    @asynccontextmanager
+    async def open_default_repo(self) -> AsyncGenerator[Repo]:
+        repo_model = RepoModel.must_load(self.local_repo_name)
+        async with repo_model.filestore.open(self) as filestore:
+            yield Repo(
+                name=repo_model.name,
+                uuid=repo_model.uuid,
+                filestore=filestore,
+                key_format=repo_model.key_format
+            )

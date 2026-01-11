@@ -46,7 +46,6 @@ def init_dolt(dolt):
     dolt("commit", "-m", "Initial commit")
     yield dolt
 
-
 @pytest_asyncio.fixture 
 async def setup(tmp_path: pathlib.Path, init_dolt):
 
@@ -65,12 +64,8 @@ async def setup(tmp_path: pathlib.Path, init_dolt):
         with (tmp_path / "config.json").open("w") as f:
             f.write(test_config.model_dump_json())
 
-        async with (
-            local_filestore.open(test_config),
-            remote_filestore.open(test_config)
-        ):
-            with contextlib.chdir(tmp_path):
-                yield EnvironmentForTest(
-                    local_file_store=local_filestore,
-                    remote_file_store=remote_filestore,
-                )
+        with contextlib.chdir(tmp_path):
+            yield EnvironmentForTest(
+                local_file_store=local_filestore,
+                remote_file_store=remote_filestore,
+            )

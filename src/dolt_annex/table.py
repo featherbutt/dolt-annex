@@ -154,7 +154,7 @@ class Dataset:
         self.dolt = dolt
         self.auto_push = auto_push
         self.tables = {table.name: FileTable(dolt, table, self.name, schema.empty_table_ref, auto_push, batch_size) for table in schema.tables}
-        dolt.maybe_create_branch(f"{base_config.get_uuid()}-{self.name}", schema.empty_table_ref)
+        dolt.maybe_create_branch(f"{base_config.get_default_repo().uuid}-{self.name}", schema.empty_table_ref)
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]

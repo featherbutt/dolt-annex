@@ -12,40 +12,27 @@ has an md5 hash beginning with `091de9...`, and is thus found at `./091/de9/`
 relative to the filestore root.
 """
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from dataclasses import dataclass
 import hashlib
 import pathlib
-import fs.osfs
+from pydantic import InstanceOf
 from typing_extensions import cast, override
 
 from fs.base import FS as FileSystem
+import fs.osfs
 
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, ReadableFileObject
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 
-from .base import FileInfo, FileStore
+from .base import FileInfo, FileStore, FileStoreModel
 
+@dataclass
 class AnnexFS(FileStore):
 
-    root: pathlib.Path
-    _file_system: FileSystem = None
-
-    @classmethod
-    def with_file_system(cls, root: pathlib.Path, file_system: FileSystem) -> 'AnnexFS':
-        result = cls(root=root)
-        result._file_system = file_system
-        return result
-
-    @override
-    @asynccontextmanager
-    async def open(self, config: 'Config') -> AsyncGenerator[None]:
-        if self._file_system is None:
-            self.root.mkdir(parents=True, exist_ok=True)
-            self._file_system = fs.osfs.OSFS(str(self.root))
-        yield
+    file_system: FileSystem
 
     @override
     async def put_file(self, file_path: Path, file_key: FileKey) -> None:
@@ -87,7 +74,7 @@ class AnnexFS(FileStore):
         Get the relative path for a file in the annex from its key.
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
-        return Path(self._file_system) / md5[:3] / md5[3:6] / str(key)
+        return Path(self.file_system) / md5[:3] / md5[3:6] / str(key)
 
     def get_old_key_path(self, key: FileKey) -> Path:
         """
@@ -97,8 +84,20 @@ class AnnexFS(FileStore):
         Some older versions of dolt-annex used this layout, so we fall back to it when looking for files.
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
-        return Path(self._file_system) / md5[:3] / md5[3:6] / str(key) / str(key)
+        return Path(self.file_system) / md5[:3] / md5[3:6] / str(key) / str(key)
 
     @override
     def exists(self, file_key: FileKey) -> bool:
         return self.get_key_path(file_key).exists()
+    
+class AnnexFSModel(FileStoreModel):
+    root: pathlib.Path | InstanceOf[FileSystem]
+
+    @override
+    def create(self, config: Config) -> AnnexFS:
+        if isinstance(self.root, pathlib.Path):
+            self.root.mkdir(parents=True, exist_ok=True)
+            file_system = fs.osfs.OSFS(str(self.root))
+        else:
+            file_system = self.root
+        return AnnexFS(file_system=file_system)

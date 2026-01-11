@@ -4,7 +4,7 @@ from typing_extensions import Optional
 
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.loader import Loadable
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
     
 class Creator[T: Loadable]:
@@ -19,7 +19,7 @@ class Creator[T: Loadable]:
         return 0
 
 LoadableTypes: dict[str, type[Loadable]] = {
-    "repo": Repo,
+    "repo": RepoModel,
     "dataset": DatasetSchema,
 }
 

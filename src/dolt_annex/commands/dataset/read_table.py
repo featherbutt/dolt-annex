@@ -3,7 +3,7 @@ from typing_extensions import List
 from plumbum import cli # type: ignore
 
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.table import Dataset, TableFilter
@@ -55,16 +55,15 @@ class ReadTable(cli.Application):
             return 1
         base_config: Config = self.parent.config
         if self.repo:
-            repo = Repo.must_load(self.repo)
-            uuid = repo.uuid
+            repo = RepoModel.must_load(self.repo)
         else:
-            uuid = base_config.get_uuid()
+            repo = base_config.get_default_repo()
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         BATCH_SIZE = 1000 # Arbitrary batch size for this command
         async with Dataset.connect(base_config, BATCH_SIZE, dataset_schema) as dataset:
             table = dataset.get_table(self.table_name)
-            for row in table.get_rows(uuid, self.filters):
+            for row in table.get_rows(repo.uuid, self.filters):
                 print(", ".join(str(cell) for cell in row))
 
         return 0

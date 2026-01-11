@@ -19,7 +19,6 @@ from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.file_keys import Sha256e
 from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.table import Dataset, FileTable
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
@@ -35,25 +34,22 @@ def gallery_dl_post(metadata: dict):
 
     context = _gallery_dl_context.get()
     dataset: Dataset = context.dataset
-    dolt_annex_config = context.config
+    repo = context.repo
     tasks = context.tasks
 
     async def continuation():
-        file_store = ContentAddressableStorage.from_local(dolt_annex_config).file_store
-        async with file_store.open(dolt_annex_config):
-            for table_row in source.post_metadata(metadata):
-                local_uuid = dolt_annex_config.get_uuid()
-                # remove subcategory
-                public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
-                metadata_bytes = json.dumps(
-                    public_metadata,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                    indent=4,
-                    default=json_default).encode('utf-8') + b'\n'
-                table: FileTable = dataset.get_table("metadata")
-                await import_bytes(local_uuid, file_store, table, table_row, metadata_bytes, "json")
-                context.post_metadata_files_processed += 1
+        for table_row in source.post_metadata(metadata):
+            # remove subcategory
+            public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
+            metadata_bytes = json.dumps(    
+                public_metadata,
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=4,
+                default=json_default).encode('utf-8') + b'\n'
+            table: FileTable = dataset.get_table("metadata")
+            await import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json")
+            context.post_metadata_files_processed += 1
     tasks.create_task(continuation())
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
@@ -71,11 +67,10 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
     context = _gallery_dl_context.get()
     dataset = context.dataset
-    dolt_annex_config = context.config
-    local_uuid = dolt_annex_config.get_uuid()
+    repo = context.repo
     file_table = dataset.get_table("submissions")
     key = source.table_key(metadata)
-    if file_table.has_row(local_uuid, key):
+    if file_table.has_row(repo.uuid, key):
         # We already have this file, skip it.
         metadata["_skip"] = 1
 
@@ -91,9 +86,8 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
 
     context = _gallery_dl_context.get()
     dataset: Dataset = context.dataset
-    dolt_annex_config = context.config
+    repo = context.repo
     tasks = context.tasks
-    local_uuid = dolt_annex_config.get_uuid()
 
     submissions_table = dataset.get_table("submissions")
     metadata_table = dataset.get_table("metadata")
@@ -103,13 +97,11 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     temp_path = Path(file_system, temp_path.name)
 
     async def continuation():
-        local_file_store = ContentAddressableStorage.from_local(dolt_annex_config).file_store
-        async with local_file_store.open(dolt_annex_config):
-            await import_file(local_uuid, local_file_store, submissions_table, source.table_key(metadata), temp_path, metadata["extension"], metadata["sha256"])
-            context.submission_files_processed += 1
-            for metadata_key in source.file_metadata(metadata):
-                await import_file(local_uuid, local_file_store, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
-                context.submission_metadata_files_processed += 1
+        await import_file(repo.uuid, repo.filestore, submissions_table, source.table_key(metadata), temp_path, metadata["extension"], metadata["sha256"])
+        context.submission_files_processed += 1
+        for metadata_key in source.file_metadata(metadata):
+            await import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
+            context.submission_metadata_files_processed += 1
 
     tasks.create_task(continuation())
 
@@ -122,6 +114,7 @@ async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTa
     file_key = Sha256e.make(size, sha256, extension)
 
     await maybe_await(filestore.put_file(from_path, file_key))
+    from_path.delete(allow_missing=True)
     await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
 
 async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):

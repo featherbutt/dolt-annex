@@ -6,7 +6,7 @@ import json
 import pytest
 
 from dolt_annex.datatypes.loader import Loadable
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.test_util import run
 
@@ -15,7 +15,7 @@ from dolt_annex.test_util import run
 @pytest.mark.parametrize("create_type,create_class,name,create_json", [
     (
         "repo",
-        Repo,
+        RepoModel,
         "foo_remote",
         {
             "uuid": "123e4567-e89b-12d3-a456-426614174000",

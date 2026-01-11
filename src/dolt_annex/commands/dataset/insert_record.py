@@ -85,11 +85,11 @@ class InsertRecord(cli.Application):
             table = dataset.get_table(self.table_name)
 
             if self.repo:
-                repo = Repo.must_load(self.repo)
-                dataset.dolt.initialize_dataset_source(dataset_schema, repo.uuid)
+                repo_context = Repo.open(base_config, self.repo)
             else:
-                repo = base_config.get_default_repo()
-            async with repo.filestore.open(base_config):
+                repo_context = base_config.open_default_repo()
+            async with repo_context as repo:
+                dataset.dolt.initialize_dataset_source(dataset_schema, repo.uuid)
                 await table.insert_file_source(key_columns, key, repo.uuid)
                 await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
             print(f"Inserted row ({', '.join(key_columns)}, {key}) into table '{self.table_name}' in dataset '{self.dataset}'")
