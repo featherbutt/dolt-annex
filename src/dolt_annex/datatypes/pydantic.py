@@ -40,14 +40,11 @@ class AbstractBaseModel(StrictBaseModel, ABC):
 
         if isinstance(v, cls):
             return handler(v)
-        
-        # Concrete implementations use the normal handler
-        if not cls.is_abstract():
-            return handler(v)
-        
+
         type_name = v.pop("type", None)
         if type_name is None:
-            raise ValueError("Missing 'type' field in configuration")
+             # Concrete implementations use the normal handler
+            return handler(v)
 
         class_name: Optional[str] = None
         match type_name.split('.'):
