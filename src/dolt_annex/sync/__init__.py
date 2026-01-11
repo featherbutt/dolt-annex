@@ -3,38 +3,136 @@
 
 from __future__ import annotations
 
-import re
-from uuid import UUID
-from dataclasses import dataclass, field
-from typing_extensions import Iterable, Optional, Tuple, List, Any
+import asyncio
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing_extensions import Iterable, Optional, Tuple, List
 from dolt_annex.datatypes.repo import Repo
 
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.base import maybe_await
+from dolt_annex.filestore.base import filestore_copy, maybe_await
 from dolt_annex.table import Dataset, FileTable, TableFilter
 from dolt_annex.logger import logger
 from dolt_annex.datatypes import TableRow
 from dolt_annex.dolt import DoltSqlServer
 from dolt_annex.datatypes.table import FileTableSchema
 
-@dataclass
-class SyncResults:
-    files_pushed: List[FileKey] = field(default_factory=list)
-    files_pulled: List[FileKey] = field(default_factory=list)
+class SyncOperation:
+    table: FileTable
+    from_repo: Repo
+    to_repo: Repo
+    ignore_missing: bool = False
 
-    def __iadd__(self, other: 'SyncResults') -> 'SyncResults':
-        self.files_pushed += other.files_pushed
-        self.files_pulled += other.files_pulled
-        return self
+    work_queue: asyncio.Queue[Optional[Tuple[FileKey, TableRow]]]
+    files_moved: List[FileKey]
+    pending_exceptions: List[Exception]
+
+    def __init__(
+            self,
+            *,
+            table: FileTable,
+            from_repo: Repo,
+            to_repo: Repo,
+            ignore_missing: bool = False,
+            queue_size: Optional[int] = 1000,
+    ) -> None:
+        self.table = table
+        self.from_repo = from_repo
+        self.to_repo = to_repo
+        self.ignore_missing = ignore_missing
+        self.work_queue = asyncio.Queue(maxsize=queue_size or 0)
+        self.files_moved = []
+        self.pending_exceptions = []
+    async def worker_loop(self) -> None:
+        while True:
+            try:
+                item = await self.work_queue.get()
+            except asyncio.QueueShutDown:
+                break
+            if item is None:
+                self.work_queue.task_done()
+                break
+            key, table_row = item
+            try:
+                await self.move_submission_and_key(
+                    key,
+                    table_row,
+                )
+                self.files_moved.append(key)
+            except FileNotFoundError as e:
+                self.pending_exceptions.append(e)
+            finally:
+                self.work_queue.task_done()
+
+    async def move(self, where: List[TableFilter], batch_size: Optional[int] = None) -> None:
+        dolt = self.table.dolt
+
+        has_more = True
+        while has_more:
+            keys_and_submissions = list(diff_keys(dolt, str(self.from_repo.uuid), str(self.to_repo.uuid), self.table.dataset_name, self.table.schema, where, batch_size))
+            has_more = await self.move_submissions_and_keys(keys_and_submissions)
+            # Await here so that the next diff sees the updated state
+            await self.work_queue.join()
+            if self.pending_exceptions:
+                raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
+            await self.table.flush()
+
+    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[FileKey, TableRow]]) -> bool:
+        has_more = False
+        for key, table_row in keys_and_submissions:
+            has_more = True
+            await self.work_queue.put((key, table_row))
+        return has_more
     
-    def __bool__(self) -> bool:
-        return bool(self.files_pushed or self.files_pulled)
+    async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> None:
+        logger.info(f"moving {table_row}: {key}")
+
+        if await maybe_await(self.to_repo.filestore.exists(key)):
+            logger.debug(f"file {key} already exists in destination filestore")
+            # The file may have come from a different dataset, so we don't need to copy it.
+            # We still record that we have a copy of it for this dataset.
+            await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
+            return
+        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
+            logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
+            return
+        await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
+        await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
+
+    @classmethod
+    @asynccontextmanager
+    async def context_manager(
+            cls,
+            *,
+            table: FileTable,
+            from_repo: Repo,
+            to_repo: Repo,
+            ignore_missing: bool = False,
+            num_workers: int = 4,
+            queue_size: Optional[int] = 1000,
+    ) -> AsyncGenerator[SyncOperation, None]:
+        async with (
+            asyncio.TaskGroup() as workers
+        ):
+            sync_op = cls(
+                table=table,
+                from_repo=from_repo,
+                to_repo=to_repo,
+                ignore_missing=ignore_missing,
+                queue_size=queue_size,
+            )
+            for _ in range(num_workers):
+                workers.create_task(sync_op.worker_loop())
+            try:
+                yield sync_op
+            finally:
+                for _ in range(num_workers):
+                    await sync_op.work_queue.put(None)
     
 class FileModifiedError(Exception):
-    def __init__(self, key: FileKey):
+    def __init__(self, key: FileKey, repo1: Repo, repo2: Repo) -> None:
         self.key = key
-        super().__init__(f"File with annex key {key} has different content on both remotes")
+        super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
 
 async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
     if moved_files is None:
@@ -43,46 +141,19 @@ async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: 
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     for table in dataset.tables.values():
-        await move_table(table, from_repo, to_repo, where, ignore_missing, limit, moved_files)
-    return moved_files
+        async with SyncOperation.context_manager(
+            table=table,
+            from_repo=from_repo,
+            to_repo=to_repo,
+            ignore_missing=ignore_missing,
+        ) as sync_op:
+            await sync_op.move(where, limit)
+    # TODO: This only returns the files moved in the last table.
+    return sync_op.files_moved
 
-async def move_table(table: FileTable, from_repo: Repo, to_repo: Repo, where: List[TableFilter], ignore_missing, limit: Optional[int] = None, out_moved_keys: Optional[List[FileKey]] = None) -> List[FileKey]:
-    if out_moved_keys is None:
-        out_moved_keys = []
-    dolt = table.dolt
 
-    while True:
-        keys_and_submissions = list(diff_keys(dolt, str(from_repo.uuid), str(to_repo.uuid), table.dataset_name, table.schema, where, limit))
-        has_more = await move_submissions_and_keys(keys_and_submissions, table, from_repo.filestore, to_repo.filestore, to_repo.uuid, out_moved_keys, ignore_missing)
-        if not has_more:
-            break
-    return out_moved_keys
 
-async def move_submissions_and_keys(keys_and_submissions: Iterable[Tuple[FileKey, TableRow]], file_table: FileTable, from_file_store: FileStore, to_file_store: FileStore, destination_uuid: UUID, files_moved: List[FileKey], ignore_missing: bool) -> bool:
-    has_more = False
-    for key, table_row in keys_and_submissions:
-        has_more = True
-        await move_submission_and_key(key, table_row, file_table, from_file_store, to_file_store, destination_uuid, ignore_missing)
-        
-        files_moved.append(key)
-    await file_table.flush()
-    return has_more
 
-async def move_submission_and_key(key: FileKey, table_row: TableRow, file_table: FileTable, from_file_store: FileStore, to_file_store: FileStore, destination_uuid: UUID, ignore_missing: bool) -> None:
-    logger.info(f"moving {table_row}: {key}")
-
-    if await maybe_await(to_file_store.exists(key)):
-        logger.debug(f"file {key} already exists in destination filestore")
-        # The file may have come from a different dataset, so we don't need to copy it.
-        # We still record that we have a copy of it for this dataset.
-        await file_table.insert_file_source(table_row, key, destination_uuid)
-        return
-    if ignore_missing and not await maybe_await(from_file_store.exists(key)):
-        logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-        return
-    async with from_file_store.with_file_object(key) as remote_file_obj:
-        await maybe_await(to_file_store.put_file_object(remote_file_obj, key))
-        await file_table.insert_file_source(table_row, key, destination_uuid)
 
 def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[FileKey, TableRow]]:
     refs = [in_ref, not_in_ref]
@@ -92,6 +163,8 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: s
     in_ref_branch = f"{in_ref}-{dataset_name}"
     not_in_ref_branch = f"{not_in_ref}-{dataset_name}"
     # Create the union branch if it doesn't exist
+    # What if in_ref_branch hasn't been created yet? We need an approach that abstracts this away.
+    # Don't pass branch names around as strings, pass them as first class objects.
     with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
         dolt.merge(in_ref_branch)
         dolt.merge(not_in_ref_branch)

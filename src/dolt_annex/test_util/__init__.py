@@ -80,7 +80,7 @@ async def run(
     However, since the command is run in-process, things like loadable config files can be proloaded and re-used.
     """
     async def inner():
-        with pytest.raises(expected_exception) if expected_exception is not None else contextlib.nullcontext():
+        with pytest.RaisesGroup(expected_exception, flatten_subgroups=True) if expected_exception is not None else contextlib.nullcontext():
             inst, continuation = cmd.run(args, exit=False)
             error_code = await maybe_await(continuation)
             assert error_code == expected_error_code, f"Command exited with code {error_code}"
