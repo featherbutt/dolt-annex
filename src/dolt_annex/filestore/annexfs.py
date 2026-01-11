@@ -35,7 +35,7 @@ class AnnexFS(FileStore):
     file_system: FileSystem
 
     @override
-    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
+    def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
