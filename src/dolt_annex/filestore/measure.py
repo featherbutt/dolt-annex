@@ -3,16 +3,19 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from io import TextIOWrapper
 from pathlib import Path
 from typing_extensions import override
 
+from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileInfo
+from dolt_annex.datatypes.file_io import FileInfo, RefCountedFile
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.base import MaybeAwaitable, ReadableFileObject
+from dolt_annex.filestore.base import FileStoreModel, MaybeAwaitable, ReadableFileObject
 
+@dataclass
 class Measure(FileStore):
     """
     A Measure FileStore wraps a child file store and tracks additional metrics,
@@ -26,22 +29,21 @@ class Measure(FileStore):
     
     child: FileStore
 
-    stats_file_path: Path
-    _stats_file: TextIOWrapper
+    stats_file: TextIOWrapper
 
-    _file_count: int
-    _total_file_size: int
+    file_count: int
+    total_file_size: int
 
     @override
     def flush(self) -> None:
         """Flush the current stats information to disk."""
-        self._stats_file.seek(0)
-        self._stats_file.truncate()
-        self._stats_file.write(f"{self._file_count},{self._total_file_size}")
-        self._stats_file.flush()
+        self.stats_file.seek(0)
+        self.stats_file.truncate()
+        self.stats_file.write(f"{self.file_count},{self.total_file_size}")
+        self.stats_file.flush()
 
     @override
-    def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> MaybeAwaitable[None]:
+    def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
         return self.child.put_file_object(in_fd, file_key)
 
@@ -57,27 +59,6 @@ class Measure(FileStore):
         """
         return self.child.exists(file_key)
 
-
-    @override
-    @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[None]:
-        """Open the filestore, loading or initializing metrics tracking."""
-
-        with open(self.stats_file_path, 'r+', encoding='utf-8') as self._stats_file:
-            stats = self._stats_file.read().split(',')
-            if len(stats) == 2:
-                self._file_count = int(stats[0])
-                self._total_file_size = int(stats[1])
-            else:
-                self._file_count = 0
-                self._total_file_size = 0
-
-            async with self.child.open(config):
-                yield
-
-            self.flush()
-
-
     @override
     def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
          return self.child.stat(file_key)
@@ -85,3 +66,32 @@ class Measure(FileStore):
     @override
     def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
          return self.child.fstat(file_obj)
+
+class MeasureModel(FileStoreModel):
+    child: FileStoreModel
+
+    stats_file_path: Path
+
+    @override
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[FileStore]:
+        """Open the filestore, loading or initializing metrics tracking."""
+
+        with open(self.stats_file_path, 'r+', encoding='utf-8') as stats_file:
+            stats = stats_file.read().split(',')
+            if len(stats) == 2:
+                file_count = int(stats[0])
+                total_file_size = int(stats[1])
+            else:
+                file_count = 0
+                total_file_size = 0
+
+            async with self.child.open(config) as child:
+                filestore = Measure(
+                    child=child,
+                    stats_file=stats_file,
+                    file_count=file_count,
+                    total_file_size=total_file_size,
+                )
+                yield filestore
+                filestore.flush()
