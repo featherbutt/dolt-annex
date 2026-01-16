@@ -75,5 +75,6 @@ class LevelDBModel(FileStoreModel):
         if not plyvel_imported:
             raise ImportError("plyvel is required for LevelDB filestore support. Please install dolt-annex with the 'leveldb' extra.")
         
+        self.root.mkdir(parents=True, exist_ok=True)
         with plyvel.DB(self.root.as_posix(), create_if_missing=True) as db:
             yield LevelDB(db=db)
