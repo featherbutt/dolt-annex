@@ -119,10 +119,6 @@ def all_filestore_type_parameters():
     for fs in all_filestore_types():
         yield pytest.param(fs, id=fs.type_name())
 
-@pytest.fixture
-def base_config() -> Config:
-    return Config()
-
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
 async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = request.param

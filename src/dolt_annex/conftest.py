@@ -20,15 +20,20 @@ import pytest
 import pytest_asyncio
 
 from dolt_annex.data import data_dir
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.test_util import create_test_filestore, local_uuid, remote_uuid, test_config, EnvironmentForTest
 
 @pytest.fixture
+def base_config() -> Config:
+    return Config()
+
+@pytest.fixture
 def temp_dir(tmp_path):
     with contextlib.chdir(tmp_path):
-        yield
+        yield tmp_path
 
 @pytest.fixture()
 def dolt(temp_dir, tmp_path):
@@ -47,7 +52,7 @@ def init_dolt(dolt):
     yield dolt
 
 @pytest_asyncio.fixture 
-async def setup(tmp_path: pathlib.Path, init_dolt):
+async def setup(temp_dir: pathlib.Path, init_dolt):
 
     # Use Loadable.context to ensure that registered types will be reset at the end of the test.
     with Loadable.context():
@@ -61,11 +66,10 @@ async def setup(tmp_path: pathlib.Path, init_dolt):
             key_format=Sha256e
         )
 
-        with (tmp_path / "config.json").open("w") as f:
+        with (temp_dir / "config.json").open("w") as f:
             f.write(test_config.model_dump_json())
 
-        with contextlib.chdir(tmp_path):
-            yield EnvironmentForTest(
-                local_file_store=local_filestore,
-                remote_file_store=remote_filestore,
-            )
+        yield EnvironmentForTest(
+            local_file_store=local_filestore,
+            remote_file_store=remote_filestore,
+        )
