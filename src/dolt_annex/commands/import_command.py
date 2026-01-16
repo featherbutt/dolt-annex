@@ -154,7 +154,7 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
         if importer and importer.skip(path):
             return
         logger.debug(f"Importing file {path}")
-        key = import_config.file_key_type.from_file(path, importer.extension(path))
+        key = await import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
             key_columns = importer.key_columns(path)
@@ -174,9 +174,11 @@ async def move_files(file_store: FileStore, import_config: ImportConfig, files: 
     logger.debug("moving annex files")
     for file_path, key in files.items():
         if import_config.copy:
-            await file_store.copy_file(file_path, key)
+            result = await file_store.copy_file(file_path, key)
+            await result.wait_for_complete()
         else:
-            await maybe_await(file_store.put_file(file_path, key))
+            result = await maybe_await(file_store.put_file(file_path, key))
+            await result.wait_for_complete()
         if import_config.move:
             # TODO: Add an extra check here that the file was added successfully, then delete the file
             # os.remove(file_path)

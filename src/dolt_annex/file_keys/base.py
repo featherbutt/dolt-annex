@@ -3,9 +3,10 @@
 
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing_extensions import BinaryIO, Optional, Self
+from typing_extensions import Optional, Self
 
-from dolt_annex.datatypes.file_io import Path
+from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.file_io import ReadableFileObject, Path
 
 @dataclass
 class FileKey:
@@ -18,16 +19,16 @@ class FileKey:
     key: bytes
 
     @classmethod
-    def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
+    async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file on disk."""
         with file_path.open() as fd:
-            return cls.from_fo(fd, extension=extension)
+            return await cls.from_fo(fd, extension=extension)
 
     @classmethod
-    def from_fo(cls, file_obj: BinaryIO, extension: Optional[str] = None) -> Self:
+    async def from_fo(cls, file_obj: ReadableFileObject, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file-like object."""
-        file_bytes = file_obj.read()
-        file_obj.seek(0)
+        file_bytes = await maybe_await(file_obj.read())
+        await maybe_await(file_obj.seek(0))
         return cls.from_bytes(file_bytes, extension=extension)
 
     @classmethod

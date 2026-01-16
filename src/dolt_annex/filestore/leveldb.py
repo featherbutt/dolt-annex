@@ -11,11 +11,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from io import BytesIO
 import pathlib
-from typing_extensions import cast, override
+from typing_extensions import override
 
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_utils import Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
+from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
@@ -36,11 +36,12 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
-        self.db.put(bytes(file_key), await maybe_await(in_fd.read()))
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+        self.db.put(bytes(file_key), await maybe_await(in_fd.inner.read()))
+        return Result.of(None)
 
     @override
-    def get_file_object(self, file_key: FileKey) -> FileObject:
+    def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
         file_bytes = self.db.get(bytes(file_key))
         if file_bytes is None:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
@@ -55,8 +56,9 @@ class LevelDB(FileStore):
 
     @override
     def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-         b = cast(BytesIO, file_obj)
-         return FileInfo(size=len(b.getvalue()))
+        if not isinstance(file_obj, BytesIO):
+            raise TypeError("LevelDB.fstat was passed a file object that did not originate from this filestore.")
+        return FileInfo(size=len(file_obj.getvalue()))
     
     @override
     def exists(self, file_key: FileKey) -> bool:

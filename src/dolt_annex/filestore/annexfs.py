@@ -16,13 +16,14 @@ from dataclasses import dataclass
 import hashlib
 import pathlib
 from pydantic import InstanceOf
-from typing_extensions import cast, override
+from typing_extensions import override
 
 from fs.base import FS as FileSystem
 import fs.osfs
 
+from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import Path, ReadableFileObject
+from dolt_annex.datatypes.file_io import ReadableFileObject, Path, RefCountedFile
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle
@@ -35,20 +36,21 @@ class AnnexFS(FileStore):
     file_system: FileSystem
 
     @override
-    def put_file(self, file_path: Path, file_key: FileKey) -> None:
+    def put_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
         """Move an on-disk file to the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
         file_path.rename(output_path)
-        return
+        return Result.of(None)
 
     @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
         """Copy a file-like object into the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
-        with output_path.open('wb') as out_fd:
-            await copy(src=in_fd, dst=out_fd)
+        async with output_path.open('wb') as out_fd:
+            await copy(src=in_fd.inner, dst=out_fd)
+        return Result.of(None)
 
     @override
     async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
@@ -58,7 +60,7 @@ class AnnexFS(FileStore):
             annexed_file_path = self.get_old_key_path(file_key)
             if not annexed_file_path.exists():
                 raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        fd = annexed_file_path.open()
+        fd = await annexed_file_path.open()
         return ExistingFileHandle(readfile=fd, file_info=await self.stat(file_key))
 
     @override
@@ -67,7 +69,9 @@ class AnnexFS(FileStore):
 
     @override
     async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-        return cast(ExistingFileHandle, file_obj).file_info
+        if not isinstance(file_obj, ExistingFileHandle):
+            raise TypeError("AnnexFS.fstat was passed a file object that did not originate from this filestore.")
+        return file_obj.file_info
 
     def get_key_path(self, key: FileKey) -> Path:
         """

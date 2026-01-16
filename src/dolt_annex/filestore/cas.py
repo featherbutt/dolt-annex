@@ -5,7 +5,7 @@ from io import BytesIO
 from typing_extensions import Optional, AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import Path, ReadableFileObject
+from dolt_annex.datatypes.file_io import Path, RefCountedFile, ref_count
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
@@ -33,8 +33,9 @@ class ContentAddressableStorage:
         If file_key is not provided, it will be computed.
         """
         if file_key is None:
-            file_key = self.file_key_format.from_file(file_path)
-        await maybe_await(self.file_store.put_file(file_path, file_key))
+            file_key = await self.file_key_format.from_file(file_path)
+        result = await maybe_await(self.file_store.put_file(file_path, file_key))
+        await result.wait_for_complete()
         return file_key
 
     async def copy_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
@@ -44,9 +45,10 @@ class ContentAddressableStorage:
         If file_key is not provided, it will be computed.
         """
         if file_key is None:
-            file_key = self.file_key_format.from_file(file_path)
-        with open(file_path, 'rb') as fd:
-            await maybe_await(self.file_store.put_file_object(fd, file_key=file_key))
+            file_key = await self.file_key_format.from_file(file_path)
+        async with ref_count(await file_path.open()) as fd:
+            result = await maybe_await(self.file_store.put_file_object(fd, file_key=file_key))
+            await result.wait_for_complete()
         return file_key
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> FileKey:
@@ -59,13 +61,14 @@ class ContentAddressableStorage:
             file_key = self.file_key_format.from_bytes(file_bytes)
         fd = BytesIO(file_bytes)
         fd.name = str(file_key)
-        await maybe_await(self.file_store.put_file_object(fd, file_key=file_key))
+        result = await maybe_await(self.file_store.put_file_object(ref_count(fd), file_key=file_key))
+        await result.wait_for_complete()
         return file_key
 
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: Optional[FileKey] = None) -> FileKey:
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: Optional[FileKey] = None) -> FileKey:
         """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
         if file_key is None:
-            file_key = self.file_key_format.from_fo(in_fd)
+            file_key = await self.file_key_format.from_fo(in_fd.inner)
         await maybe_await(self.file_store.put_file_object(in_fd, file_key=file_key))
         return file_key
 

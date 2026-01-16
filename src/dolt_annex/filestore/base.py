@@ -11,9 +11,9 @@ from io import BytesIO
 from typing import TYPE_CHECKING
 from typing_extensions import AsyncContextManager
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
+from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, WritableFileObject, Path
+from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, ReadableStream, WritableStream, RefCountedFile, Path, ref_count
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 
@@ -22,40 +22,40 @@ if TYPE_CHECKING:
 
 class FileStore(abc.ABC):
 
-    def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[None]:
+    def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """
         Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
         return self.copy_file(file_path, file_key)
 
-    async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
+    async def copy_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
         """
         Upload an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        with file_path.open() as fd:
+        async with ref_count(await file_path.open()) as fd:
             return await maybe_await(self.put_file_object(fd, file_key))
 
-    def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> MaybeAwaitable[None]:
+    def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """
         Upload an in-memory file to the remote.
         """
-        return self.put_file_object(BytesIO(file_bytes), file_key=file_key)
+        return self.put_file_object(ref_count(BytesIO(file_bytes)), file_key=file_key)
 
     @abstractmethod
-    def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> MaybeAwaitable[None]:
+    def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """Upload a file-like object to the remote."""
 
     @abstractmethod
     def get_file_object(self, file_key: FileKey) -> MaybeAwaitable[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
 
-    def with_file_object(self, file_key: FileKey) -> AsyncContextManager[ReadableFileObject]:
+    def with_file_object(self, file_key: FileKey) -> AsyncContextManager[RefCountedFile]:
         """Get a file-like object for a file in the remote by its key."""
         @asynccontextmanager
-        async def inner() -> AsyncGenerator[ReadableFileObject]:
+        async def inner() -> AsyncGenerator[RefCountedFile]:
             file = await maybe_await(self.get_file_object(file_key))
-            yield file
-            await maybe_await(file.close())
+            async with ref_count(file) as file:
+                yield file
         return inner()
 
     async def get_file_bytes(self, file_key: FileKey) -> bytes:
@@ -63,7 +63,7 @@ class FileStore(abc.ABC):
         Get the contents of a file in the remote by its key.
         """
         async with self.with_file_object(file_key) as fd:
-            return await maybe_await(fd.read())
+            return await maybe_await(fd.inner.read())
 
     @abstractmethod
     def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
@@ -95,11 +95,11 @@ class FileStore(abc.ABC):
     def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
 
-async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey):
+async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey) -> Result[None]:
     async with src.with_file_object(key) as fd:
-        await maybe_await(dst.put_file_object(fd, key))
+        return await maybe_await(dst.put_file_object(fd, key))
 
-async def copy(*, src: ReadableFileObject, dst: WritableFileObject, buffer_size=16384):
+async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
         buf = await maybe_await(src.read(buffer_size))
         if not buf:

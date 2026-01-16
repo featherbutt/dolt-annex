@@ -1,16 +1,20 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from io import BufferedReader, BufferedWriter
+from io import BufferedWriter
 import os
 import pathlib
 import tempfile
-from typing_extensions import Optional, Buffer
+from types import TracebackType
+from typing_extensions import Awaitable, Optional, Buffer
 
 from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes import FileKey
-from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, WritableFileObject
+from dolt_annex.datatypes.file_io import FileInfo, AsyncReadableFileObject, SyncWritableFileObject
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 
@@ -20,26 +24,28 @@ class FileHandle:
     pass
 
 @dataclass
-class ExistingFileHandle(FileHandle, ReadableFileObject):
-    readfile: BufferedReader
+class ExistingFileHandle(FileHandle, AsyncReadableFileObject):
+    readfile: AsyncReadableFileObject
     file_info: FileInfo
     
-    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
         return self.readfile.seek(offset, whence)
     
-    def read(self, size: int = -1, /) -> bytes:
+    def tell(self) -> Awaitable[int]:
+        return self.readfile.tell()
+    
+    def read(self, size: int = -1, /) -> Awaitable[bytes]:
+        # This is necessary because tarfile.FileInFile uses None to mean "read all bytes",
+        # and -1 will result in zero bytes being read.
+        if size == -1:
+            return self.readfile.read()
         return self.readfile.read(size)
 
-    def close(self) -> None:
-        self.readfile.close()
+    def close(self) -> Awaitable[None]:
+        return self.readfile.close()
 
-    def __enter__(self) -> 'ExistingFileHandle':
-        return self
-    
-    def __exit__(self, type: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
-        self.close()
-
-class NewFileHandle(FileHandle, WritableFileObject):
+# TODO: Make writing to NewFileHandles async
+class NewFileHandle(FileHandle, SyncWritableFileObject):
     """A file handle for uploading a new key.
     
     On creation, the file is created in a temporary location.
@@ -67,6 +73,9 @@ class NewFileHandle(FileHandle, WritableFileObject):
     def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
         return self.writefile.seek(offset, whence)
     
+    def tell(self) -> int:
+        return self.writefile.tell()
+    
     def read(self, size: int = -1) -> bytes:
         raise NotImplementedError("Read not supported on NewFileHandle")
 
@@ -80,5 +89,11 @@ class NewFileHandle(FileHandle, WritableFileObject):
     def __enter__(self) -> 'NewFileHandle':
         return self
     
+    async def __aenter__(self) -> 'NewFileHandle':
+        return self
+    
     def __exit__(self, type: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
+        self.close()
+
+    async def __aexit__(self, type: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]) -> None:
         self.close()

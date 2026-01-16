@@ -5,7 +5,8 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing_extensions import override, Any
 
-from dolt_annex.datatypes.file_io import ReadableFileObject
+from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
@@ -23,7 +24,7 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
         return await maybe_await(self.children[0].put_file_object(in_fd, file_key))
 
@@ -81,18 +82,6 @@ class UnionFS(FileStore):
         for child in self.children:
             await maybe_await(child.flush())
 
-
-    @override
-    @asynccontextmanager
-    async def open(self, config: Any) -> AsyncGenerator[None]:
-        """Open the filestore, loading or initializing metrics tracking."""
-        async with AsyncExitStack() as stack:
-            for child in self.children:
-                await stack.enter_async_context(child.open(config))
-            yield
-
-            await self.flush()
-
     @override
     def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
         for child in self.children:
@@ -109,11 +98,6 @@ class UnionFS(FileStore):
                 continue
         raise FileNotFoundError("File object not found in any child filestore.")
 
-    @override
-    def type_name(self) -> str:
-        """Get the type name of the filestore. Used in tests."""
-        return f"{self.__class__.__name__}({', '.join(child.type_name() for child in self.children)})"
-    
 class UnionFSModel(FileStoreModel):
     children: list[FileStoreModel]
 
@@ -126,3 +110,9 @@ class UnionFSModel(FileStoreModel):
                 child_instance = await stack.enter_async_context(child_model.open(config))
                 children_filestores.append(child_instance)
             yield UnionFS(children=children_filestores)
+
+    @override
+    def type_name(self) -> str:
+        """Get the type name of the filestore. Used in tests."""
+        return f"{self.__class__.__name__}({', '.join(child.type_name() for child in self.children)})"
+    

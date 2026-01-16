@@ -113,8 +113,8 @@ async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTa
 
     file_key = Sha256e.make(size, sha256, extension)
 
-    await maybe_await(filestore.put_file(from_path, file_key))
-    from_path.delete(allow_missing=True)
+    result = await maybe_await(filestore.put_file(from_path, file_key))
+    result.future.add_done_callback(lambda fut: from_path.delete(allow_missing=True))
     await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
 
 async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):

@@ -7,6 +7,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing_extensions import Iterable, Optional, Tuple, List
+from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
 
 from dolt_annex.file_keys.base import FileKey
@@ -54,10 +55,11 @@ class SyncOperation:
                 break
             key, table_row = item
             try:
-                await self.move_submission_and_key(
+                result = await self.move_submission_and_key(
                     key,
                     table_row,
                 )
+                await result.wait_for_complete()
                 self.files_moved.append(key)
             except FileNotFoundError as e:
                 self.pending_exceptions.append(e)
@@ -84,7 +86,7 @@ class SyncOperation:
             await self.work_queue.put((key, table_row))
         return has_more
     
-    async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> None:
+    async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> Result[None]:
         logger.info(f"moving {table_row}: {key}")
 
         if await maybe_await(self.to_repo.filestore.exists(key)):
@@ -92,12 +94,16 @@ class SyncOperation:
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
-            return
+            return Result.of(None)
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
             logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-            return
-        await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
-        await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
+            return Result.of(None)
+        result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
+        # We must wait for the copy to complete before updating the dataset.
+        async def update_table_on_complete() -> None:
+            await result.wait_for_complete()
+            await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
+        return Result(asyncio.create_task(update_table_on_complete()))
 
     @classmethod
     @asynccontextmanager
@@ -176,7 +182,7 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: s
             query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
         # TODO: Wrap this in a helper function
         for (annex_key, _, *key_parts) in query_results:
-            yield (FileKey(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
+            yield (FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
 
 def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
     """

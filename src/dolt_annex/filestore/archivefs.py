@@ -19,9 +19,9 @@ from typing_extensions import override, Tuple
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
+from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileObject, Path, ReadableFileObject
+from dolt_annex.datatypes.file_io import FileInFile, ReadableFileObject, Path, RefCountedFile, SyncRefCountedFile, is_sync_ref_count
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
@@ -37,7 +37,8 @@ class ArchiveFS(FileStore):
     
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[FileKey, ReadableFileObject]]
+    files_queue: asyncio.Queue[Tuple[FileKey, SyncRefCountedFile, asyncio.Future[None]]]
+    workers: asyncio.TaskGroup
 
     def __init__(
             self, *,
@@ -49,6 +50,7 @@ class ArchiveFS(FileStore):
     ):
         self.file_system = file_system
         self.secondary = secondary
+        self.workers = workers
         # Iterate over the current "hot" archive files, assigning each one to a worker.
         self.files_queue = asyncio.Queue()
         for i in range(num_workers):
@@ -66,7 +68,7 @@ class ArchiveFS(FileStore):
         with archive_fd, archive_tar:
             while True:
                 try:
-                    file_key, in_fd = await self.files_queue.get()
+                    file_key, in_fd, callback = await self.files_queue.get()
                 except asyncio.QueueShutDown:
                     break
                 try:
@@ -75,22 +77,32 @@ class ArchiveFS(FileStore):
                     buf = tar_info.tobuf(archive_tar.format, archive_tar.encoding, archive_tar.errors)
                     offset = archive_tar.offset + len(buf)
                     # TODO: Rotate archive files if they exceed max_archive_size.
-                    archive_tar.addfile(tarinfo=tar_info, fileobj=in_fd)
+                    archive_tar.addfile(tarinfo=tar_info, fileobj=in_fd.inner)
                     secondary_value = f"{archive_file.name}:{offset}:{tar_info.size}"
                     await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
                 finally:
-                    await maybe_await(in_fd.close())
+                    callback.set_result(None)
                     self.files_queue.task_done()
 
 
 
     @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
-        await self.files_queue.put((file_key, in_fd))
-        await self.files_queue.join()
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+        callback = asyncio.Future[None]()
+
+        if not is_sync_ref_count(in_fd):
+            raise TypeError("Currently, only synchronous data sources can be written to ArchiveFS.")
+        
+        await self.files_queue.put((file_key, in_fd, callback))
+        # Hold a reference to in_fd until the put is finished so that we don't close it too early.
+        async def hold_file():
+            async with in_fd:
+                await callback
+        self.workers.create_task(hold_file(), eager_start=True)
+        return Result(callback)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> FileObject:
+    async def get_file_object(self, file_key: FileKey) -> FileInFile:
         secondary_value = (await self.secondary.get_file_bytes(file_key)).decode('utf-8')
         archive_file_name, offset_str, size_str = secondary_value.split(':')
         offset = int(offset_str)
@@ -98,7 +110,7 @@ class ArchiveFS(FileStore):
 
         archive_file_path = Path(self.file_system) / archive_file_name
         archive_fd = archive_file_path.open('rb')
-        return tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
+        return FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
@@ -107,11 +119,19 @@ class ArchiveFS(FileStore):
 
     @override
     def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+        if not isinstance(file_obj, FileInFile):
+            raise TypeError("ArchiveFS.fstat was passed a file object that did not originate from this filestore.")
+
         return FileInfo(size=file_obj.size)
 
     @override
     def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
         return self.secondary.exists(file_key)
+    
+    @override
+    async def flush(self) -> None:
+        await self.files_queue.join()
+        await maybe_await(self.secondary.flush())
 
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]

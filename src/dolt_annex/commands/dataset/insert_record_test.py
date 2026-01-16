@@ -22,7 +22,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
 
     assert await maybe_await(local_file_store.exists(key))
     async with local_file_store.with_file_object(key) as file_obj:
-        content = await maybe_await(file_obj.read())
+        content = await maybe_await(file_obj.inner.read())
         assert content == b"new file content"
 
     async with Dataset.connect(test_config, 100, test_dataset_schema) as dataset:

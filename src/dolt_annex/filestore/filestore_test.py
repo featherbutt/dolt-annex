@@ -101,9 +101,6 @@ class SftpWrappedFilestoreModel(FileStoreModel):
         """Get the type name of the filestore. Used in tests."""
         return f"SftpFileStore({self.remote_file_store_model.type_name()})"
 
-
-
-
 def local_filestore_types():
     yield MemoryFSModel()
     yield LevelDBModel(root=pathlib.Path("leveldb"))
@@ -140,13 +137,14 @@ async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]
 async def test_file_stores(cas: ContentAddressableStorage):
 
     test_key = await cas.put_file_bytes(b"test")
+    await maybe_await(cas.file_store.flush())
     assert await maybe_await(cas.file_store.exists(test_key))
     file_info = await maybe_await(cas.file_store.stat(test_key))
     assert file_info.size == 4
     async with cas.file_store.with_file_object(test_key) as f:
-        file_info = await maybe_await(cas.file_store.fstat(f))
+        file_info = await maybe_await(cas.file_store.fstat(f.inner))
         assert file_info.size == 4
-        read_bytes = await maybe_await(f.read())
+        read_bytes = await maybe_await(f.inner.read())
         assert read_bytes == b"test"
 
     # Check that exist for non-existent file returns false
