@@ -62,7 +62,7 @@ class FileStore(abc.ABC):
         Get the contents of a file in the remote by its key.
         """
         async with self.with_file_object(file_key) as fd:
-            return await maybe_await(fd.inner.read())
+            return await fd.inner.read()
 
     @abstractmethod
     def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
@@ -100,10 +100,10 @@ async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey) -> Res
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
-        buf = await maybe_await(src.read(buffer_size))
+        buf = await src.read(buffer_size)
         if not buf:
             break
-        await maybe_await(dst.write(buf))
+        await dst.write(buf)
 
 class FileStoreModel(AbstractBaseModel):
     """

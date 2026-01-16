@@ -37,7 +37,7 @@ class MemoryFS(FileStore):
     @override
     async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
         """Copy a file-like object into the annex."""
-        self.files[bytes(file_key)] = await maybe_await(in_fd.inner.read())
+        self.files[bytes(file_key)] = await in_fd.inner.read()
         return Result.of(None)
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:

@@ -11,13 +11,13 @@ async def addfile(tarfile: TarFile, tarinfo: TarInfo, tarfile_fd: WritableFileOb
         You can create TarInfo objects directly, or by using gettarinfo().
     """
     buf = tarinfo.tobuf(tarfile.format, tarfile.encoding, tarfile.errors)
-    await maybe_await(tarfile_fd.write(buf))
+    await tarfile_fd.write(buf)
     tarfile.offset += len(buf)
 
     await copy(src=input_fileobj, dst=tarfile_fd)
     blocks, remainder = divmod(tarinfo.size, BLOCKSIZE)
     if remainder > 0:
-        await maybe_await(tarfile_fd.write(NUL * (BLOCKSIZE - remainder)))
+        await tarfile_fd.write(NUL * (BLOCKSIZE - remainder))
         blocks += 1
     tarfile.offset += blocks * BLOCKSIZE
 

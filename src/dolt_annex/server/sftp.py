@@ -137,14 +137,14 @@ class SFTPServer(asyncssh.SFTPServer):
     @override
     async def read(self, file_obj: object, offset: int, size: int) -> bytes:
         file_obj = cast(ReadableFileObject, file_obj)
-        await maybe_await(file_obj.seek(offset))
-        return await maybe_await(file_obj.read(size))
+        await file_obj.seek(offset)
+        return await file_obj.read(size)
 
     @override
     async def write(self, file_obj: object, offset: int, data: bytes) -> int:
         file_obj = cast(NewFileHandle, file_obj)
-        await maybe_await(file_obj.seek(offset))
-        return await maybe_await(file_obj.write(data))
+        await file_obj.seek(offset)
+        return await file_obj.write(data)
     
     @override
     async def close(self, file_obj: Any) -> None:

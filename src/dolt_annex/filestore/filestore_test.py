@@ -140,7 +140,7 @@ async def test_file_stores(cas: ContentAddressableStorage):
     async with cas.file_store.with_file_object(test_key) as f:
         file_info = await maybe_await(cas.file_store.fstat(f.inner))
         assert file_info.size == 4
-        read_bytes = await maybe_await(f.inner.read())
+        read_bytes = await f.inner.read()
         assert read_bytes == b"test"
 
     # Check that exist for non-existent file returns false

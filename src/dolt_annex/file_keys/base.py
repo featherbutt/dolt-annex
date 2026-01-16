@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import ClassVar, Dict
 from typing_extensions import Optional, Self
 
-from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.file_io import ReadableFileObject, Path
 
 @dataclass
@@ -35,8 +34,8 @@ class FileKey:
     @classmethod
     async def from_fo(cls, file_obj: ReadableFileObject, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file-like object."""
-        file_bytes = await maybe_await(file_obj.read())
-        await maybe_await(file_obj.seek(0))
+        file_bytes = await file_obj.read()
+        await file_obj.seek(0)
         return cls.from_bytes(file_bytes, extension=extension)
 
     @classmethod
