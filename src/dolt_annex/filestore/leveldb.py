@@ -9,13 +9,12 @@ with the file key as the key and the file contents as the value.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from io import BytesIO
 import pathlib
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_utils import Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
@@ -41,11 +40,11 @@ class LevelDB(FileStore):
         return Result.of(None)
 
     @override
-    def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
         file_bytes = self.db.get(bytes(file_key))
         if file_bytes is None:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return BytesIO(file_bytes)
+        return AsyncBytesIO(file_bytes)
     
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
@@ -56,9 +55,9 @@ class LevelDB(FileStore):
 
     @override
     def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-        if not isinstance(file_obj, BytesIO):
+        if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("LevelDB.fstat was passed a file object that did not originate from this filestore.")
-        return FileInfo(size=len(file_obj.getvalue()))
+        return FileInfo(size=len(file_obj.data))
     
     @override
     def exists(self, file_key: FileKey) -> bool:

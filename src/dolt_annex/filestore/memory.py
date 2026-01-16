@@ -6,12 +6,11 @@ MemoryFS is an in-memory filestore useful for testing. It does not persist files
 across restarts.
 """
 
-from io import BytesIO
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_utils import Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 
@@ -53,7 +52,7 @@ class MemoryFS(FileStore):
     async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
         if bytes(file_key) not in self.files:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return BytesIO(self.files[bytes(file_key)])
+        return AsyncBytesIO(self.files[bytes(file_key)])
         
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
@@ -61,9 +60,9 @@ class MemoryFS(FileStore):
 
     @override
     def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-        if not isinstance(file_obj, BytesIO):
+        if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("MemoryFS.fstat was passed a file object that did not originate from this filestore.")
-        return FileInfo(size=len(file_obj.getvalue()))
+        return FileInfo(size=len(file_obj.data))
 
     @override
     def exists(self, file_key: FileKey) -> bool:

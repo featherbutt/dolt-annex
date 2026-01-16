@@ -1,11 +1,10 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from io import BytesIO
 from typing_extensions import Optional, AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import Path, RefCountedFile, ref_count
+from dolt_annex.datatypes.file_io import AsyncBytesIO, Path, RefCountedFile, ref_count
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
@@ -59,8 +58,7 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = self.file_key_format.from_bytes(file_bytes)
-        fd = BytesIO(file_bytes)
-        fd.name = str(file_key)
+        fd = AsyncBytesIO(file_bytes)
         result = await maybe_await(self.file_store.put_file_object(ref_count(fd), file_key=file_key))
         await result.wait_for_complete()
         return file_key

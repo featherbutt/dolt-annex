@@ -7,13 +7,12 @@ from abc import abstractmethod
 import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from io import BytesIO
 from typing import TYPE_CHECKING
 from typing_extensions import AsyncContextManager
 
 from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import FileInfo, ReadableFileObject, ReadableStream, WritableStream, RefCountedFile, Path, ref_count
+from dolt_annex.datatypes.file_io import AsyncBytesIO, FileInfo, ReadableFileObject, ReadableStream, WritableStream, RefCountedFile, Path, ref_count
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 
@@ -39,7 +38,7 @@ class FileStore(abc.ABC):
         """
         Upload an in-memory file to the remote.
         """
-        return self.put_file_object(ref_count(BytesIO(file_bytes)), file_key=file_key)
+        return self.put_file_object(ref_count(AsyncBytesIO(file_bytes)), file_key=file_key)
 
     @abstractmethod
     def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> MaybeAwaitable[Result[None]]:

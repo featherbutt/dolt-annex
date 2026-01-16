@@ -6,18 +6,19 @@ from __future__ import annotations
 from collections.abc import Awaitable
 import contextvars
 from dataclasses import dataclass
+from io import BytesIO
 import os
 import pathlib
+from types import TracebackType
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
-from typing_extensions import BinaryIO, Final, Protocol, Self, Buffer, Literal, Generator, TypeGuard, overload
+from typing_extensions import BinaryIO, Final, Protocol, Self, Buffer, Literal, Generator
 
 import fs.move
 import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable, maybe_await
 
 @dataclass
 class FileInfo:
@@ -32,61 +33,24 @@ class FileInfo:
 class AwaitOrEnter[T](Protocol):
     def __await__(self) -> Generator[None, None, T]: ...
     def __aenter__(self) -> Awaitable[T]: ...
-    def __aexit__(self, *exc_info) -> Awaitable[None]: ...
+    def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> Awaitable[None]: ...
 
 class Closable(Protocol):
-    def close(self) -> MaybeAwaitable[None]:
-        ...
-
-class AsyncClosable(Closable, Protocol):
     def close(self) -> Awaitable[None]:
         ...
 
 
-class SyncClosable(Closable, Protocol):
-    def close(self) -> None:
-        ...
-
-
 class ReadableStream(Closable, Protocol):
-    def read(self, size: int = -1, /) -> MaybeAwaitable[bytes]:
-        ...
-
-class AsyncReadableStream(ReadableStream, AsyncClosable, Protocol):
     def read(self, size: int = -1, /) -> Awaitable[bytes]:
         ...
 
-class SyncReadableStream(ReadableStream, SyncClosable, Protocol):
-    def read(self, size: int = -1, /) -> bytes:
-        ...
 
 class WritableStream(Closable, Protocol):
-    def write(self, s: Buffer, /) -> MaybeAwaitable[int]:
-        ...
-
-class SyncWritableStream(WritableStream, SyncClosable, Protocol):
-    def write(self, s: Buffer, /) -> int:
-        ...
-
-class AsyncWritableStream(WritableStream, AsyncClosable, Protocol):
     def write(self, s: Buffer, /) -> Awaitable[int]:
         ...
 
+
 class ReadableFileObject(ReadableStream, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> MaybeAwaitable[int]:
-        ...
-
-    def tell(self) -> MaybeAwaitable[int]:
-        ...
-
-class SyncReadableFileObject(ReadableFileObject, SyncReadableStream, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> int:
-        ...
-
-    def tell(self) -> int:
-        ...
-
-class AsyncReadableFileObject(ReadableFileObject, AsyncReadableStream, Protocol):
     def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
         ...
 
@@ -94,20 +58,6 @@ class AsyncReadableFileObject(ReadableFileObject, AsyncReadableStream, Protocol)
         ...
 
 class WritableFileObject(WritableStream, ReadableFileObject, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> MaybeAwaitable[int]:
-        ...
-
-    def tell(self) -> MaybeAwaitable[int]:
-        ...
-
-class SyncWritableFileObject(WritableFileObject, SyncReadableFileObject, SyncWritableStream, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> int:
-        ...
-
-    def tell(self) -> int:
-        ...
-
-class AsyncWritableFileObject(WritableFileObject, AsyncReadableFileObject, AsyncWritableStream, Protocol):
     def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
         ...
 
@@ -139,47 +89,29 @@ class ReferenceCountedContextManager[T: Closable]:
     async def __aexit__(self, *exc_info) -> None:
         self._count -= 1
         if self._count == 0:
-            await maybe_await(self.inner.close())
-
-class SyncReferenceCountedContextManager[T: SyncClosable](ReferenceCountedContextManager[T]):
-    """
-    A subclass of ReferenceCountedContextManager where the underlying Closable is known to be synchronous.
-
-    This allows us to provide a synchronous context manager.
-    """
-
-    def __enter__(self) -> Self:
-        self._count += 1
-        return self
-
-    def __exit__(self, *exc_info) -> None:
-        self._count -= 1
-        if self._count == 0:
-            self.inner.close()
-
-@overload
-def ref_count[T: SyncClosable](inner: T) -> SyncReferenceCountedContextManager[T]: ...
-
-@overload
-def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]: ...
+            await self.inner.close()
 
 def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
     """Create a ReferenceCountedContextManager for the given object."""
     if isinstance(inner, ReferenceCountedContextManager):
         return inner
-    if hasattr(inner, '__exit__'):
-        return SyncReferenceCountedContextManager(inner)  # type: ignore
     else:
         return ReferenceCountedContextManager(inner)
 
 type RefCountedFile = ReferenceCountedContextManager[ReadableFileObject]
-type SyncRefCountedFile = SyncReferenceCountedContextManager[SyncReadableFileObject]
-
 
 def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
     async def async_file_io():
         return AsyncFileIO(fd, None, None)
     return AiofilesContextManager(async_file_io())
+
+class AsyncBytesIO(AsyncFileIO):
+
+    data: bytes
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(BytesIO(data), None, None)
+        self.data = data
 
 file_system_context = contextvars.ContextVar[FS]("file_system_context", default=OSFS('.'))
 @dataclass
