@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations
+
 from abc import abstractmethod
 from dataclasses import dataclass
+from typing import ClassVar, Dict
 from typing_extensions import Optional, Self
 
 from dolt_annex.datatypes.async_utils import maybe_await
@@ -16,12 +19,17 @@ class FileKey:
     Each subclass describes a specific file key format.
     """
 
+    prefixes: ClassVar[Dict[str, type[Self]]] = {}
+
+    def __init_subclass__(cls, prefix: str) -> None:
+        cls.prefixes[prefix] = cls
+
     key: bytes
 
     @classmethod
     async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file on disk."""
-        with file_path.open() as fd:
+        async with file_path.open() as fd:
             return await cls.from_fo(fd, extension=extension)
 
     @classmethod
@@ -38,10 +46,19 @@ class FileKey:
         raise NotImplementedError()
 
     @classmethod
-    @abstractmethod
     def try_parse(cls, key: bytes) -> Optional[Self]:
-        """Validate a key."""
-        raise NotImplementedError()
+        """Parse a key into a FileKey instance."""
+        for prefix, subclass in cls.prefixes.items():
+            if key.startswith(prefix.encode('utf-8')):
+                return subclass.try_parse(key)
+        return None
+    
+    @classmethod
+    def must_parse(cls, key: bytes) -> Self:
+        file_key = cls.try_parse(key)
+        if file_key is None:
+            raise ValueError(f"Could not parse file key: {key!r}")
+        return file_key
 
     def __bytes__(self) -> bytes:
         return self.key

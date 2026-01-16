@@ -7,7 +7,7 @@ from typing_extensions import Optional, Self, override
 
 from .base import FileKey
 
-class Sha256e(FileKey):
+class Sha256e(FileKey, prefix="SHA256E-"):
     """SHA256e file keys have the format: SHA256E-s<size>--<sha256>.<extension>"""
 
     @classmethod
