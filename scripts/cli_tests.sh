@@ -18,6 +18,17 @@ assert_eq $(echo $output | jq '.submission_files_processed') 1
 assert_eq $(echo $output | jq '.submission_metadata_files_processed') 0
 assert_eq $(echo $output | jq '.post_metadata_files_processed') 1
 
+expected_file_key="SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png"
 output=$(dolt-annex dataset read-table --dataset gallery-dl --table-name submissions)
-assert_eq "$output" "SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png, furaffinity.net, 63142315, 2025-11-28 20:36:17, 1"
+assert_eq "$output" "$expected_file_key, furaffinity.net, 63142315, 2025-11-28 20:36:17, 1"
+
+dolt-annex dataset read-table \
+  --dataset gallery-dl \
+  --table-name submissions \
+  --columns annex_key \
+  | dolt-annex filestore export-file > downloaded_image.png
+
+actual_hash=$(sha256sum downloaded_image.png | awk '{print $1}')
+assert_eq "$actual_hash" "28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7"
+
 log_success "All tests passed!"
