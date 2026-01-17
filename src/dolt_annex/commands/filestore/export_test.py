@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import pytest
+
+from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.test_util import EnvironmentForTest, run
+
+@pytest.mark.asyncio
+async def test_export(tmp_path, setup: EnvironmentForTest):
+    """Run and validate pushing content files to a remote"""
+
+    key = Sha256e.from_bytes(b"new file content", "txt")
+    await setup.local_file_store.put_file_bytes(b"new file content", key)
+    await run(
+        args=["dolt-annex", "filestore", "export-file", "--file-key", str(key)],
+        expected_output_contains="new file content"
+    )
+
+@pytest.mark.asyncio
+async def test_filekey_from_stdin(tmp_path, setup: EnvironmentForTest):
+    """Run and validate pushing content files to a remote"""
+
+    key = Sha256e.from_bytes(b"new file content", "txt")
+    await setup.local_file_store.put_file_bytes(b"new file content", key)
+    await run(
+        args=["dolt-annex", "filestore", "export-file"],
+        stdin=str(key) + "\n",
+        expected_output_contains="new file content"
+    )
