@@ -56,5 +56,5 @@ async def test_create_invalid_type(tmp_path, setup):
     await run(
         args=["dolt-annex", "create", "invalid", "name", "{}"],
         expected_error_code=1,
-        expected_output="Unknown command: create invalid. Accepted values are: repo, dataset",
+        expected_output_contains="Unknown command: create invalid. Accepted values are: repo, dataset",
     )

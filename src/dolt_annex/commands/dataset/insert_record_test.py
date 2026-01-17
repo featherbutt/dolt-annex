@@ -11,13 +11,13 @@ from dolt_annex.test_util import EnvironmentForTest, run, test_config, local_uui
 
 @pytest.mark.asyncio
 async def test_insert_record(tmp_path, setup: EnvironmentForTest):
-    """Run and validate pushing content files to a remote"""
+    """Run and validate inserting content files into a repo"""
     local_file_store = setup.local_file_store.file_store
 
     key = Sha256e.from_bytes(b"new file content", "txt")
     await run(
         args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "new file content"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
 
     assert await maybe_await(local_file_store.exists(key))

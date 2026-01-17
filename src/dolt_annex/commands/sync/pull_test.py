@@ -18,7 +18,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
                 "--key-columns", "test_key1",
                 "--file-bytes", "file_content_1",
                 "--repo", "test_remote"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
     await run(
         args=["dolt-annex", "dataset", "insert-record",
@@ -27,18 +27,18 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
                 "--key-columns", "test_key2",
                 "--file-bytes", "file_content_2",
                 "--repo", "test_remote"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
 
     await run(
         args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
-        expected_output="Pulled 2 files from remote test_remote"
+        expected_output_contains="Pulled 2 files from remote test_remote"
     )
 
     # Pulling again should result in no files being pulled
     await run(
         args=["dolt-annex", "pull","--dataset", "test", "--remote", "test_remote"],
-        expected_output="Pulled 0 files from remote test_remote"
+        expected_output_contains="Pulled 0 files from remote test_remote"
     )
 
     # But if we add more files, it should push them
@@ -49,11 +49,11 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
                 "--key-columns", "test_key3",
                 "--file-bytes", "file_content_3",
                 "--repo", "test_remote"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
     await run(
         args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
-        expected_output="Pulled 1 files from remote test_remote"
+        expected_output_contains="Pulled 1 files from remote test_remote"
     )
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
                 "--key-columns", "test_key1",
                 "--file-bytes", "file_content_1",
                 "--repo", "test_remote"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
     await run(
         args=["dolt-annex", "dataset", "insert-record",
@@ -76,7 +76,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
                 "--key-columns", "test_key2",
                 "--file-bytes", "file_content_2",
                 "--repo", "test_remote"],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
 
     remote_memory_store = cast(MemoryFS, setup.remote_file_store.file_store)
@@ -94,7 +94,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     # Assert that the record was added to the local database
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt, test_key1"
+        expected_output_contains="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt, test_key1"
     )
 
 @pytest.mark.asyncio
@@ -104,7 +104,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     # We test that we don't copy the file by altering it in the remote before the pull
     await run(
         args=["dolt-annex", "filestore", "insert-file", "--repo", "__local__", "--file-bytes", "file_content_1", "--extension", ""],
-        expected_output="Inserted file with key"
+        expected_output_contains="Inserted file with key"
     )
     await run(
         args=["dolt-annex", "dataset", "insert-record",
@@ -115,7 +115,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
                 "--repo", "test_remote",
                 "--extension", "",
             ],
-        expected_output="Inserted row"
+        expected_output_contains="Inserted row"
     )
 
     remote_memory_store = cast(MemoryFS, setup.remote_file_store.file_store)
@@ -134,7 +134,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     # Assert that the local db now has a record
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
+        expected_output_contains="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
     )
 
     # Assert that the file in the local filestore was not modified
