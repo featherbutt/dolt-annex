@@ -31,13 +31,13 @@ def base_config() -> Config:
     return Config()
 
 @pytest.fixture
-def temp_dir(tmp_path):
+def temp_dir(tmp_path: pathlib.Path):
     with contextlib.chdir(tmp_path):
         yield tmp_path
 
 @pytest.fixture()
-def dolt(temp_dir, tmp_path):
-    dolt_dir = pathlib.Path(tmp_path / "dolt")
+def dolt(temp_dir: pathlib.Path):
+    dolt_dir = pathlib.Path(temp_dir / "dolt")
     dolt_dir.mkdir()
     dolt = local.cmd.dolt.with_cwd(dolt_dir)
     shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")

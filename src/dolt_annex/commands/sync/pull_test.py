@@ -1,60 +1,116 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from dataclasses import dataclass
 from typing_extensions import cast
 
 import pytest
 
+from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.memory import MemoryFS
 
-from dolt_annex.test_util import run, EnvironmentForTest
+from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
 async def test_pull_local(tmp_path, setup: EnvironmentForTest):
+
+    dataset_name = test_dataset_schema.name
+    table_name = test_dataset_schema.tables[0].name
+    table_key_column = test_dataset_schema.tables[0].key_columns[0]
+    file_column = test_dataset_schema.tables[0].file_column
+
+    remote_name = "test_remote"
+
+    @dataclass
+    class Record:
+        table_key: str
+        file_bytes: bytes
+
+    record1 = Record(table_key="test_key1", file_bytes=b"file_content_1")
+    record2 = Record(table_key="test_key2", file_bytes=b"file_content_2")
+
     await run(
         args=["dolt-annex", "dataset", "insert-record",
-                "--dataset", "test",
-                "--table-name", "test_table",
-                "--key-columns", "test_key1",
-                "--file-bytes", "file_content_1",
-                "--repo", "test_remote"],
+                "--dataset", dataset_name,
+                "--table-name", table_name,
+                "--key-columns", record1.table_key,
+                "--file-bytes", record1.file_bytes,
+                "--repo", remote_name],
         expected_output_contains="Inserted row"
     )
     await run(
         args=["dolt-annex", "dataset", "insert-record",
-                "--dataset", "test",
-                "--table-name", "test_table",
-                "--key-columns", "test_key2",
-                "--file-bytes", "file_content_2",
-                "--repo", "test_remote"],
+                "--dataset", dataset_name,
+                "--table-name", table_name,
+                "--key-columns", record2.table_key,
+                "--file-bytes", record2.file_bytes,
+                "--repo", remote_name],
         expected_output_contains="Inserted row"
     )
 
     await run(
-        args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
-        expected_output_contains="Pulled 2 files from remote test_remote"
+        args=[
+            "dolt-annex", "pull",
+            "--dataset", dataset_name,
+            "--remote", remote_name
+        ],
+        expected_output_contains=f"Pulled 2 files from remote {remote_name}"
     )
 
     # Pulling again should result in no files being pulled
     await run(
-        args=["dolt-annex", "pull","--dataset", "test", "--remote", "test_remote"],
-        expected_output_contains="Pulled 0 files from remote test_remote"
+        args=[
+            "dolt-annex", "pull",
+            "--dataset", dataset_name,
+            "--remote", remote_name
+        ],
+        expected_output_contains=f"Pulled 0 files from remote {remote_name}"
     )
 
-    # But if we add more files, it should push them
+    # But if we add more files, it should pull them
+    record3 = Record(table_key="test_key3", file_bytes=b"file_content_3")
     await run(
-        args=["dolt-annex", "dataset", "insert-record",
-                "--dataset", "test",
-                "--table-name", "test_table",
-                "--key-columns", "test_key3",
-                "--file-bytes", "file_content_3",
-                "--repo", "test_remote"],
+        args=[
+            "dolt-annex", "dataset", "insert-record",
+            "--dataset", dataset_name,
+            "--table-name", table_name,
+            "--key-columns", record3.table_key,
+            "--file-bytes", record3.file_bytes,
+            "--repo", remote_name
+        ],
         expected_output_contains="Inserted row"
     )
     await run(
-        args=["dolt-annex", "pull", "--dataset", "test", "--remote", "test_remote"],
-        expected_output_contains="Pulled 1 files from remote test_remote"
+        args=[
+            "dolt-annex", "pull",
+            "--dataset", dataset_name,
+            "--remote", remote_name
+        ],
+        expected_output_contains=f"Pulled 1 files from remote {remote_name}"
     )
+
+    # Each file should be present in the local dataset and the local filestore.
+    records = [record1, record2, record3]
+    expected_files_keys = [bytes(Sha256e.from_bytes(record.file_bytes, extension="txt")) for record in records]
+    await run(
+        args=[
+            "dolt-annex", "dataset", "read-table",
+            "--dataset", dataset_name,
+            "--table-name", table_name,
+            "--columns", file_column,
+            "--columns", table_key_column
+        ],
+        expected_output_equals=''.join(f"{expected_files_keys[i].decode('utf-8')}, {record.table_key}\n" for i, record in enumerate(records)),
+    )
+    
+    for record, expected_file_key in zip(records, expected_files_keys):
+        await run(
+            args=[
+                "dolt-annex", "filestore", "export-file",
+                "--file-key", expected_file_key,
+            ],
+            expected_output_equals=record.file_bytes.decode('utf-8'),
+        )
 
 @pytest.mark.asyncio
 async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
