@@ -108,7 +108,7 @@ async def test_async_move(setup: EnvironmentForTest, temp_dir: pathlib.Path, fro
             assert await maybe_await(to_repo.filestore.exists(file_key))
             assert await to_repo.filestore.get_file_bytes(file_key) == await from_repo.filestore.get_file_bytes(file_key)
         # Check that db entries have been updated
-        for file_key, path in table.get_rows(to_repo.uuid, FILTERS):
+        for file_key, path in table.get_rows(to_repo.uuid):
             assert bytes(file_keys[int(path)]) == bytes(file_key, encoding='utf-8')
         # If the destination filestore is ArchiveFS, ensure that files are in multiple archives
         if isinstance(to_repo.filestore, ArchiveFS):

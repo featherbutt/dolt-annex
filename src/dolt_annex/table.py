@@ -128,8 +128,10 @@ class FileTable:
             return result[0]
         return None
     
-    def get_rows(self, uuid: UUID, filters: List[TableFilter]) -> Iterable[Tuple]:
-        query_sql = f"SELECT {self.schema.file_column}, " + ", ".join(self.schema.key_columns) + f" FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name}"
+    def get_rows(self, uuid: UUID, *, columns: List[str] = [], filters: List[TableFilter] = []) -> Iterable[Tuple]:
+        if not columns:
+            columns = [self.schema.file_column] + self.schema.key_columns
+        query_sql = f"SELECT {', '.join(columns)} FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name}"
         if filters:
             query_sql += " WHERE " + " AND ".join([f"{f.column_name} = %s" for f in filters])
             params = tuple(f.column_value for f in filters)

@@ -33,6 +33,13 @@ class ReadTable(cli.Application):
         mandatory = True
     )
 
+    columns = cli.SwitchAttr(
+        "--columns",
+        str,
+        list = True,
+        help="The columns to read. If not specified, reads all columns.",
+    )
+
     filters: List[TableFilter] = []
 
     @cli.switch(
@@ -63,7 +70,7 @@ class ReadTable(cli.Application):
         BATCH_SIZE = 1000 # Arbitrary batch size for this command
         async with Dataset.connect(base_config, BATCH_SIZE, dataset_schema) as dataset:
             table = dataset.get_table(self.table_name)
-            for row in table.get_rows(repo.uuid, self.filters):
+            for row in table.get_rows(repo.uuid, columns=self.columns, filters=self.filters):
                 print(", ".join(str(cell) for cell in row))
 
         return 0
