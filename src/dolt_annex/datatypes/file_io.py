@@ -24,11 +24,9 @@ from fs.osfs import OSFS
 class FileInfo:
     size: int | None
 
-# The following protocols describe various file-like objects
-# with different capabilities and sync/async behavior.
+# The following protocols describe various file-like objects with different capabilities.
 # Since different filestores have different requirements,
-# these protocols allow us to use the many different filestores
-# in a type-safe way.
+# these protocols allow us to use the many different filestores in a type-safe way.
 
 class AwaitOrEnter[T](Protocol):
     def __await__(self) -> Generator[None, None, T]: ...
@@ -39,16 +37,13 @@ class Closable(Protocol):
     def close(self) -> Awaitable[None]:
         ...
 
-
 class ReadableStream(Closable, Protocol):
     def read(self, size: int = -1, /) -> Awaitable[bytes]:
         ...
 
-
 class WritableStream(Closable, Protocol):
     def write(self, s: Buffer, /) -> Awaitable[int]:
         ...
-
 
 class ReadableFileObject(ReadableStream, Protocol):
     def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
@@ -101,11 +96,19 @@ def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
 type RefCountedFile = ReferenceCountedContextManager[ReadableFileObject]
 
 def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
+    """
+    Wrap a synchronous file object so it can be used asynchronously
+    or in an async context manager.
+    """
     async def async_file_io():
         return AsyncFileIO(fd, None, None)
     return AiofilesContextManager(async_file_io())
 
 class AsyncBytesIO(AsyncFileIO):
+    """
+    A wrapper around BytesIO that provides an asynchronous file interface,
+    while also providing access to the underlying bytes.
+    """
 
     data: bytes
 
