@@ -1,16 +1,21 @@
 from dataclasses import dataclass
 import os
 import pathlib
+from typing import List
 from uuid import UUID
 
 from typing_extensions import Dict, Iterable, Optional
 
 import fs.osfs
 from fs.base import FS as FileSystem
+from fs.info import Info
 
 from plumbum import cli # type: ignore
 
 from dolt_annex import importers
+from dolt_annex import filestore
+from dolt_annex.commands import CommandGroup
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
@@ -39,7 +44,7 @@ class ImportConfig:
 class Import(cli.Application):
     """Import a file or directory into the annex and database"""
 
-    parent: Application
+    parent: CommandGroup
 
     batch_size = cli.SwitchAttr(
         "--batch_size",
@@ -92,7 +97,7 @@ class Import(cli.Application):
     )
         
     async def main(self, *files_or_directories: str):
-        base_config = self.parent.config
+        base_config: Config = self.parent.config
 
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
@@ -109,9 +114,14 @@ class Import(cli.Application):
         )
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
-        async with Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset:
+        async with (
+            base_config.open_default_repo() as repo,
+            Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset,
+        ):
             importer = get_importer(*self.importer.split())
-            await do_import(base_config.get_filestore(), base_config.get_uuid(), import_config, dataset, importer, files_or_directories)
+            await do_import(repo.filestore, repo.uuid, import_config, dataset, importer, files_or_directories)
+
+        return 0
 
 async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
@@ -135,10 +145,12 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
         if directory_path is None:
             directory_path = Path(file_system, pathlib.Path('/'))
 
+        root: str
+        files: List[Info]
         for root, _, files in file_system.walk(os.fspath(directory_path)):
             root_path = Path(file_system, root)
             for file in files:
-                await import_file(root_path / file)
+                await import_file(root_path / file.name)
 
     async def import_file(path: Path):
         """Import a file into the annex"""

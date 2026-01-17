@@ -71,7 +71,7 @@ async def run(
         expected_output_equals: Optional[str] = None,
         expected_output_contains: Optional[str] = None,
         expected_output_does_not_contain: Optional[str] = None,
-        expected_exception: Optional[type[Exception]] = None,
+        expected_exception: Optional[type[BaseException]] = None,
         expected_error_code: int = 0
 ) -> None:
     """
@@ -104,22 +104,26 @@ async def run(
             tee = TextTee(captured_output, sys.stdout)
             stack.enter_context(contextlib.redirect_stdout(tee))
 
-        with pytest.RaisesGroup(expected_exception, flatten_subgroups=True) if expected_exception is not None else contextlib.nullcontext():
-            inst, continuation = cmd.run(arg_strings, exit=False)
-            error_code = await maybe_await(continuation)
-            assert error_code == expected_error_code, f"Command exited with code {error_code}"
-
-        output = captured_output.getvalue()
-
-        if expected_output_equals is not None:
-            assert output == expected_output_equals, f"Expected output:\n{expected_output_equals}\nGot:\n{output}"
-
-        if expected_output_contains is not None:
-            if expected_output_contains not in output:
-                raise AssertionError(f"Expected '{expected_output_contains}' in output, got: {output}")
+        if expected_exception is not None:
+            stack.enter_context(
+                pytest.RaisesGroup(expected_exception, flatten_subgroups=True, allow_unwrapped=True)
+            )
             
-        if expected_output_does_not_contain is not None and expected_output_does_not_contain in output:
-            raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
+        inst, continuation = cmd.run(arg_strings, exit=False)
+        error_code = await maybe_await(continuation)
+        assert error_code == expected_error_code, f"Command exited with code {error_code}"
+
+    output = captured_output.getvalue()
+
+    if expected_output_equals is not None:
+        assert output == expected_output_equals, f"Expected output:\n{expected_output_equals}\nGot:\n{output}"
+
+    if expected_output_contains is not None:
+        if expected_output_contains not in output:
+            raise AssertionError(f"Expected '{expected_output_contains}' in output, got: {output}")
+        
+    if expected_output_does_not_contain is not None and expected_output_does_not_contain in output:
+        raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
 
     
 async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:

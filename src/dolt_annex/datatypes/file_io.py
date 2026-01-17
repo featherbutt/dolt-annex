@@ -174,6 +174,10 @@ class Path:
 
     def hexdigest(self, name: Literal["sha256", "md5"]) -> str:
         return self.fs.hash(self.path.as_posix(), name=name)
+    
+    @property
+    def stem(self) -> str:
+        return self.path.stem
 
     @property
     def suffix(self) -> str:
@@ -187,7 +191,7 @@ class Path:
     def is_symlink(self, match_windows_shortcut: bool = True) -> bool:
         if match_windows_shortcut and self.path.suffix.lower() == '.lnk':
             return True
-        return self.fs.getinfo(self.path.as_posix()).is_link
+        return self.fs.getinfo(self.path.as_posix(), namespaces=['link']).is_link
 
     def readlink(self) -> Path:
         link_target = self.fs.getinfo(self.path.as_posix()).target
@@ -198,6 +202,7 @@ class Path:
     def name(self) -> str:
         return self.path.name
 
+    @property
     def parts(self) -> tuple[str, ...]:
         return self.path.parts
 
@@ -207,3 +212,6 @@ class Path:
         except fs.errors.ResourceNotFound:
             if not allow_missing:
                 raise
+
+    def __hash__(self) -> int:
+        return hash(self.path)

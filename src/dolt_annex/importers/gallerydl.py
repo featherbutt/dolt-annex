@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from pathlib import Path
 from typing_extensions import Optional, override
 
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.datatypes.file_io import Path
 from .base import Importer
 
 # Remove subcategory and sort keys when importing post

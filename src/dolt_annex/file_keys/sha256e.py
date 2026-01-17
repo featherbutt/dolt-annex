@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import hashlib
-from pathlib import Path
 from typing_extensions import Optional, Self, override
+
+from dolt_annex.datatypes.file_io import Path
 
 from .base import FileKey
 
@@ -23,12 +24,12 @@ class Sha256e(FileKey, prefix="SHA256E-"):
 
     @classmethod
     @override
-    def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
+    async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from the hash of a file."""
         if extension is None:
             extension = file_path.suffix[1:].lower() or None
-        with open(file_path, 'rb') as f:
-            data = f.read()
+        async with file_path.open('rb') as f:
+            data = await f.read()
         return cls.from_bytes(data, extension)
 
     @classmethod
