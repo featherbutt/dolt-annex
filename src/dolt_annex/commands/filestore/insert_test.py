@@ -15,10 +15,10 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
     key = Sha256e.from_bytes(b"new file content", "txt")
     await run(
         args=["dolt-annex", "filestore", "insert-file", "--file-bytes", "new file content"],
-        expected_output="Inserted file with key"
+        expected_output_contains="Inserted file with key"
     )
 
     assert await maybe_await(local_file_store.exists(key))
     async with local_file_store.with_file_object(key) as file_obj:
-        content = await maybe_await(file_obj.read())
+        content = await file_obj.inner.read()
         assert content == b"new file content"

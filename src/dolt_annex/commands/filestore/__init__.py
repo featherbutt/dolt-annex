@@ -1,6 +1,7 @@
 from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
+from dolt_annex.commands.filestore import export
 
 from . import insert, whereis, copy
 
@@ -14,3 +15,4 @@ class FilestoreSubcommand(CommandGroup, SubCommand):
 FilestoreSubcommand.subcommand("insert-file", insert.Insert)
 FilestoreSubcommand.subcommand("whereis", whereis.WhereIs)
 FilestoreSubcommand.subcommand("copy", copy.Copy)
+FilestoreSubcommand.subcommand("export-file", export.Export)

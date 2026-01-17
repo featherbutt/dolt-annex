@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import asyncio
-import os
-import sys
-
-
-import asyncssh
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
+from dolt_annex.datatypes.config import Config
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.logger import logger
 from dolt_annex.server.ssh import server_context
@@ -49,17 +44,18 @@ class Server(cli.Application):
 
     async def main(self, *args):
         """Entrypoint for server command"""
-        cas = ContentAddressableStorage.from_local(self.parent.config)
-        async with (
-            cas.open(self.parent.config),
-            server_context(
-                cas=cas,
-                host=self.host,
-                port=self.port,
-                authorized_keys=self.authorized_keys,
-                server_host_key=self.server_keyfile,
-            ) as server,
-        ):
-            logger.info(f'Serving over sftp at {self.host}:{self.port}')
-            await server.wait_closed()
+        config: Config = self.parent.config
+        async with config.open_default_repo() as repo:
+            cas = ContentAddressableStorage(repo.filestore, repo.key_format)
+            async with (
+                server_context(
+                    cas=cas,
+                    host=self.host,
+                    port=self.port,
+                    authorized_keys=self.authorized_keys,
+                    server_host_key=self.server_keyfile,
+                ) as server,
+            ):
+                logger.info(f'Serving over sftp at {self.host}:{self.port}')
+                await server.wait_closed()
 

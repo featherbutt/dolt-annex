@@ -4,7 +4,7 @@
 from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import filestore_copy
 
@@ -42,15 +42,15 @@ class Copy(SubCommand):
             return 1
 
         queried_key = FileKey(bytes(self.file_key, encoding='utf-8'))
-        from_repo = Repo.must_load(self.from_repo)
-        to_repo = Repo.must_load(self.to_repo)
+        from_repo = RepoModel.must_load(self.from_repo)
+        to_repo = RepoModel.must_load(self.to_repo)
         async with (
-            from_repo.filestore.open(self.config),
-            to_repo.filestore.open(self.config),
+            from_repo.filestore.open(self.config) as from_filestore,
+            to_repo.filestore.open(self.config) as to_filestore,
         ):
             await filestore_copy(
-                src=from_repo.filestore,
-                dst=to_repo.filestore,
+                src=from_filestore,
+                dst=to_filestore,
                 key=queried_key
             )
         

@@ -9,19 +9,15 @@ with the file key as the key and the file contents as the value.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from io import BytesIO
 import pathlib
-from typing_extensions import cast, override
+from typing_extensions import override
 
-
-
-
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_utils import Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
+from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileStore
+from .base import FileInfo, FileStore, FileStoreModel
 
 plyvel_imported = False
 try:
@@ -33,9 +29,43 @@ except ImportError:
 
 class LevelDB(FileStore):
 
-    root: pathlib.Path
+    db: plyvel.DB
 
-    _db: plyvel.DB = None
+    def __init__(self, *, db: plyvel.DB):
+        self.db = db
+
+    @override
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+        self.db.put(bytes(file_key), await maybe_await(in_fd.inner.read()))
+        return Result.of(None)
+
+    @override
+    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+        file_bytes = self.db.get(bytes(file_key))
+        if file_bytes is None:
+            raise FileNotFoundError(f"File with key {file_key} not found in annex.")
+        return AsyncBytesIO(file_bytes)
+    
+    @override
+    def stat(self, file_key: FileKey) -> FileInfo:
+        file_bytes = self.db.get(bytes(file_key))
+        if file_bytes is None:
+            raise FileNotFoundError(f"File with key {file_key} not found in annex.")
+        return FileInfo(size=len(file_bytes))
+
+    @override
+    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+        if not isinstance(file_obj, AsyncBytesIO):
+            raise TypeError("LevelDB.fstat was passed a file object that did not originate from this filestore.")
+        return FileInfo(size=len(file_obj.data))
+    
+    @override
+    def exists(self, file_key: FileKey) -> bool:
+        return self.db.get(bytes(file_key)) is not None
+
+class LevelDBModel(FileStoreModel):
+
+    root: pathlib.Path
 
     @override
     @asynccontextmanager
@@ -43,36 +73,7 @@ class LevelDB(FileStore):
         """Connect to a LevelDB database."""
         if not plyvel_imported:
             raise ImportError("plyvel is required for LevelDB filestore support. Please install dolt-annex with the 'leveldb' extra.")
-        if self._db:
-            yield
-            return
         
-        with plyvel.DB(self.root.as_posix(), create_if_missing=True) as self._db:
-            yield
-
-    @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
-        self._db.put(bytes(file_key), await maybe_await(in_fd.read()))
-
-    @override
-    def get_file_object(self, file_key: FileKey) -> FileObject:
-        file_bytes = self._db.get(bytes(file_key))
-        if file_bytes is None:
-            raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return BytesIO(file_bytes)
-    
-    @override
-    def stat(self, file_key: FileKey) -> FileInfo:
-        file_bytes = self._db.get(bytes(file_key))
-        if file_bytes is None:
-            raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return FileInfo(size=len(file_bytes))
-
-    @override
-    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-         b = cast(BytesIO, file_obj)
-         return FileInfo(size=len(b.getvalue()))
-    
-    @override
-    def exists(self, file_key: FileKey) -> bool:
-        return self._db.get(bytes(file_key)) is not None
+        self.root.mkdir(parents=True, exist_ok=True)
+        with plyvel.DB(self.root.as_posix(), create_if_missing=True) as db:
+            yield LevelDB(db=db)

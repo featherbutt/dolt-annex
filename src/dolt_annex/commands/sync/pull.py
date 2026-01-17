@@ -87,12 +87,10 @@ class Pull(cli.Application):
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
         remote_name = self.remote or base_config.dolt.default_remote
-        remote_repo = Repo.must_load(remote_name)
-        local_repo = base_config.get_default_repo()
 
         async with (
-            local_repo.filestore.open(base_config),
-            remote_repo.filestore.open(base_config),
+            base_config.open_default_repo() as local_repo,
+            Repo.open(base_config, remote_name) as remote_repo,
             Dataset.connect(self.parent.config, self.batch_size, dataset_schema) as dataset
         ):
             pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, None, self.ignore_missing)

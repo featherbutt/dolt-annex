@@ -16,6 +16,7 @@ from pathlib import Path
 import gallery_dl
 
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.table import Dataset
 
@@ -26,8 +27,8 @@ gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 
 @dataclass
 class GalleryDLContext:
+    repo: Repo
     dataset: Dataset
-    config: Config
     tasks: asyncio.TaskGroup
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
@@ -74,14 +75,14 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, batch_size: int, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
+async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
 
     async with Dataset.connect(config, db_batch_size=batch_size, dataset_schema=dataset_schema) as dataset:
         async with asyncio.TaskGroup() as tasks:
-            gallery_dl_context = GalleryDLContext(dataset=dataset, config=config, tasks=tasks)
+            gallery_dl_context = GalleryDLContext(repo=repo, dataset=dataset, tasks=tasks)
             with (
                 contextlib.redirect_stdout(gallery_dl_stdout),
                 contextlib.redirect_stderr(gallery_dl_stderr),

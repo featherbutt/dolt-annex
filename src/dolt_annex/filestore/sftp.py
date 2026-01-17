@@ -12,42 +12,45 @@ A single SFTP connection can only transfer one file at a time.
 
 # TODO: Add support for parallel connections to increase throughput.
 
-from contextlib import asynccontextmanager
+from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
+from dataclasses import dataclass
 import getpass
 import hashlib
 from pathlib import Path
+from typing import Self
 import asyncssh
-from typing_extensions import AsyncGenerator, cast, override
+from typing_extensions import AsyncGenerator, override
 
+from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.file_io import FileObject, ReadableFileObject
+from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileStore, copy
+from .base import FileInfo, FileStore, FileStoreModel, copy
 
+@dataclass
 class SftpFileStore(FileStore):
 
-    connection: SSHConnection
-
-    _sftp: asyncssh.SFTPClient = None
+    sftp: asyncssh.SFTPClient
 
     @override
-    async def put_file_object(self, in_fd: ReadableFileObject, file_key: FileKey) -> None:
+    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        await self._sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
-        async with self._sftp.open(remote_file_path, 'wb') as out_fd:
-            await copy(src=in_fd, dst=out_fd)
+        await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
+        async with self.sftp.open(remote_file_path, 'wb') as out_fd:
+            await copy(src=in_fd.inner, dst=out_fd)
+        return Result.of(None)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> FileObject:
+    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return await self._sftp.open(remote_file_path, 'rb').__aenter__()
+        return await self.sftp.open(remote_file_path, 'rb')
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
@@ -56,43 +59,13 @@ class SftpFileStore(FileStore):
 
     @override
     async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
-        sftp_file_obj = cast(asyncssh.SFTPClientFile, file_obj)
-        stat_result = await sftp_file_obj.stat()
+        if not isinstance(file_obj, asyncssh.SFTPClientFile):
+            raise TypeError("SftpFileStore.fstat was passed a file object that did not originate from this filestore.")
+        stat_result = await file_obj.stat()
         return FileInfo(size=stat_result.size)
-
-
-    @override
-    @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[None, None]:
-        """Connect to an SFTP filestore."""
-
-        if self._sftp is None:
-            extra_opts = {}
-            if self.connection.key_is_encrypted:
-                passphrase = getpass.getpass("Enter passphrase for SSH key: ")
-                extra_opts["passphrase"] = passphrase
-            
-            client_keys = []
-            if self.connection.client_key is not None:
-                client_keys.append(self.connection.client_key)
-
-            async with asyncssh.connect(
-                host=self.connection.hostname,
-                port=self.connection.port,
-                known_hosts=None,
-                subsystem="sftp",
-                config=resolve_path(config.ssh.ssh_config),
-                client_keys=client_keys,
-                **extra_opts
-            ) as conn:
-                async with conn.start_sftp_client() as self._sftp:
-                    await self._sftp.chdir(self.connection.path.as_posix())
-                    yield
-        else:
-            yield
     
     @override
-    async def flush(self):
+    def flush(self):
         pass
 
     def get_key_path(self, key: FileKey) -> Path:
@@ -111,7 +84,43 @@ class SftpFileStore(FileStore):
         try:
             # We don't call SFTPClient.exists because it checks for the type attribute,
             # which does not exist prior to SFTP protocol version 4.
-            stat = await self._sftp.stat(self.get_key_path(file_key).as_posix())
+            stat = await self.sftp.stat(self.get_key_path(file_key).as_posix())
             return bool(stat)
         except asyncssh.SFTPNoSuchFile:
             return False
+
+    @classmethod
+    @asynccontextmanager
+    async def open(cls, connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
+        """Connect to an SFTP filestore."""
+        extra_opts = {}
+        if connection.key_is_encrypted:
+            passphrase = getpass.getpass("Enter passphrase for SSH key: ")
+            extra_opts["passphrase"] = passphrase
+        
+        client_keys = []
+        if connection.client_key is not None:
+            client_keys.append(connection.client_key)
+
+        async with asyncssh.connect(
+            host=connection.hostname,
+            port=connection.port,
+            known_hosts=None,
+            subsystem="sftp",
+            config=resolve_path(config.ssh.ssh_config),
+            client_keys=client_keys,
+            **extra_opts
+        ) as conn:
+            async with conn.start_sftp_client() as sftp:
+                await sftp.chdir(connection.path.as_posix())
+                filestore = cls(sftp)
+                yield filestore
+        
+class SftpFileStoreModel(FileStoreModel):
+    
+    connection: SSHConnection
+
+    @override
+    def open(self, config: Config) -> _AsyncGeneratorContextManager[SftpFileStore]:
+        """Connect to an SFTP filestore."""
+        return SftpFileStore.open(self.connection, config)

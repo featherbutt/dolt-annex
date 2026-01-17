@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from asyncio import Future
 import os
 import pathlib
 import tempfile
+from typing import cast
 from typing_extensions import Any, Optional, override
 
 import asyncssh
@@ -12,10 +14,10 @@ import fs.osfs
 from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.file_io import ReadableFileObject, Path
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.logger import logger
-from dolt_annex.datatypes.file_io import Path, FileObject, ReadableFileObject
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class SFTPServer(asyncssh.SFTPServer):
@@ -121,36 +123,54 @@ class SFTPServer(asyncssh.SFTPServer):
             # If create flag is not set, read must be set.
             return await self.open_file_for_read(key)
         
-    async def create_file(self, key: FileKey) -> FileObject:
+    async def create_file(self, key: FileKey) -> NewFileHandle:
         if await maybe_await(self.cas.file_store.exists(key)):
             raise asyncssh.SFTPOpUnsupported(f"File {key} already exists, and overwriting existing files is not supported")
 
-        return NewFileHandle(self.temp_file_system, self.cas, key)
+        return await NewFileHandle.create(self.temp_file_system, self.cas, key)
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
         return await maybe_await(self.cas.file_store.get_file_object(key))
-        
+    
+    # The default implementations of read and write assume that file_obj.seek is synchronous.
+    # However, the file objects may have async seek methods.
+    @override
+    async def read(self, file_obj: object, offset: int, size: int) -> bytes:
+        file_obj = cast(ReadableFileObject, file_obj)
+        await file_obj.seek(offset)
+        return await file_obj.read(size)
+
+    @override
+    async def write(self, file_obj: object, offset: int, data: bytes) -> int:
+        file_obj = cast(NewFileHandle, file_obj)
+        await file_obj.seek(offset)
+        return await file_obj.write(data)
+    
     @override
     async def close(self, file_obj: Any) -> None:
         if not isinstance(file_obj, NewFileHandle):
             await maybe_await(file_obj.close())
             return
         
-        file_obj.writefile.seek(0)
+        await file_obj.writefile.seek(0)
 
-        actual_key = self.cas.file_key_format.from_fo(file_obj.writefile, file_obj.suffix)
+        actual_key = await self.cas.file_key_format.from_fo(file_obj.writefile, file_obj.suffix)
         if actual_key != file_obj.key:
             raise ValueError(f"Supplied key {file_obj.key} does not match the computed key {actual_key}")
         
         # Close the file handle
-        file_obj.close()
+        await file_obj.close()
 
         # Move the file to the annex location
         # When calling, indicate whether file is being moved, deleted, or neither.
-        await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.writefile.name).name), file_key=file_obj.key))
+        result = await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key))
+        
         # Delete the temporary file unless put_file moved it.
-        if os.path.exists(file_obj.writefile.name):
-            os.remove(file_obj.writefile.name)
+        def delete_temp_file(_: Future[None]) -> None:
+            if os.path.exists(file_obj.name):
+                os.remove(file_obj.name)
+        result.future.add_done_callback(delete_temp_file)
+        await result.wait_for_complete()
 
     @override
     async def stat(self, path: bytes) -> asyncssh.SFTPAttrs:
@@ -200,7 +220,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
         if isinstance(file_obj, NewFileHandle):
-            file_info = file_obj.file_info
+            file_info = await file_obj.file_info
         else:
             file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(

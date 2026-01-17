@@ -1,42 +1,120 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from __future__ import annotations
 
+from collections.abc import Awaitable
 import contextvars
 from dataclasses import dataclass
+from io import BytesIO
+import os
 import pathlib
-
 from types import TracebackType
-from typing_extensions import BinaryIO, Protocol, Self, cast, Buffer, Literal
+from aiofiles.threadpool.binary import AsyncFileIO
+from aiofiles.base import AiofilesContextManager
+from typing_extensions import BinaryIO, Final, Protocol, Self, Buffer, Literal, Generator
 
 import fs.move
+import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable
 
 @dataclass
 class FileInfo:
     size: int | None
 
-class BaseFileObject(Protocol):
-    def close(self) -> MaybeAwaitable[None]:
+# The following protocols describe various file-like objects with different capabilities.
+# Since different filestores have different requirements,
+# these protocols allow us to use the many different filestores in a type-safe way.
+
+class AwaitOrEnter[T](Protocol):
+    def __await__(self) -> Generator[None, None, T]: ...
+    def __aenter__(self) -> Awaitable[T]: ...
+    def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> Awaitable[None]: ...
+
+class Closable(Protocol):
+    def close(self) -> Awaitable[None]:
         ...
 
-    def __enter__(self) -> Self:
+class ReadableStream(Closable, Protocol):
+    def read(self, size: int = -1, /) -> Awaitable[bytes]:
         ...
 
-    def __exit__(self, type: type[BaseException] | None, value: BaseException | None, traceback: TracebackType | None, /) -> None:
+class WritableStream(Closable, Protocol):
+    def write(self, s: Buffer, /) -> Awaitable[int]:
         ...
 
-class ReadableFileObject(BaseFileObject, Protocol):
-    def read(self, size: int = -1, /) -> MaybeAwaitable[bytes]:
+class ReadableFileObject(ReadableStream, Protocol):
+    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
         ...
 
-class WritableFileObject(BaseFileObject, Protocol):
-    def write(self, s: Buffer, /) -> MaybeAwaitable[int]:
+    def tell(self) -> Awaitable[int]:
         ...
 
-class FileObject(ReadableFileObject, WritableFileObject, Protocol):
-    pass
+class WritableFileObject(WritableStream, ReadableFileObject, Protocol):
+    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
+        ...
+
+    def tell(self) -> Awaitable[int]:
+        ...
+
+class ReferenceCountedContextManager[T: Closable]:
+    """
+    A context manager that keeps track of how many active references there are to an object,
+    and only closes the inner object when all references have been released.
+    
+    This is useful for file-like objects that need to be shared across multiple async tasks,
+    and ensures that files are always closed but never closed early.
+
+    Because we do not know if the underlying Closable is synchronous or asynchronous,
+    this class only provides asynchronous context management.
+    """
+
+    inner: Final[T]
+
+    def __init__(self, inner: T) -> None:
+        self.inner = inner
+        self._count = 0
+
+    async def __aenter__(self) -> Self:
+        self._count += 1
+        return self
+
+    async def __aexit__(self, *exc_info) -> None:
+        self._count -= 1
+        if self._count == 0:
+            await self.inner.close()
+
+def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
+    """Create a ReferenceCountedContextManager for the given object."""
+    if isinstance(inner, ReferenceCountedContextManager):
+        return inner
+    else:
+        return ReferenceCountedContextManager(inner)
+
+type RefCountedFile = ReferenceCountedContextManager[ReadableFileObject]
+
+def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
+    """
+    Wrap a synchronous file object so it can be used asynchronously
+    or in an async context manager.
+    """
+    async def async_file_io():
+        return AsyncFileIO(fd, None, None)
+    return AiofilesContextManager(async_file_io())
+
+class AsyncBytesIO(AsyncFileIO):
+    """
+    A wrapper around BytesIO that provides an asynchronous file interface,
+    while also providing access to the underlying bytes.
+    """
+
+    data: bytes
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__(BytesIO(data), None, None)
+        self.data = data
 
 file_system_context = contextvars.ContextVar[FS]("file_system_context", default=OSFS('.'))
 @dataclass
@@ -68,9 +146,15 @@ class Path:
 
     def exists(self) -> bool:
         return self.fs.exists(self.path.as_posix())
+
+    def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
+        return async_open(self.open_sync(mode=mode))
+
+    def open_sync(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> BinaryIO:
+        return self.fs.openbin(self.path.as_posix(), mode)
     
-    def open(self, mode: Literal['rb', 'wb'] = 'rb') -> BinaryIO:
-        return cast(BinaryIO, self.fs.open(self.path.as_posix(), mode))
+    def touch(self) -> None:
+        self.fs.create(self.path.as_posix())
 
     @property
     def parent(self) -> Path:
@@ -87,10 +171,14 @@ class Path:
 
     def stat(self) -> FileInfo:
         return FileInfo(size=self.fs.getinfo(self.path.as_posix(), namespaces=['details']).size)
-    
+
     def hexdigest(self, name: Literal["sha256", "md5"]) -> str:
         return self.fs.hash(self.path.as_posix(), name=name)
     
+    @property
+    def stem(self) -> str:
+        return self.path.stem
+
     @property
     def suffix(self) -> str:
         """
@@ -99,20 +187,31 @@ class Path:
         This includes the leading period. For example: '.txt'
         """
         return self.path.suffix
-    
+
     def is_symlink(self, match_windows_shortcut: bool = True) -> bool:
         if match_windows_shortcut and self.path.suffix.lower() == '.lnk':
             return True
-        return self.fs.getinfo(self.path.as_posix()).is_link
-    
+        return self.fs.getinfo(self.path.as_posix(), namespaces=['link']).is_link
+
     def readlink(self) -> Path:
         link_target = self.fs.getinfo(self.path.as_posix()).target
         assert link_target is not None, "Path is not a symlink"
         return Path(self.fs, link_target)
-    
+
     @property
     def name(self) -> str:
         return self.path.name
-    
+
+    @property
     def parts(self) -> tuple[str, ...]:
         return self.path.parts
+
+    def delete(self, *, allow_missing: bool = False) -> None:
+        try:
+            self.fs.remove(self.path.as_posix())
+        except fs.errors.ResourceNotFound:
+            if not allow_missing:
+                raise
+
+    def __hash__(self) -> int:
+        return hash(self.path)

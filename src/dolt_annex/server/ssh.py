@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 from typing_extensions import Optional
 
 from dolt_annex.filestore.cas import ContentAddressableStorage
@@ -17,7 +18,7 @@ async def server_context(
     port: int,
     authorized_keys: Optional[str] = None,
     server_host_key: Optional[str] = None,
-):
+) -> AsyncGenerator[asyncssh.SSHServer]:
 
     def make_server(chan: asyncssh.SSHServerChannel):
         return SFTPServer(chan, cas)
