@@ -19,7 +19,6 @@ class WhereIs(SubCommand):
         mandatory = True
     )
 
-    # TODO: Allow specifying a repo by UUID, or leaving blank to search all repos
     repo = cli.SwitchAttr(
         "--repo",
         str,
