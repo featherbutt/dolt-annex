@@ -22,13 +22,8 @@ RUN /usr/local/bin/dolt version
 COPY src/ /src/
 RUN pip install -e "/src[leveldb]"
 
-ENV DA_DOLT_DIR="/repo/dolt" \
-    DA_SPAWN_DOLT_SERVER=false \
-    DA_DOLT_DB="dolt" \
-    DA_EMAIL="anonymous@localhost" \
-    DA_NAME="anonymous" \
-    DA_ANNEX_COMMIT_MESSAGE="update dolt-annex"
-
+ENV DA_SERVER_LOGFILE="/repo/server.log" \
+    DA_SERVER_ERR_LOGFILE="/repo/server.err.log"
 RUN mkdir /repo && mkdir /repo/db && mkdir /repo/filestore
 
 VOLUME [ "/repo/" ]
