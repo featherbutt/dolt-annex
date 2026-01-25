@@ -36,7 +36,7 @@ class LevelDB(FileStore):
 
     @override
     async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
-        self.db.put(bytes(file_key), await maybe_await(in_fd.inner.read()))
+        self.db.put(bytes(file_key), await maybe_await(in_fd.inner.read()), sync=True)
         return Result.of(None)
 
     @override
