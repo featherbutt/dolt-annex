@@ -79,9 +79,9 @@ class SyncOperation:
                 raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
             await self.table.flush()
 
-    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[FileKey, TableRow]]) -> bool:
+    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow]]) -> bool:
         has_more = False
-        for key, table_row in keys_and_submissions:
+        for diff_type, key, table_row in keys_and_submissions:
             has_more = True
             await self.work_queue.put((key, table_row))
         return has_more
@@ -157,11 +157,7 @@ async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: 
     # TODO: This only returns the files moved in the last table.
     return sync_op.files_moved
 
-
-
-
-
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[FileKey, TableRow]]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}-{dataset_name}"
@@ -181,8 +177,8 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: s
         else:
             query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
         # TODO: Wrap this in a helper function
-        for (annex_key, _, *key_parts) in query_results:
-            yield (FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
+        for (annex_key, diff_type, *key_parts) in query_results:
+            yield (diff_type, FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
 
 def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
     """
