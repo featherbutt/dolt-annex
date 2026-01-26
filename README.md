@@ -22,7 +22,7 @@ An unrelated scaling issue for git-annex is that the standard git client creates
 
 dolt-annex depends on [Dolt](https://github.com/dolthub/dolt). Dolt can be installed locally, or dolt-annex can connect to a running Dolt server.
 
-Python 3.10+ is required.
+Python 3.13+ is required.
 
 ## Installation
 
