@@ -20,19 +20,19 @@ class WhereIs(SubCommand):
     )
         
     async def main(self, *args) -> int:
-        for file_key in args or sys.stdin.readlines():
-            queried_key = FileKey(bytes(file_key.strip(), encoding='utf-8'))
-            locations = []
-            if self.repo:
-                repo_models = [RepoModel.must_load(self.repo)]
-            else:
-                repo_models = RepoModel.all()
+        if self.repo:
+            repo_models = [RepoModel.must_load(self.repo)]
+        else:
+            repo_models = RepoModel.all()
 
-            for repo in repo_models:
-                async with repo.filestore.open(self.parent.config) as filestore:
+        for repo in repo_models:
+            async with repo.filestore.open(self.parent.config) as filestore:
+                for file_key in args or sys.stdin.readlines():
+                    locations = []
+                    queried_key = FileKey(bytes(file_key.strip(), encoding='utf-8'))
                     if await maybe_await(filestore.exists(queried_key)):
                         locations.append({"name": repo.name, "uuid": str(repo.uuid)})
 
-            print(json.dumps(locations))
+                    print(json.dumps(locations))
         
         return 0
