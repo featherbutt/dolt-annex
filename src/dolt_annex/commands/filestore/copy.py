@@ -4,6 +4,7 @@
 import sys
 from plumbum import cli # type: ignore
 
+from dolt_annex.logger import logger
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
@@ -46,5 +47,6 @@ class Copy(SubCommand):
                     key=queried_key
                 )
                 await result.wait_for_complete()
+                logger.info(f"Copied key {queried_key} from repo {from_repo.name} to repo {to_repo.name}")
         
         return 0
