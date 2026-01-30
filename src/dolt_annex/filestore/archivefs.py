@@ -61,6 +61,9 @@ class ArchiveFS(FileStore):
             workers.create_task(self._worker_loop(archive_file))
 
     async def _worker_loop(self, archive_file: Path) -> None:
+        # TODO: If the application previously terminated suddenly, the archive may
+        # end with an incomplete entry. This is fine. We can seek to the start of
+        # the incomplete entry, and it will be overwritten by the next insert.
         if not archive_file.exists() or archive_file.stat().size == 0:
             archive_fd_sync = archive_file.open_sync('wb')
             archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')

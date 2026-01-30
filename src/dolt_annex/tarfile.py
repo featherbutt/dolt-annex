@@ -1,6 +1,5 @@
 from tarfile import TarFile, TarInfo, BLOCKSIZE, NUL
 
-from dolt_annex.datatypes.async_utils import maybe_await
 from dolt_annex.datatypes.file_io import ReadableFileObject, WritableFileObject
 from dolt_annex.filestore.base import copy
 
