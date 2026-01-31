@@ -1,9 +1,9 @@
 from tarfile import TarFile, TarInfo, BLOCKSIZE, NUL
 
-from dolt_annex.datatypes.file_io import ReadableFileObject, WritableFileObject
+from dolt_annex.datatypes.file_io import ReadableStream, WritableFileObject
 from dolt_annex.filestore.base import copy
 
-async def addfile(tarfile: TarFile, tarinfo: TarInfo, tarfile_fd: WritableFileObject, input_fileobj: ReadableFileObject):
+async def addfile(tarfile: TarFile, tarinfo: TarInfo, tarfile_fd: WritableFileObject, input_fileobj: ReadableStream):
     """Add the TarInfo object 'tarinfo' to the archive. If 'tarinfo' represents
         a non zero-size regular file, the 'fileobj' argument should be a binary file,
         and tarinfo.size bytes are read from it and added to the archive.

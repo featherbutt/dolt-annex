@@ -93,7 +93,7 @@ def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
     else:
         return ReferenceCountedContextManager(inner)
 
-type RefCountedFile = ReferenceCountedContextManager[ReadableFileObject]
+type RefCountedFile = ReferenceCountedContextManager[ReadableStream]
 
 def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
     """

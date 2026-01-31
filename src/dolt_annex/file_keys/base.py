@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Dict
 from typing_extensions import Optional, Self
 
-from dolt_annex.datatypes.file_io import ReadableFileObject, Path
+from dolt_annex.datatypes.file_io import ReadableFileObject, Path, ReadableStream
 
 @dataclass
 class FileKey:

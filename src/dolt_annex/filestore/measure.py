@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import FileInfo, RefCountedFile
+from dolt_annex.datatypes.file_io import FileInfo, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import FileStoreModel, MaybeAwaitable, ReadableFileObject
@@ -64,7 +64,7 @@ class Measure(FileStore):
          return self.child.stat(file_key)
 
     @override
-    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableStream) -> MaybeAwaitable[FileInfo]:
          return self.child.fstat(file_obj)
 
 class MeasureModel(FileStoreModel):

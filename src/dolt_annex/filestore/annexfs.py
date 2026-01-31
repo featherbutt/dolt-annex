@@ -23,7 +23,7 @@ import fs.osfs
 
 from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import Path, ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import Path, ReadableFileObject, RefCountedFile, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle
@@ -68,7 +68,7 @@ class AnnexFS(FileStore):
         return self.get_key_path(file_key).stat()
 
     @override
-    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, ExistingFileHandle):
             raise TypeError("AnnexFS.fstat was passed a file object that did not originate from this filestore.")
         return file_obj.file_info

@@ -10,7 +10,7 @@ from typing_extensions import override
 
 from dolt_annex.datatypes.async_utils import Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 
@@ -59,7 +59,7 @@ class MemoryFS(FileStore):
         return FileInfo(size=len(self.files[bytes(file_key)]))
 
     @override
-    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("MemoryFS.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))

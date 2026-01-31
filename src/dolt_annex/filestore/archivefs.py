@@ -21,7 +21,7 @@ import fs.osfs
 
 from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import ReadableFileObject, Path, RefCountedFile, async_open
+from dolt_annex.datatypes.file_io import Path, RefCountedFile, ReadableStream, async_open
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 from dolt_annex.tarfile import addfile
@@ -127,7 +127,7 @@ class ArchiveFS(FileStore):
         return file_obj.file_info
 
     @override
-    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, ExistingFileHandle):
             raise TypeError("ArchiveFS.fstat was passed a file object that did not originate from this filestore.")
 
