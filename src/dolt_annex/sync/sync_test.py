@@ -12,13 +12,15 @@ import pytest_asyncio
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo
+from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFS, ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
-from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressableStorageKeyMismatchError
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
+from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.table import Dataset
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_config, test_dataset_schema
@@ -55,10 +57,11 @@ async def from_repo_and_keys(request, temp_dir, base_config):
         )
         # Create random files to move in parallel
         NUM_FILES = 5
-        file_keys = []
+        file_keys: list[FileKey] = []
         for _ in range(NUM_FILES):
             file_bytes = random.randbytes(1024**2) # 1 MB
-            file_key = await cas.put_file_bytes(file_bytes)
+            file_key_result = await cas.put_file_bytes(file_bytes)
+            file_key = await file_key_result.wait_for_complete()
             file_keys.append(file_key)
         yield repo, file_keys
 
@@ -76,6 +79,51 @@ async def to_repo(request, temp_dir, base_config):
         )
         yield repo
 
+
+@pytest.mark.asyncio
+async def test_detect_corruption(setup: EnvironmentForTest, temp_dir: pathlib.Path):
+    file_key = Sha256e.from_bytes(b"existing data")
+    from_repo_model = MemoryFSModel(files={bytes(file_key): b"corrupted data"})
+    to_repo_model = MemoryFSModel()
+    async with (
+        from_repo_model.open(test_config) as from_filestore,
+        to_repo_model.open(test_config) as to_filestore
+    ):
+        from_repo = Repo(
+            "from_repo",
+            uuid.uuid4(),
+            from_filestore,
+            Sha256e,
+        )
+        to_repo = Repo(
+            "to_repo",
+            uuid.uuid4(),
+            to_filestore,
+            Sha256e,
+        )
+        BATCH_SIZE = 1000 # Arbitrary batch size for this command
+        FILTERS = [] # Allow for any setup delays
+        async with Dataset.connect(test_config, BATCH_SIZE, test_dataset_schema) as dataset:
+            # TODO: handle initializing branches automatically
+            dataset.dolt.initialize_dataset_source(test_dataset_schema, from_repo.uuid)
+            dataset.dolt.initialize_dataset_source(test_dataset_schema, to_repo.uuid)
+            # Add entries to from_repo database
+            table = dataset.get_table("test_table")
+            await table.insert_file_source(
+                TableRow(("0",)),
+                file_key,
+                from_repo.uuid,
+            )
+
+            await table.flush()
+            with pytest.RaisesGroup(ContentAddressableStorageKeyMismatchError, flatten_subgroups=True, allow_unwrapped=True):
+                await move_dataset(
+                    dataset,
+                    from_repo,
+                    to_repo,
+                    FILTERS,
+                )
+            
 
 @pytest.mark.asyncio
 async def test_async_move(setup: EnvironmentForTest, temp_dir: pathlib.Path, from_repo_and_keys: tuple[Repo, list[Sha256e]], to_repo: Repo):
