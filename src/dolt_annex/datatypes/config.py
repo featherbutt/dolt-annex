@@ -20,6 +20,8 @@ class DoltConfig(StrictBaseModel):
     default_remote: str = "origin"
     default_commit_message: str = "update dolt-annex"
     connection: MySQLConnection = MySQLConnection()
+    # TODO: Set this to false by default? Or implement a smarter way to detect
+    # if a server is running e.g. detecting if the socket exists yet.
     spawn_dolt_server: bool = True
     dolt_dir: Path = Path("dolt")
 
