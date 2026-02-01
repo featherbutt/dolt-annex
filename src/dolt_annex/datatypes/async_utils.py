@@ -30,6 +30,17 @@ class Result[T]:
     
     async def wait_for_complete(self) -> T:
         return await self.future
+    
+    def map[S](self, func: Callable[[T], S]) -> 'Result[S]':
+        new_future: Future[S] = Future()
+
+        async def _map() -> None:
+            result = await self.future
+            new_value = func(result)
+            new_future.set_result(new_value)
+
+        asyncio.create_task(_map())
+        return Result(new_future)
 
 def await_or_enter[T: Closable, **P](coro: Callable[P, AsyncGenerator[T, None]]) -> Callable[P, AwaitOrEnter[T]]:
     """
