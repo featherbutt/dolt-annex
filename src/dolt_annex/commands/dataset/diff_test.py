@@ -9,7 +9,7 @@ from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
-async def test_push_local(tmp_path, setup: EnvironmentForTest):
+async def test_diff(tmp_path, setup: EnvironmentForTest):
 
     dataset_name = test_dataset_schema.name
     table_name = test_dataset_schema.tables[0].name

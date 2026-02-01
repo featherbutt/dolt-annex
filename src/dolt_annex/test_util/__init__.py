@@ -34,10 +34,6 @@ class EnvironmentForTest:
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
 
-# Arbitrary UUIDs for local and remote repos
-local_uuid = uuid.UUID("3fca31d9-f0dd-424e-b0e9-3cd4a26e9d68")
-remote_uuid = uuid.UUID("36b60d94-fbdf-476b-9479-f0abc61fa5ba")
-
 test_config = Config(
     user=UserConfig(
         name="A U Thor",
@@ -126,16 +122,3 @@ async def run(
         raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
 
     
-async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
-    annex_fs_model = MemoryFSModel()
-    repo = RepoModel(
-        name=name,
-        uuid=uuid,
-        key_format=Sha256e,
-        filestore= annex_fs_model
-    )
-    annex_fs = MemoryFS(files=annex_fs_model.files)
-    cas = ContentAddressableStorage(annex_fs, Sha256e)
-    for file_content in files:
-        await cas.put_file_bytes(file_content)
-    return cas

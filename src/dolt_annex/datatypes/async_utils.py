@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from typing_extensions import Self
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ReadableStream
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable
 
 class Result[T]:
     """
