@@ -12,9 +12,10 @@ from contextlib import asynccontextmanager
 import pathlib
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_utils import Result, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.file_io import AsyncBytesIO
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel

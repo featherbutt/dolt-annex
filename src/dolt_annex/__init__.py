@@ -8,7 +8,7 @@ from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
 from dolt_annex.commands.filestore import FilestoreSubcommand
 
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from .application import Application
 
 # gallery-dl postprocessor callbacks must be in the top level package, so we import them here

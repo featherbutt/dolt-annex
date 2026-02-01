@@ -3,7 +3,7 @@ from typing import Optional
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable
+from dolt_annex.datatypes.async_types import MaybeAwaitable
 from dolt_annex.datatypes.config import Config
 
 class Command(cli.Application):

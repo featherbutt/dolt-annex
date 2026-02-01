@@ -3,61 +3,25 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
 import contextvars
 from dataclasses import dataclass
 from io import BytesIO
-import os
 import pathlib
-from types import TracebackType
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
-from typing_extensions import BinaryIO, Final, Protocol, Self, Buffer, Literal, Generator
+from typing_extensions import BinaryIO, Final, Self, Literal
 
 import fs.move
 import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
+from dolt_annex.datatypes.async_types import AwaitOrEnter, Closable, MaybeAwaitable, ReadableStream, maybe_await
+
 
 @dataclass
 class FileInfo:
     size: int | None
-
-# The following protocols describe various file-like objects with different capabilities.
-# Since different filestores have different requirements,
-# these protocols allow us to use the many different filestores in a type-safe way.
-
-class AwaitOrEnter[T](Protocol):
-    def __await__(self) -> Generator[None, None, T]: ...
-    def __aenter__(self) -> Awaitable[T]: ...
-    def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> Awaitable[None]: ...
-
-class Closable(Protocol):
-    def close(self) -> Awaitable[None]:
-        ...
-
-class ReadableStream(Closable, Protocol):
-    def read(self, size: int = -1, /) -> Awaitable[bytes]:
-        ...
-
-class WritableStream(Closable, Protocol):
-    def write(self, s: Buffer, /) -> Awaitable[int]:
-        ...
-
-class ReadableFileObject(ReadableStream, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
-        ...
-
-    def tell(self) -> Awaitable[int]:
-        ...
-
-class WritableFileObject(WritableStream, ReadableFileObject, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
-        ...
-
-    def tell(self) -> Awaitable[int]:
-        ...
 
 class ReferenceCountedContextManager[T: Closable]:
     """
@@ -117,6 +81,7 @@ class AsyncBytesIO(AsyncFileIO):
         self.data = data
 
 file_system_context = contextvars.ContextVar[FS]("file_system_context", default=OSFS('.'))
+
 @dataclass
 class Path:
     """

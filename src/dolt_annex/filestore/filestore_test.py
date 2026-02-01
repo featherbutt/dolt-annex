@@ -14,7 +14,7 @@ import asyncssh
 import fs.memoryfs
 
 from dolt_annex import test_util
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.file_keys.sha256e import Sha256e

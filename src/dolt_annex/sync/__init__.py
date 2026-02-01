@@ -7,16 +7,18 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing_extensions import Iterable, Optional, Tuple, List
+
+from dolt_annex.datatypes import TableRow
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
-
+from dolt_annex.datatypes.table import FileTableSchema
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.base import filestore_copy, maybe_await
+from dolt_annex.filestore.cas import filestore_copy
 from dolt_annex.table import Dataset, FileTable, TableFilter
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import TableRow
 from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.datatypes.table import FileTableSchema
+
 
 class SyncOperation:
     table: FileTable

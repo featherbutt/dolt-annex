@@ -13,8 +13,8 @@ from asyncssh.misc import MaybeAwait
 import fs.osfs
 from fs.base import FS as FileSystem
 
-from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import ReadableFileObject, Path
+from dolt_annex.datatypes.async_types import maybe_await, ReadableFileObject
+from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.logger import logger

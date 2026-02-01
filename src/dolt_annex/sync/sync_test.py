@@ -9,7 +9,7 @@ import random
 
 import pytest_asyncio
 
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.sha256e import Sha256e

@@ -2,15 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from asyncio import Future
-import inspect
-from typing_extensions import Awaitable, Self
+import asyncio
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
+from typing_extensions import Self
 
-type MaybeAwaitable[T] = T | Awaitable[T]
-
-async def maybe_await[U](v: MaybeAwaitable[U]) -> U:
-    if inspect.isawaitable(v):
-        return await v
-    return v
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ReadableStream
 
 class Result[T]:
     """

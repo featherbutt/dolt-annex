@@ -19,9 +19,10 @@ from typing_extensions import override, Tuple
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
+from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import Path, RefCountedFile, ReadableStream, async_open
+from dolt_annex.datatypes.file_io import Path, async_open
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 from dolt_annex.tarfile import addfile

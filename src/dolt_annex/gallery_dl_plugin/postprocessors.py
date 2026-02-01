@@ -16,7 +16,7 @@ from gallery_dl.util import json_default
 
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.file_keys import Sha256e
 from dolt_annex.filestore import FileStore
 from dolt_annex.table import Dataset, FileTable

@@ -5,8 +5,8 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing_extensions import override, Any
 
-from dolt_annex.datatypes.async_utils import Result
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.async_utils import FileStream, Result, await_or_enter
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await

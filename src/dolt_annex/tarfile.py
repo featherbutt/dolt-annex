@@ -1,6 +1,6 @@
 from tarfile import TarFile, TarInfo, BLOCKSIZE, NUL
 
-from dolt_annex.datatypes.file_io import ReadableStream, WritableFileObject
+from dolt_annex.datatypes.async_types import ReadableStream, WritableFileObject
 from dolt_annex.filestore.base import copy
 
 async def addfile(tarfile: TarFile, tarinfo: TarInfo, tarfile_fd: WritableFileObject, input_fileobj: ReadableStream):

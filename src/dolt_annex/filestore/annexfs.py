@@ -21,9 +21,10 @@ from typing_extensions import override
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import Path, ReadableFileObject, RefCountedFile, ReadableStream
+from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle

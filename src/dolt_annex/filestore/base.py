@@ -8,11 +8,11 @@ import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
-from typing_extensions import AsyncContextManager
 
-from dolt_annex.datatypes.async_utils import MaybeAwaitable, Result, maybe_await
+from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
+from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import AsyncBytesIO, FileInfo, ReadableFileObject, ReadableStream, WritableStream, RefCountedFile, Path, ref_count
+from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 

@@ -21,10 +21,10 @@ from typing import Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
-from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, copy

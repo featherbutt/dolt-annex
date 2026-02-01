@@ -8,9 +8,10 @@ across restarts.
 
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_utils import Result, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile, ReadableStream
+from dolt_annex.datatypes.file_io import AsyncBytesIO
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 

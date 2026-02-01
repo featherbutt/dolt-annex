@@ -4,7 +4,7 @@ import sys
 
 from plumbum import cli # type: ignore
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
