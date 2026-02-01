@@ -58,7 +58,7 @@ class SftpFileStore(FileStore):
          return await self.fstat(file_obj)
 
     @override
-    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, asyncssh.SFTPClientFile):
             raise TypeError("SftpFileStore.fstat was passed a file object that did not originate from this filestore.")
         stat_result = await file_obj.stat()

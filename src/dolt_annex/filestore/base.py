@@ -77,7 +77,7 @@ class FileStore(abc.ABC):
         """
 
     @abstractmethod
-    def fstat(self, file_obj: ReadableFileObject) -> MaybeAwaitable[FileInfo]:
+    def fstat(self, file_obj: ReadableStream) -> MaybeAwaitable[FileInfo]:
         """
         Returns information about a file-like object previously returned by get_file_object.
         """
