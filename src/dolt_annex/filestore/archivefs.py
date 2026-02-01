@@ -40,7 +40,7 @@ class ArchiveFS(FileStore):
     
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[FileKey, RefCountedFile, asyncio.Future[None]]]
+    files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
     workers: asyncio.TaskGroup
 
     def __init__(
@@ -75,7 +75,7 @@ class ArchiveFS(FileStore):
             with archive_tar:
                 while True:
                     try:
-                        file_key, in_fd, callback = await self.files_queue.get()
+                        file_key, data_source, callback = await self.files_queue.get()
                     except asyncio.QueueShutDown:
                         break
                     try:
@@ -84,7 +84,8 @@ class ArchiveFS(FileStore):
                         buf = tar_info.tobuf(archive_tar.format, archive_tar.encoding, archive_tar.errors)
                         offset = archive_tar.offset + len(buf)
                         # TODO: Rotate archive files if they exceed max_archive_size.
-                        await addfile(archive_tar, tarfile_fd=archive_fd, tarinfo=tar_info, input_fileobj=in_fd.inner)
+                        async with data_source as in_fd:
+                            await addfile(archive_tar, tarfile_fd=archive_fd, tarinfo=tar_info, input_fileobj=in_fd)
                         # TODO: We probably don't need to flush immediately after each write,
                         # But there's no way to signal a flush for tests.
                         archive_fd_sync.flush()
@@ -99,19 +100,14 @@ class ArchiveFS(FileStore):
 
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         callback = asyncio.Future[None]()
-
-        await self.files_queue.put((file_key, in_fd, callback))
-        # Hold a reference to in_fd until the put is finished so that we don't close it too early.
-        async def hold_file():
-            async with in_fd:
-                await callback
-        self.workers.create_task(hold_file(), eager_start=True)
+        await self.files_queue.put((file_key, data_source, callback))
         return Result(callback)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ExistingFileHandle:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
         secondary_value = (await self.secondary.get_file_bytes(file_key)).decode('utf-8')
         archive_file_name, offset_str, size_str = secondary_value.split(':')
         offset = int(offset_str)
@@ -120,12 +116,12 @@ class ArchiveFS(FileStore):
         archive_file_path = Path(self.file_system) / archive_file_name
         archive_fd = archive_file_path.open_sync('rb')
         file_in_file = tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
-        return ExistingFileHandle(await async_open(file_in_file), FileInfo(size=size))
+        yield ExistingFileHandle(await async_open(file_in_file), FileInfo(size=size))
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
-        file_obj = await self.get_file_object(file_key)
-        return file_obj.file_info
+        async with self.get_file_object(file_key) as file_obj:
+            return file_obj.file_info
 
     @override
     def fstat(self, file_obj: ReadableStream) -> FileInfo:

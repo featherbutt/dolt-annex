@@ -42,6 +42,6 @@ class Export(SubCommand):
 
         async with repo.filestore.open(self.parent.config) as filestore:
             async with filestore.with_file_object(queried_key) as f:
-                await copy(src=f.inner, dst=aiofiles.stdout_bytes)
+                await copy(src=f, dst=aiofiles.stdout_bytes)
 
         return 0

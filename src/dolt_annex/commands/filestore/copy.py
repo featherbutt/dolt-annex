@@ -8,7 +8,7 @@ from dolt_annex.logger import logger
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.base import filestore_copy
+from dolt_annex.filestore.cas import filestore_copy
 
 class Copy(SubCommand):
     """Copy one or more files from one repo to another."""

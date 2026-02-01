@@ -31,38 +31,32 @@ class FileStore(abc.ABC):
         """
         Upload an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        async with ref_count(await file_path.open()) as fd:
-            return await maybe_await(self.put_file_object(fd, file_key))
+        return await maybe_await(self.put_file_object(file_path.open(), file_key))
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """
         Upload an in-memory file to the remote.
         """
-        return self.put_file_object(ref_count(AsyncBytesIO(file_bytes)), file_key=file_key)
+        return self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
 
     @abstractmethod
-    def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """Upload a file-like object to the remote."""
 
     @abstractmethod
-    def get_file_object(self, file_key: FileKey) -> MaybeAwaitable[ReadableFileObject]:
+    def get_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
 
-    def with_file_object(self, file_key: FileKey) -> AsyncContextManager[RefCountedFile]:
+    def with_file_object(self, file_key: FileKey) -> AsyncContextManager[ReadableStream]:
         """Get a file-like object for a file in the remote by its key."""
-        @asynccontextmanager
-        async def inner() -> AsyncGenerator[RefCountedFile]:
-            file = await maybe_await(self.get_file_object(file_key))
-            async with ref_count(file) as file:
-                yield file
-        return inner()
+        return self.get_file_object(file_key)
 
     async def get_file_bytes(self, file_key: FileKey) -> bytes:
         """
         Get the contents of a file in the remote by its key.
         """
         async with self.with_file_object(file_key) as fd:
-            return await fd.inner.read()
+            return await fd.read()
 
     @abstractmethod
     def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
@@ -93,10 +87,6 @@ class FileStore(abc.ABC):
 
     def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
-
-async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey) -> Result[None]:
-    async with src.with_file_object(key) as fd:
-        return await maybe_await(dst.put_file_object(fd, key))
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:

@@ -132,15 +132,16 @@ async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]
 @pytest.mark.asyncio
 async def test_file_stores(cas: ContentAddressableStorage):
 
-    test_key = await cas.put_file_bytes(b"test")
+    test_key_result = await cas.put_file_bytes(b"test")
+    test_key = await test_key_result.wait_for_complete()
     await maybe_await(cas.file_store.flush())
     assert await maybe_await(cas.file_store.exists(test_key))
     file_info = await maybe_await(cas.file_store.stat(test_key))
     assert file_info.size == 4
     async with cas.file_store.with_file_object(test_key) as f:
-        file_info = await maybe_await(cas.file_store.fstat(f.inner))
+        file_info = await maybe_await(cas.file_store.fstat(f))
         assert file_info.size == 4
-        read_bytes = await f.inner.read()
+        read_bytes = await f.read()
         assert read_bytes == b"test"
 
     # Check that exist for non-existent file returns false

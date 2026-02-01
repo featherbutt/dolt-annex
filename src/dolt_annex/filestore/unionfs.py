@@ -24,16 +24,19 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
-        return await maybe_await(self.children[0].put_file_object(in_fd, file_key))
+        return await maybe_await(self.children[0].put_file_object(data_source, file_key))
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         for child in self.children:
             try:
-                return await maybe_await(child.get_file_object(file_key))
+                async with child.get_file_object(file_key) as file_obj:
+                    yield file_obj
+                    return
             except FileNotFoundError:
                 continue
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")

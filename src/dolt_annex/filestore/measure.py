@@ -44,12 +44,12 @@ class Measure(FileStore):
         self.stats_file.flush()
 
     @override
-    def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
-        return self.child.put_file_object(in_fd, file_key)
+        return self.child.put_file_object(data_source, file_key)
 
     @override
-    def get_file_object(self, file_key: FileKey) -> MaybeAwaitable[ReadableFileObject]:
+    def get_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         return self.child.get_file_object(file_key)
 

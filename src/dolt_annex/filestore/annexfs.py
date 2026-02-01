@@ -15,6 +15,7 @@ relative to the filestore root.
 from dataclasses import dataclass
 import hashlib
 import pathlib
+from typing import AsyncGenerator
 from pydantic import InstanceOf
 from typing_extensions import override
 
@@ -45,24 +46,30 @@ class AnnexFS(FileStore):
         return Result.of(None)
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Copy a file-like object into the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
-        async with output_path.open('wb') as out_fd:
-            await copy(src=in_fd.inner, dst=out_fd)
+        async with (
+            output_path.open('wb') as out_fd,
+            data_source as in_fd,
+        ):
+            await copy(src=in_fd, dst=out_fd)
         return Result.of(None)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         annexed_file_path = self.get_key_path(file_key)
         if not annexed_file_path.exists():
             # If the file does not exist at the expected path, try the deprecated path.
             annexed_file_path = self.get_old_key_path(file_key)
             if not annexed_file_path.exists():
                 raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        fd = await annexed_file_path.open()
-        return ExistingFileHandle(readfile=fd, file_info=await self.stat(file_key))
+
+        async with annexed_file_path.open() as fd:
+            yield ExistingFileHandle(readfile=fd, file_info=await self.stat(file_key))
+        
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:

@@ -35,22 +35,26 @@ class SftpFileStore(FileStore):
     sftp: asyncssh.SFTPClient
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
-        async with self.sftp.open(remote_file_path, 'wb') as out_fd:
-            await copy(src=in_fd.inner, dst=out_fd)
+        async with (
+            self.sftp.open(remote_file_path, 'wb') as out_fd,
+            data_source as in_fd,
+        ):
+            await copy(src=in_fd, dst=out_fd)
         return Result.of(None)
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return await self.sftp.open(remote_file_path, 'rb')
+        yield await self.sftp.open(remote_file_path, 'rb')
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
