@@ -59,14 +59,19 @@ def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
 
 type RefCountedFile = ReferenceCountedContextManager[ReadableStream]
 
-def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
+def async_open(fd: MaybeAwaitable[BinaryIO]) -> AwaitOrEnter[AsyncFileIO]:
     """
     Wrap a synchronous file object so it can be used asynchronously
     or in an async context manager.
     """
     async def async_file_io():
-        return AsyncFileIO(fd, None, None)
+        return AsyncFileIO(await maybe_await(fd), None, None)
     return AiofilesContextManager(async_file_io())
+
+def async_bytes_io(data: bytes) -> AwaitOrEnter[AsyncBytesIO]:
+    async def async_bytes_io_inner() -> AsyncBytesIO:
+        return AsyncBytesIO(data)
+    return AiofilesContextManager(async_bytes_io_inner())
 
 class AsyncBytesIO(AsyncFileIO):
     """
@@ -113,7 +118,11 @@ class Path:
         return self.fs.exists(self.path.as_posix())
 
     def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
-        return async_open(self.open_sync(mode=mode))
+        # Avoid opening the file synchronously; wait for the async context instead.
+        # This helps ensure that every file open is matched with a file close.
+        async def open_inner() -> BinaryIO:
+            return self.open_sync(mode)
+        return async_open(open_inner())
 
     def open_sync(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> BinaryIO:
         return self.fs.openbin(self.path.as_posix(), mode)
