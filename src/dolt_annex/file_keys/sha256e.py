@@ -6,7 +6,7 @@ from typing_extensions import Optional, Self, override
 
 from dolt_annex.datatypes.file_io import Path
 
-from .base import FileKey
+from .base import FileKey, FileKeyGenerator
 
 class Sha256e(FileKey, prefix="SHA256E-"):
     """SHA256e file keys have the format: SHA256E-s<size>--<sha256>.<extension>"""
@@ -52,3 +52,34 @@ class Sha256e(FileKey, prefix="SHA256E-"):
         """Return the size of the file represented by this key, if known."""
         size_str = self.key.split(b'--')[0].split(b'-s')[1]
         return int(size_str)
+    
+    @override
+    @classmethod
+    def generator(cls, extension: Optional[str] = None) -> FileKeyGenerator:
+        """Return a FileKeyGenerator for this FileKey type."""
+        return Sha256eGenerator(extension=extension)
+    
+    @override
+    def same_bytes(self, other: FileKey) -> bool:
+        """Return whether this FileKey represents the same file as another FileKey, ignoring extensions."""
+        return (
+            isinstance(other, Sha256e) and
+            self.key.split(b'.')[0] == other.key.split(b'.')[0]
+        )
+    
+class Sha256eGenerator(FileKeyGenerator):
+    
+    def __init__(self, extension: Optional[str] = None) -> None:
+        self._hasher = hashlib.sha256()
+        self._size = 0
+        self._extension = extension
+
+    @override
+    def append_data(self, data: bytes) -> None:
+        self._hasher.update(data)
+        self._size += len(data)
+
+    @override
+    def finalize(self) -> FileKey:
+        sha256 = self._hasher.hexdigest()
+        return Sha256e.make(self._size, sha256, self._extension)

@@ -6,7 +6,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import ClassVar, Dict
-from typing_extensions import Optional, Self
+from typing_extensions import Optional, Protocol, Self
 
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.file_io import Path
@@ -72,3 +72,47 @@ class FileKey:
     def size(self) -> int:
         """Return the size of the file represented by this key, if known."""
         raise NotImplementedError()
+    
+    @classmethod
+    @abstractmethod
+    def generator(cls, extension: Optional[str] = None) -> FileKeyGenerator:
+        """Return a FileKeyGenerator for this FileKey type."""
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def same_bytes(self, other: FileKey) -> bool:
+        """Return whether this FileKey represents the same file as another FileKey, ignoring extensions."""
+        raise NotImplementedError()
+    
+class FileKeyGenerator(Protocol):
+    
+    @abstractmethod
+    def append_data(self, data: bytes) -> None:
+        ...
+
+    @abstractmethod
+    def finalize(self) -> FileKey:
+        ...
+
+class FileKeyGeneratingReader(ReadableStream):
+    _generators: list[FileKeyGenerator]
+    _inner: ReadableStream
+
+    def __init__(self, inner: ReadableStream, generators: list[FileKeyGenerator]) -> None:
+        self._inner = inner
+        self._generators = generators
+
+    async def read(self, size: int = -1) -> bytes:
+        if size == -1:
+            data = await self._inner.read()
+        else:
+            data = await self._inner.read(size)
+        for generator in self._generators:
+            generator.append_data(data)
+        return data
+
+    def get_file_keys(self) -> list[FileKey]:
+        return [generator.finalize() for generator in self._generators]
+    
+    async def close(self) -> None:
+        return await self._inner.close()

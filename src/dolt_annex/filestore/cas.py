@@ -1,13 +1,21 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing_extensions import Optional, AsyncContextManager
+from typing_extensions import Optional
 
-from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import AsyncBytesIO, Path, RefCountedFile, ref_count
+from dolt_annex.datatypes.async_types import maybe_await, ReadableStream, AsyncContextManager
+from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.file_io import Path, async_bytes_io
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.file_keys.base import FileKey
+from dolt_annex.file_keys.base import FileKey, FileKeyGeneratingReader
 from dolt_annex.filestore.base import FileStore
+
+class ContentAddressableStorageError(Exception):
+    pass
+
+class ContentAddressableStorageKeyMismatchError(ContentAddressableStorageError):
+    """Raised when a provided FileKey does not match the computed FileKey of the data being uploaded."""
+    pass
 
 @dataclass
 class ContentAddressableStorage:
@@ -45,12 +53,11 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        async with ref_count(await file_path.open()) as fd:
-            result = await maybe_await(self.file_store.put_file_object(fd, file_key=file_key))
-            await result.wait_for_complete()
+        result = await maybe_await(self.file_store.put_file_object(file_path.open(), file_key=file_key))
+        await result.wait_for_complete()
         return file_key
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> FileKey:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> Result[FileKey]:
         """
         Upload an in-memory file to the remote.
 
@@ -58,17 +65,22 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = self.file_key_format.from_bytes(file_bytes)
-        fd = AsyncBytesIO(file_bytes)
-        result = await maybe_await(self.file_store.put_file_object(ref_count(fd), file_key=file_key))
-        await result.wait_for_complete()
-        return file_key
+        result = await maybe_await(self.file_store.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
+        return result.map(lambda _: file_key)
 
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: Optional[FileKey] = None) -> FileKey:
-        """Upload a file-like object to the remote. If file_key is not provided, it will be computed."""
-        if file_key is None:
-            file_key = await self.file_key_format.from_fo(in_fd.inner)
-        await maybe_await(self.file_store.put_file_object(in_fd, file_key=file_key))
-        return file_key
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+        """Upload a file-like object to the remote. If file_key is provided, it will be compared to the computed key and an error will be raised if they do not match."""
+
+        @asynccontextmanager
+        async def open_data_source() -> AsyncGenerator[ReadableStream]: 
+            generator = self.file_key_format.generator()
+            async with data_source as in_fd:
+                yield FileKeyGeneratingReader(in_fd, [generator])
+            computed_key = generator.finalize()
+            if not computed_key.same_bytes(file_key):
+                raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed key {computed_key}")
+
+        return await maybe_await(self.file_store.put_file_object(open_data_source(), file_key=file_key))
 
     async def batch(self, batch_size: Optional[int]=10000) -> AsyncContextManager[None]:
         """
@@ -92,3 +104,8 @@ class ContentAddressableStorage:
             self._batch_size = original_batch_size
 
         return batch()
+
+async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey) -> Result[None]:
+    dst_cas = ContentAddressableStorage(file_store=dst, file_key_format=key.__class__)
+    data_source = src.with_file_object(key)
+    return await dst_cas.put_file_object(data_source, file_key=key)
