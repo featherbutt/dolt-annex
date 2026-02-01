@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import io
 from pathlib import Path
 import sys
-import uuid
 from typing_extensions import Optional
 
 from plumbum import cli # type: ignore[import]
@@ -16,11 +15,10 @@ import pytest
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
-from dolt_annex.datatypes.repo import RepoModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
 from dolt_annex.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
 @dataclass
@@ -29,7 +27,9 @@ class EnvironmentForTest:
     The output of dolt_annex.conftest.setup
     """
     local_file_store: ContentAddressableStorage
+    local_repo: Repo
     remote_file_store: ContentAddressableStorage
+    remote_repo: Repo
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"

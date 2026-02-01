@@ -98,17 +98,17 @@ def loadable_context():
         yield
 
 @pytest_asyncio.fixture 
-async def local_filestore(temp_dir: pathlib.Path, loadable_context, local_uuid: UUID, local_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
+async def local_filestore(temp_dir: pathlib.Path, local_uuid: UUID, local_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
     async with create_test_filestore(local_filestore_model, []) as local_filestore:
         yield local_filestore
 
 @pytest_asyncio.fixture 
-async def remote_filestore(temp_dir: pathlib.Path, loadable_context, remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
+async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
     async with create_test_filestore(remote_filestore_model, []) as remote_filestore:
         yield remote_filestore
 
 @pytest.fixture
-def local_repo(loadable_context, local_uuid: UUID, local_filestore: ContentAddressableStorage) -> Repo:
+def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
         name="__local__",
         uuid=local_uuid,
@@ -117,7 +117,7 @@ def local_repo(loadable_context, local_uuid: UUID, local_filestore: ContentAddre
     )
 
 @pytest.fixture
-def remote_repo(loadable_context, remote_uuid: UUID, remote_filestore: ContentAddressableStorage) -> Repo:
+def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
         name="test_remote",
         uuid=remote_uuid,
@@ -133,11 +133,15 @@ async def setup(
     remote_filestore: ContentAddressableStorage,
     local_repo_model: RepoModel,
     remote_repo_model: RepoModel,
+    local_repo: Repo,
+    remote_repo: Repo,
     ) -> AsyncGenerator[EnvironmentForTest]:
         with (temp_dir / "config.json").open("w") as f:
             f.write(test_config.model_dump_json())
 
         yield EnvironmentForTest(
             local_file_store=local_filestore,
+            local_repo=local_repo,
             remote_file_store=remote_filestore,
+            remote_repo=remote_repo,
         )

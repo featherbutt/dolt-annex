@@ -4,11 +4,13 @@
 import pathlib
 from typing import Generator
 import uuid
+from plumbum import local
 import pytest
 import random
 
 import pytest_asyncio
 
+from dolt_annex.conftest import local_repo
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo, RepoModel
@@ -62,59 +64,47 @@ file_key = Sha256e.from_bytes(b"existing data")
 @pytest.mark.parametrize("remote_filestore_model", [pytest.param(MemoryFSModel(), id="")])
 async def test_detect_corruption(
     setup: EnvironmentForTest,
-    temp_dir: pathlib.Path,
-    local_repo_model: RepoModel,
-    remote_repo_model: RepoModel,
-    local_uuid: uuid.UUID,
-    remote_uuid: uuid.UUID,
-    local_repo: Repo,
-    remote_repo: Repo,
 ):
+    from_repo = setup.local_repo
+    to_repo = setup.remote_repo
     BATCH_SIZE = 1000 # Arbitrary batch size for this command
     FILTERS = [] # Allow for any setup delays
     async with Dataset.connect(test_config, BATCH_SIZE, test_dataset_schema) as dataset:
         # TODO: handle initializing branches automatically
-        dataset.dolt.initialize_dataset_source(test_dataset_schema, local_uuid)
-        dataset.dolt.initialize_dataset_source(test_dataset_schema, remote_uuid)
-        # Add entries to local_repo database
+        dataset.dolt.initialize_dataset_source(test_dataset_schema, from_repo.uuid)
+        dataset.dolt.initialize_dataset_source(test_dataset_schema, to_repo.uuid)
+        # Add entries to from_repo database
         table = dataset.get_table("test_table")
         await table.insert_file_source(
             TableRow(("0",)),
             file_key,
-            local_uuid,
+            from_repo.uuid,
         )
 
         await table.flush()
         with pytest.RaisesGroup(ContentAddressableStorageKeyMismatchError, flatten_subgroups=True, allow_unwrapped=True):
             await move_dataset(
                 dataset,
-                local_repo,
-                remote_repo,
+                from_repo,
+                to_repo,
                 FILTERS,
             )
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")), indirect=True)
-@pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")), indirect=True)
+@pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")))
+@pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
 async def test_async_move(
     setup: EnvironmentForTest,
-    temp_dir: pathlib.Path,
     added_file_keys: list[Sha256e],
-    local_filestore: ContentAddressableStorage,
-    remote_filestore: ContentAddressableStorage,
-    local_uuid: uuid.UUID,
-    remote_uuid: uuid.UUID,
-    local_repo: Repo,
-    remote_repo: Repo,
-    local_repo_model: RepoModel,
-    remote_repo_model: RepoModel,
 ):
+    from_repo = setup.local_repo
+    to_repo = setup.remote_repo
     BATCH_SIZE = 1000 # Arbitrary batch size for this command
     FILTERS = [] # Allow for any setup delays
     async with Dataset.connect(test_config, BATCH_SIZE, test_dataset_schema) as dataset:
         # TODO: handle initializing branches automatically
-        dataset.dolt.initialize_dataset_source(test_dataset_schema, local_uuid)
-        dataset.dolt.initialize_dataset_source(test_dataset_schema, remote_uuid)
+        dataset.dolt.initialize_dataset_source(test_dataset_schema, from_repo.uuid)
+        dataset.dolt.initialize_dataset_source(test_dataset_schema, to_repo.uuid)
         # Add entries to from_repo database
         table = dataset.get_table("test_table")
         for i, file_key in enumerate(added_file_keys):
@@ -122,28 +112,28 @@ async def test_async_move(
             await table.insert_file_source(
                 TableRow((path,)),
                 file_key,
-                local_uuid,
+                from_repo.uuid,
             )
 
         await table.flush()
         await move_dataset(
             dataset,
-            local_repo,
-            remote_repo,
+            from_repo,
+            to_repo,
             FILTERS,
         )
         # Check that files have been moved
         for file_key in added_file_keys:
-            assert await maybe_await(remote_repo.filestore.exists(file_key))
-            assert await remote_repo.filestore.get_file_bytes(file_key) == await local_repo.filestore.get_file_bytes(file_key)
+            assert await maybe_await(to_repo.filestore.exists(file_key))
+            assert await to_repo.filestore.get_file_bytes(file_key) == await from_repo.filestore.get_file_bytes(file_key)
         # Check that db entries have been updated
-        for file_key, path in table.get_rows(remote_repo.uuid):
+        for file_key, path in table.get_rows(to_repo.uuid):
             assert bytes(added_file_keys[int(path)]) == bytes(file_key, encoding='utf-8')
         # If the destination filestore is ArchiveFS, ensure that files are in multiple archives
-        if isinstance(remote_repo.filestore, ArchiveFS):
+        if isinstance(to_repo.filestore, ArchiveFS):
             archive_ids = set()
             for file_key in added_file_keys:
-                file_location = await remote_repo.filestore.secondary.get_file_bytes(file_key)
+                file_location = await to_repo.filestore.secondary.get_file_bytes(file_key)
                 print(file_location)
                 name, offset, size = file_location.split(b":")
                 archive_ids.add(name)
