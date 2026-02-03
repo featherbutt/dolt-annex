@@ -7,11 +7,10 @@ Currently the only supported key scheme is git-annex's SHA256E keys.
 But other schemes could be added in the future.
 """
 
-import importlib
-from pydantic import ModelWrapValidatorHandler, PlainSerializer, ValidateAs, WrapValidator
-from typing_extensions import Annotated, Optional
+from pydantic import ModelWrapValidatorHandler, PlainSerializer, WrapValidator
+from typing_extensions import Annotated
 from .base import FileKey
-from .size_hash_extension import Sha256E, SHA1e, MD5e
+from .size_hash_extension import Sha256E, MD5e, SHA1e
 
 def file_key_type_validator(name, _: ModelWrapValidatorHandler[type[FileKey]]) -> type[FileKey]:
     """Get the FileKey subclass for the given key format name."""
@@ -21,19 +20,8 @@ def file_key_type_validator(name, _: ModelWrapValidatorHandler[type[FileKey]]) -
 
 def get_file_key_type(name: str) -> type[FileKey]:
     """Get the FileKey subclass for the given key format name."""
-    class_name: Optional[str]
-    match name.split('.'):
-        case [module_name]:
-            class_name = None
-        case [module_name, class_name]:
-            pass
-        case _:
-            raise ImportError(f"Unsupported key format: {name}")
-    file_key_module = importlib.import_module(f".{module_name.lower()}", package=__name__)
-    if class_name:
-        return getattr(file_key_module, class_name)
-    return getattr(file_key_module, module_name)
+    return FileKey.prefixes[name]
 
-FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.__name__)]
+FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.prefix)]
 
-__all__ = ['FileKey', 'FileKeyType', 'Sha256E']
+__all__ = ['FileKey', 'FileKeyType', 'Sha256E', 'MD5e', 'SHA1e']
