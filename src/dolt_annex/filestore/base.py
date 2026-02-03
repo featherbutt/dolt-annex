@@ -88,6 +88,17 @@ class FileStore(abc.ABC):
     def flush(self) -> MaybeAwaitable[None]:
         """Flush any pending operations to the filestore."""
 
+    @abstractmethod
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        """
+        Insert a new key that references the same content as an existing key.
+
+        The default implementation reads the content for old_key and writes it to new_key.
+        For most filestores, this is inefficient; subclasses should override this method to
+        avoid transferring data over the network and duplicating storage.
+        """
+        return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
+
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
         buf = await src.read(buffer_size)

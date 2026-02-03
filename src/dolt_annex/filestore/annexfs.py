@@ -101,7 +101,18 @@ class AnnexFS(FileStore):
     @override
     def exists(self, file_key: FileKey) -> bool:
         return self.get_key_path(file_key).exists()
-    
+
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        """
+        Insert a new key that references the same content as an existing key.
+        """
+        old_path = self.get_key_path(old_key)
+        new_path = self.get_key_path(new_key)
+        new_path.parent.mkdirs(exist_ok=True)
+        old_path.link(new_path)
+        return Result.of(None)
+
 class AnnexFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
 

@@ -73,6 +73,11 @@ class MemoryFS(FileStore):
     def exists(self, file_key: FileKey) -> bool:
         return bytes(file_key) in self.files
 
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        self.files[bytes(new_key)] = self.files[bytes(old_key)]
+        return Result.of(None)
+
 class MemoryFSModel(FileStoreModel):
 
     files: dict[bytes, bytes] = {}

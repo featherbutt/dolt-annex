@@ -139,6 +139,10 @@ class ArchiveFS(FileStore):
         await self.files_queue.join()
         await maybe_await(self.secondary.flush())
 
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        return await self.secondary.create_alias(old_key, new_key)
+
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
     secondary: FileStoreModel

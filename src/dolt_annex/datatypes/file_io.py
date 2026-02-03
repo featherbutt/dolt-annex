@@ -9,6 +9,7 @@ from io import BytesIO
 import pathlib
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
+import fs.copy
 from typing_extensions import BinaryIO, Final, Self, Literal
 
 import fs.move
@@ -171,6 +172,15 @@ class Path:
         link_target = self.fs.getinfo(self.path.as_posix()).target
         assert link_target is not None, "Path is not a symlink"
         return Path(self.fs, link_target)
+
+    def link(self, target: Path) -> None:
+        try:
+            old_syspath = self.fs.getsyspath(self.path.as_posix())
+            new_syspath = target.fs.getsyspath(target.path.as_posix())
+            pathlib.Path(new_syspath).symlink_to(pathlib.Path(old_syspath))
+        except fs.errors.NoSysPath:
+            # Filesystem does not support syspaths; fall back on copying
+            fs.copy.copy_file(self.fs, self.path.as_posix(), target.fs, target.path.as_posix())
 
     @property
     def name(self) -> str:

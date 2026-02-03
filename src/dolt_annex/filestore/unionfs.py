@@ -100,6 +100,13 @@ class UnionFS(FileStore):
             except FileNotFoundError:
                 continue
         raise FileNotFoundError("File object not found in any child filestore.")
+    
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        for child in self.children:
+            if await maybe_await(child.exists(old_key)):
+                return await maybe_await(child.create_alias(old_key, new_key))
+        raise FileNotFoundError(f"File with key {old_key} not found in annex.")
 
 class UnionFSModel(FileStoreModel):
     children: list[FileStoreModel]

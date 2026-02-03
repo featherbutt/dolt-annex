@@ -399,7 +399,7 @@ class SFTPServer(asyncssh.SFTPServer):
         raise asyncssh.SFTPOpUnsupported("readlink is not supported")
 
     @override
-    def symlink(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def symlink(self, oldpath: bytes, newpath: bytes) -> None:
         """Create a symbolic link
 
            :param oldpath:
@@ -412,8 +412,11 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-
-        raise asyncssh.SFTPOpUnsupported("symlink is not supported")
+        result = await self.cas.file_store.create_alias(
+            self.cas.file_key_format(key=oldpath.rsplit(b'/')[-1]),
+            self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        )
+        await result.wait_for_complete()
 
     @override
     def link(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:

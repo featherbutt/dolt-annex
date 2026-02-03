@@ -67,6 +67,10 @@ class LevelDB(FileStore):
     def exists(self, file_key: FileKey) -> bool:
         return self.db.get(bytes(file_key)) is not None
 
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        return await super().create_alias(old_key, new_key)
+
 class LevelDBModel(FileStoreModel):
 
     root: pathlib.Path
