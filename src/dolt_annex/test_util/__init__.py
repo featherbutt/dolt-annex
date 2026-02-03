@@ -17,7 +17,7 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
@@ -44,7 +44,7 @@ test_config = Config(
         default_commit_message="update",
         spawn_dolt_server=True
     ),
-    default_file_key_type=Sha256e,
+    default_file_key_type=Sha256E,
 )
 
 test_dataset_schema = DatasetSchema(

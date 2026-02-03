@@ -17,7 +17,7 @@ from dolt_annex import test_util
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E, MD5e
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
@@ -80,7 +80,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
         async with self.remote_file_store_model.open(config) as remote_file_store:
             remote_file_cas = ContentAddressableStorage(
                 file_store=remote_file_store,
-                file_key_format=Sha256e,
+                file_key_format=Sha256E,
             )
             # setup server, then create server context, then setup client.
             async with (
@@ -127,7 +127,7 @@ async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(base_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256e)
+            yield ContentAddressableStorage(filestore, Sha256E)
 
 @pytest.mark.asyncio
 async def test_file_stores(cas: ContentAddressableStorage):
@@ -145,7 +145,7 @@ async def test_file_stores(cas: ContentAddressableStorage):
         assert read_bytes == b"test"
 
     # Check that exist for non-existent file returns false
-    assert not await maybe_await(cas.file_store.exists(Sha256e.from_bytes(b"nonexistent")))
+    assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
 
 if __name__ == "__main__":
     pytest.main([__file__])

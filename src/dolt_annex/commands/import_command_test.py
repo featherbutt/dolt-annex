@@ -4,7 +4,7 @@
 from math import e
 import pytest
 
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.test_util import run
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_import(temp_dir, setup):
     with file_path.open('wb') as f:
         f.write(b"test image data")
 
-    expected_file_key = str(Sha256e.from_bytes(b"test image data", extension="jpg"))
+    expected_file_key = str(Sha256E.from_bytes(b"test image data", extension="jpg"))
 
     await run(
         args=["dolt-annex", "init"],

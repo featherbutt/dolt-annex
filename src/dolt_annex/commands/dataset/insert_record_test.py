@@ -4,7 +4,7 @@
 import pytest
 
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import maybe_await
 from dolt_annex.table import Dataset
 from dolt_annex.test_util import EnvironmentForTest, run, test_config, test_dataset_schema
@@ -14,7 +14,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
     """Run and validate inserting content files into a repo"""
     local_file_store = setup.local_file_store.file_store
 
-    key = Sha256e.from_bytes(b"new file content", "txt")
+    key = Sha256E.from_bytes(b"new file content", "txt")
     await run(
         args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "new file content"],
         expected_output_contains="Inserted row"

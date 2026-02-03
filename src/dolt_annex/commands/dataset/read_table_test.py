@@ -3,7 +3,7 @@
 
 import pytest
 
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio
@@ -11,7 +11,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
     """Run and validate reading table contents"""
     
     file_bytes = b"new file content"
-    file_key = Sha256e.from_bytes(file_bytes, "txt")
+    file_key = Sha256E.from_bytes(file_bytes, "txt")
     table_key = "table_key"
     
     dataset_name = test_dataset_schema.name

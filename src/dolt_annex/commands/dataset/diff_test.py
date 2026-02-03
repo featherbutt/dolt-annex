@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import pytest
 
-from dolt_annex.file_keys.sha256e import Sha256e
 from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio

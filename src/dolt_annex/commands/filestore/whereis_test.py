@@ -5,12 +5,12 @@
 import pytest
 import pytest_asyncio
 
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 
 from dolt_annex.test_util import run, EnvironmentForTest
 
-local_repo_key = Sha256e.from_bytes(b"only in local repo", "txt")
-both_repos_key = Sha256e.from_bytes(b"in both repos", "txt")
+local_repo_key = Sha256E.from_bytes(b"only in local repo", "txt")
+both_repos_key = Sha256E.from_bytes(b"in both repos", "txt")
      
 @pytest_asyncio.fixture
 async def whereis_setup(setup: EnvironmentForTest):

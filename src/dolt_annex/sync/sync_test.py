@@ -15,7 +15,7 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFS, ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
@@ -57,7 +57,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
         file_keys.append(file_key)
     return file_keys
 
-file_key = Sha256e.from_bytes(b"existing data")
+file_key = Sha256E.from_bytes(b"existing data")
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("local_filestore_model", [pytest.param(MemoryFSModel(files={bytes(file_key): b"corrupted data"}), id="")])
@@ -95,7 +95,7 @@ async def test_detect_corruption(
 @pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
 async def test_async_move(
     setup: EnvironmentForTest,
-    added_file_keys: list[Sha256e],
+    added_file_keys: list[Sha256E],
 ):
     from_repo = setup.local_repo
     to_repo = setup.remote_repo

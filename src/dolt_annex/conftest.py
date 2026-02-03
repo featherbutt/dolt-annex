@@ -19,7 +19,7 @@ from dolt_annex.data import data_dir
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
@@ -50,7 +50,7 @@ def local_repo_model(local_uuid: UUID, local_filestore_model: FileStoreModel) ->
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
-        key_format=Sha256e,
+        key_format=Sha256E,
         filestore= local_filestore_model
     )
 
@@ -59,7 +59,7 @@ def remote_repo_model(remote_uuid: UUID, remote_filestore_model: FileStoreModel)
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
-        key_format=Sha256e,
+        key_format=Sha256E,
         filestore= remote_filestore_model
     )
 
@@ -87,7 +87,7 @@ def init_dolt(dolt):
 @contextlib.asynccontextmanager
 async def create_test_filestore(filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
     async with filestore_model.open(test_config) as filestore:
-        cas = ContentAddressableStorage(filestore, Sha256e)
+        cas = ContentAddressableStorage(filestore, Sha256E)
         for file_content in files:
             await cas.put_file_bytes(file_content)
         yield cas
@@ -113,7 +113,7 @@ def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> 
         name="__local__",
         uuid=local_uuid,
         filestore=local_filestore.file_store,
-        key_format=Sha256e
+        key_format=Sha256E
     )
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) 
         name="test_remote",
         uuid=remote_uuid,
         filestore=remote_filestore.file_store,
-        key_format=Sha256e
+        key_format=Sha256E
     )
 
 @pytest_asyncio.fixture 

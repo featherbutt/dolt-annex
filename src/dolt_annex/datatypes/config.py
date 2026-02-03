@@ -10,7 +10,7 @@ from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -47,7 +47,7 @@ class Config(StrictBaseModel):
     ssh: SshSettings = SshSettings()
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
-    default_file_key_type: FileKeyType = Sha256e
+    default_file_key_type: FileKeyType = Sha256E
 
     def get_default_repo(self) -> RepoModel:
         return RepoModel.must_load(self.local_repo_name)

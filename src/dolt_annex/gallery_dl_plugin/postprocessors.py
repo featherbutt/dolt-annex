@@ -17,7 +17,7 @@ from gallery_dl.util import json_default
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.file_keys import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore import FileStore
 from dolt_annex.table import Dataset, FileTable
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
@@ -111,7 +111,7 @@ async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTa
         sha256 = from_path.hexdigest("sha256")
     size = from_path.stat().size
 
-    file_key = Sha256e.make(size, sha256, extension)
+    file_key = Sha256E.make(size, sha256, extension)
 
     result = await maybe_await(filestore.put_file(from_path, file_key))
     result.future.add_done_callback(lambda fut: from_path.delete(allow_missing=True))
@@ -123,7 +123,7 @@ async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table:
         sha256 = hashlib.sha256(file_bytes).hexdigest()
     size = len(file_bytes)
 
-    file_key = Sha256e.make(size, sha256, extension)
+    file_key = Sha256E.make(size, sha256, extension)
 
     await maybe_await(local_filestore.put_file_bytes(file_bytes, file_key))
     await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
