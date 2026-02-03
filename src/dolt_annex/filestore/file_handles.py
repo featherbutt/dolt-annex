@@ -40,6 +40,9 @@ class ExistingFileHandle(FileHandle, ReadableFileObject):
             return self.readfile.read()
         return self.readfile.read(size)
 
+    def readinto(self, buffer: Buffer, /) -> Awaitable[int]:
+        return self.readfile.readinto(buffer)
+
     def close(self) -> Awaitable[None]:
         return self.readfile.close()
 
