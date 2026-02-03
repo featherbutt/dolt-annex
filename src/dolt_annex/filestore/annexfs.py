@@ -107,6 +107,8 @@ class AnnexFS(FileStore):
         """
         Insert a new key that references the same content as an existing key.
         """
+        if old_key == new_key:
+            return Result.of(None)
         old_path = self.get_key_path(old_key)
         new_path = self.get_key_path(new_key)
         new_path.parent.mkdirs(exist_ok=True)

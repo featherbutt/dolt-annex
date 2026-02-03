@@ -19,7 +19,7 @@ from dolt_annex.data import data_dir
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
-from dolt_annex.file_keys import Sha256E
+from dolt_annex.file_keys import Sha256E, MD5e
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
@@ -87,7 +87,7 @@ def init_dolt(dolt):
 @contextlib.asynccontextmanager
 async def create_test_filestore(filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
     async with filestore_model.open(test_config) as filestore:
-        cas = ContentAddressableStorage(filestore, Sha256E)
+        cas = ContentAddressableStorage(filestore, Sha256E, [MD5e])
         for file_content in files:
             await cas.put_file_bytes(file_content)
         yield cas

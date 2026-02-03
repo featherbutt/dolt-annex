@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, AsyncGenerator, Optional
 from uuid import UUID
 import pathlib
@@ -27,6 +27,7 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     uuid: UUID
     filestore: SerializeAsAny[FileStoreModel]
     key_format: FileKeyType
+    alternate_key_formats: list[FileKeyType] = []
 
 @dataclass
 class Repo:
@@ -37,6 +38,7 @@ class Repo:
     uuid: UUID
     filestore: FileStore
     key_format: FileKeyType
+    alternate_key_formats: list[FileKeyType] = field(default_factory=list)
 
     @classmethod
     @asynccontextmanager
@@ -49,5 +51,6 @@ class Repo:
                 name=name,
                 uuid=repo_model.uuid,
                 filestore=filestore,
-                key_format=repo_model.key_format
+                key_format=repo_model.key_format,
+                alternate_key_formats=repo_model.alternate_key_formats,
             )

@@ -17,7 +17,8 @@ from dolt_annex import test_util
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.file_keys import Sha256E, MD5e
+from dolt_annex.datatypes.file_io import async_bytes_io
+from dolt_annex.file_keys import Sha256E, MD5e, SHA1e
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
@@ -81,6 +82,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
             remote_file_cas = ContentAddressableStorage(
                 file_store=remote_file_store,
                 file_key_format=Sha256E,
+                alternate_key_formats=[SHA1e]
             )
             # setup server, then create server context, then setup client.
             async with (
@@ -127,20 +129,23 @@ async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(base_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256E)
+            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e])
 
 @pytest.mark.asyncio
 async def test_file_stores(cas: ContentAddressableStorage):
-    import os
     file_bytes = b"test"
-    test_key_result = await cas.put_file_bytes(file_bytes)
-    test_key = await test_key_result.wait_for_complete()
-    alternate_key = MD5e.from_bytes(file_bytes)
+    # This test uses SHA256 as the main key format, with SHA1 as an alternate,
+    # and creates an MD5 file key alias explicitly.
+    md5_key = MD5e.from_bytes(file_bytes)
+    sha1_key = SHA1e.from_bytes(file_bytes)
+    sha256_key = Sha256E.from_bytes(file_bytes)
+    result = await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
+    await result.wait_for_complete()
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
-    await cas.file_store.create_alias(test_key, alternate_key)
+    await cas.file_store.create_alias(sha256_key, md5_key)
     await maybe_await(cas.file_store.flush())
-    for key in (test_key, alternate_key):
+    for key in (sha256_key, md5_key, sha1_key):
         assert await maybe_await(cas.file_store.exists(key))
         file_info = await maybe_await(cas.file_store.stat(key))
         assert file_info.size == 4
