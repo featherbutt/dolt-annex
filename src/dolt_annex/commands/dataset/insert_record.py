@@ -48,7 +48,7 @@ class InsertRecord(cli.Application):
         "--file-key-type",
         str,
         help="The type of file key to use",
-        default = "Sha256e",
+        default = "SHA256E",
     )
 
     extension = cli.SwitchAttr(

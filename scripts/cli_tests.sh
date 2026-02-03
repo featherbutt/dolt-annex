@@ -16,7 +16,7 @@ dolt-annex init
 dolt-annex create repo remote '{
             "uuid": "123e4567-e89b-12d3-a456-426614174000",
             "filestore": {"type": "annexfs", "root": "."},
-            "key_format": "Sha256e"
+            "key_format": "SHA256E"
         }'
 
 output=$(dolt-annex gallery-dl https://www.furaffinity.net/view/63142315/)

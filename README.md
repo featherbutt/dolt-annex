@@ -45,7 +45,7 @@ The curent set of useful subcommands are:
 
 Format: `dolt-annex import [--move|--copy|--symlink] --importer $IMPORTER --dataset $DATASET" --file-key-type $FILE_KEY_TYPE $DIRECTORY`
 
-Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type Sha256e ~/Downloads/prefix.com/files`
+Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type SHA256E ~/Downloads/prefix.com/files`
 
 ## `dolt-annex pull` and `dolt-annex push`
 

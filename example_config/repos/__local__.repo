@@ -14,6 +14,6 @@
         "root": "./annex",
     },
     // The format used to key files in newly created filestores.
-    // Currently only "Sha256e" is supported.
-    "key_format": "Sha256e",
+    // Currently only "SHA256E" is supported.
+    "key_format": "SHA256E",
 }
