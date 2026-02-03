@@ -131,18 +131,24 @@ async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]
 
 @pytest.mark.asyncio
 async def test_file_stores(cas: ContentAddressableStorage):
-
-    test_key_result = await cas.put_file_bytes(b"test")
+    import os
+    file_bytes = b"test"
+    test_key_result = await cas.put_file_bytes(file_bytes)
     test_key = await test_key_result.wait_for_complete()
+    alternate_key = MD5e.from_bytes(file_bytes)
+    # TODO: Test that putting the same key again short-circuits
+    # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
+    await cas.file_store.create_alias(test_key, alternate_key)
     await maybe_await(cas.file_store.flush())
-    assert await maybe_await(cas.file_store.exists(test_key))
-    file_info = await maybe_await(cas.file_store.stat(test_key))
-    assert file_info.size == 4
-    async with cas.file_store.with_file_object(test_key) as f:
-        file_info = await maybe_await(cas.file_store.fstat(f))
+    for key in (test_key, alternate_key):
+        assert await maybe_await(cas.file_store.exists(key))
+        file_info = await maybe_await(cas.file_store.stat(key))
         assert file_info.size == 4
-        read_bytes = await f.read()
-        assert read_bytes == b"test"
+        async with cas.file_store.with_file_object(key) as f:
+            file_info = await maybe_await(cas.file_store.fstat(f))
+            assert file_info.size == 4
+            read_bytes = await f.read()
+            assert read_bytes == b"test"
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
