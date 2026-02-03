@@ -44,7 +44,7 @@ class SftpFileStore(FileStore):
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        return Result.of(None)
+        return Result.done()
 
     @override
     @await_or_enter
@@ -107,7 +107,7 @@ class SftpFileStore(FileStore):
             oldpath=old_absolute_path,
             newpath=new_absolute_path,
         )
-        return Result.of(None)
+        return Result.done()
 
     @classmethod
     @asynccontextmanager

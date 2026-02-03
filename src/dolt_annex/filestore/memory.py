@@ -34,14 +34,14 @@ class MemoryFS(FileStore):
         """Move an on-disk file to the annex."""
         async with file_path.open() as f:
             self.files[bytes(file_key)] = await f.read()
-        return Result.of(None)
+        return Result.done()
              
     @override
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
             self.files[bytes(file_key)] = await in_fd.read()
-        return Result.of(None)
+        return Result.done()
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
         """
@@ -50,7 +50,7 @@ class MemoryFS(FileStore):
         If file_key is not provided, it will be computed.
         """
         self.files[bytes(file_key)] = file_bytes
-        return Result.of(None)
+        return Result.done()
 
     @override
     @await_or_enter
@@ -76,7 +76,7 @@ class MemoryFS(FileStore):
     @override
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         self.files[bytes(new_key)] = self.files[bytes(old_key)]
-        return Result.of(None)
+        return Result.done()
 
 class MemoryFSModel(FileStoreModel):
 

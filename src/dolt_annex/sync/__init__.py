@@ -96,10 +96,10 @@ class SyncOperation:
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
-            return Result.of(None)
+            return Result.done()
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
             logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-            return Result.of(None)
+            return Result.done()
         result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
         # We must wait for the copy to complete before updating the dataset.
         async def update_table_on_complete() -> None:

@@ -40,7 +40,7 @@ class LevelDB(FileStore):
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         async with data_source as in_fd:
             self.db.put(bytes(file_key), await maybe_await(in_fd.read()), sync=True)
-        return Result.of(None)
+        return Result.done()
 
     @override
     @await_or_enter

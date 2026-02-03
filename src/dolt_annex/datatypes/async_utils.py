@@ -2,12 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from asyncio import Future
-import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing_extensions import Self
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, MaybeAwaitable, maybe_await
 
 class Result[T]:
     """
@@ -17,9 +16,9 @@ class Result[T]:
     This avoids ambiguity when MaybeAwaitable functions return Results.
     """
 
-    future: Future[T]
+    future: Awaitable[T]
 
-    def __init__(self, future: Future[T]) -> None:
+    def __init__(self, future: Awaitable[T]) -> None:
         self.future = future
 
     @classmethod
@@ -28,23 +27,26 @@ class Result[T]:
         fut.set_result(value)
         return cls(fut)
     
+    @staticmethod
+    def done() -> 'Result[None]':
+        return Result.of(None)
+    
     async def wait_for_complete(self) -> T:
         return await self.future
     
-    def map[S](self, func: Callable[[T], S]) -> 'Result[S]':
-        new_future: Future[S] = Future()
+    def map[S](self, func: 'Callable[[T], MaybeAwaitable[S | Result[S]]]') -> 'Result[S]':
 
-        async def _map() -> None:
-            try:
-                result = await self.future
-            except Exception as e:
-                new_future.set_exception(e)
+        async def _map() -> S:
+            result = await maybe_await(func(await self.wait_for_complete()))
+            if isinstance(result, Result):
+                return await result.wait_for_complete()
             else:
-                new_value = func(result)
-                new_future.set_result(new_value)
+                return result
 
-        asyncio.create_task(_map())
-        return Result(new_future)
+        return Result(_map())
+    
+    def and_then[S](self, func: 'Callable[[], MaybeAwaitable[S | Result[S]]]') -> 'Result[S]':
+        return self.map(lambda _: func())
 
 def await_or_enter[T: Closable, **P](coro: Callable[P, AsyncGenerator[T, None]]) -> Callable[P, AwaitOrEnter[T]]:
     """

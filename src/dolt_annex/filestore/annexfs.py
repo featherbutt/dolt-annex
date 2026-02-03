@@ -43,7 +43,7 @@ class AnnexFS(FileStore):
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
         file_path.rename(output_path)
-        return Result.of(None)
+        return Result.done()
 
     @override
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
@@ -55,7 +55,7 @@ class AnnexFS(FileStore):
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        return Result.of(None)
+        return Result.done()
 
     @override
     @await_or_enter
@@ -108,12 +108,12 @@ class AnnexFS(FileStore):
         Insert a new key that references the same content as an existing key.
         """
         if old_key == new_key:
-            return Result.of(None)
+            return Result.done()
         old_path = self.get_key_path(old_key)
         new_path = self.get_key_path(new_key)
         new_path.parent.mkdirs(exist_ok=True)
         old_path.link(new_path)
-        return Result.of(None)
+        return Result.done()
 
 class AnnexFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
