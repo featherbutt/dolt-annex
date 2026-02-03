@@ -93,7 +93,7 @@ class ArchiveFS(FileStore):
                         await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
                         callback.set_result(None)
                     except Exception as e:
-                        raise e
+                        callback.set_exception(e)
                     finally:
                         self.files_queue.task_done()
 
