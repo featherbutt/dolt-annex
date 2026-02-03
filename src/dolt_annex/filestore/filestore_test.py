@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from calendar import c
 from contextlib import asynccontextmanager
 import contextlib
 import pathlib
 import random
 import tempfile
+from tokenize import maybe
 import pytest_asyncio
 from typing_extensions import Generator, AsyncGenerator, override
 import pytest
@@ -17,7 +19,7 @@ from dolt_annex import test_util
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.file_io import async_bytes_io
+from dolt_annex.datatypes.file_io import Path, async_bytes_io
 from dolt_annex.file_keys import Sha256E, MD5e, SHA1e
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
@@ -157,6 +159,47 @@ async def test_file_stores(cas: ContentAddressableStorage):
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
+
+
+@pytest.mark.asyncio
+async def test_unionfs(temp_dir: pathlib.Path, base_config: Config):
+    child_filestores = [
+        ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel()),
+        MemoryFSModel(),
+        AnnexFSModel(root=temp_dir),
+    ]
+    async with UnionFSModel(children=child_filestores).open(base_config) as union_filestore:
+
+        # Create a file in each child filestore
+        for i, child in enumerate(union_filestore.children):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = Sha256E.from_bytes(file_bytes)
+            result = await maybe_await(child.put_file_bytes(file_bytes, file_key=file_key))
+            await result.wait_for_complete()
+
+        for i in range(len(union_filestore.children)):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = Sha256E.from_bytes(file_bytes)
+            assert await maybe_await(union_filestore.exists(file_key))
+            async with union_filestore.with_file_object(file_key) as f:
+                read_bytes = await f.read()
+                assert read_bytes == file_bytes
+
+        # Creating a child in the parent UnionFS creates the file in the first child filestore
+        new_file_key = Sha256E.from_bytes(b"new_file")
+        result = await maybe_await(union_filestore.put_file_bytes(b"new_file", new_file_key))
+        await result.wait_for_complete()
+        assert await maybe_await(union_filestore.children[0].exists(new_file_key))
+
+        # Creating an alias in the UnionFS creates the alias in the child filestore where the original file exists
+
+        for i, child in enumerate(union_filestore.children):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = Sha256E.from_bytes(file_bytes)
+            alias_key = MD5e.from_bytes(file_bytes)
+            result = await maybe_await(union_filestore.create_alias(file_key, alias_key))
+            await result.wait_for_complete()
+            assert await maybe_await(child.exists(alias_key))
 
 if __name__ == "__main__":
     pytest.main([__file__])
