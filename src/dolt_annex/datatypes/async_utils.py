@@ -35,9 +35,13 @@ class Result[T]:
         new_future: Future[S] = Future()
 
         async def _map() -> None:
-            result = await self.future
-            new_value = func(result)
-            new_future.set_result(new_value)
+            try:
+                result = await self.future
+            except Exception as e:
+                new_future.set_exception(e)
+            else:
+                new_value = func(result)
+                new_future.set_result(new_value)
 
         asyncio.create_task(_map())
         return Result(new_future)
