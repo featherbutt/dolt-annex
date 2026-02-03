@@ -46,7 +46,7 @@ def remote_filestore_model() -> FileStoreModel:
     return MemoryFSModel()
 
 @pytest.fixture
-def local_repo_model(loadable_context, local_uuid: UUID, local_filestore_model: FileStoreModel) -> RepoModel:
+def local_repo_model(local_uuid: UUID, local_filestore_model: FileStoreModel) -> RepoModel:
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
@@ -55,7 +55,7 @@ def local_repo_model(loadable_context, local_uuid: UUID, local_filestore_model: 
     )
 
 @pytest.fixture
-def remote_repo_model(loadable_context, remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> RepoModel:
+def remote_repo_model(remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> RepoModel:
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
@@ -92,7 +92,7 @@ async def create_test_filestore(filestore_model: FileStoreModel, files: Iterable
             await cas.put_file_bytes(file_content)
         yield cas
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def loadable_context():
     with Loadable.context():
         yield
