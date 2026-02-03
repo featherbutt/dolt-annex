@@ -79,7 +79,7 @@ class SFTPServer(asyncssh.SFTPServer):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
-        key = self.cas.file_key_format(path.rsplit(b'/')[-1])
+        key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
         if pflags & asyncssh.FXF_CREAT:
             return await self.create_file(key)
         else:

@@ -80,7 +80,7 @@ class ArchiveFS(FileStore):
                         break
                     try:
                         tar_info = tarfile.TarInfo(name=str(file_key))
-                        tar_info.size = file_key.size()
+                        tar_info.size = file_key.size
                         buf = tar_info.tobuf(archive_tar.format, archive_tar.encoding, archive_tar.errors)
                         offset = archive_tar.offset + len(buf)
                         # TODO: Rotate archive files if they exceed max_archive_size.
