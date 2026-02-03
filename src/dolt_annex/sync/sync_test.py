@@ -3,17 +3,13 @@
 
 import pathlib
 from typing import Generator
-import uuid
-from plumbum import local
 import pytest
 import random
 
 import pytest_asyncio
 
-from dolt_annex.conftest import local_repo
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
@@ -60,7 +56,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
 file_key = Sha256E.from_bytes(b"existing data")
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("local_filestore_model", [pytest.param(MemoryFSModel(files={bytes(file_key): b"corrupted data"}), id="")])
+@pytest.mark.parametrize("local_filestore_model", [pytest.param(MemoryFSModel(files={bytes(file_key): b"corrupted data"}), id=pytest.HIDDEN_PARAM)])
 @pytest.mark.parametrize("remote_filestore_model", [pytest.param(MemoryFSModel(), id="")])
 async def test_detect_corruption(
     setup: EnvironmentForTest,
