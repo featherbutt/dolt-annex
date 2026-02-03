@@ -93,7 +93,7 @@ class UnionFS(FileStore):
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
     @override
-    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         for child in self.children:
             try:
                 return await maybe_await(child.fstat(file_obj))
