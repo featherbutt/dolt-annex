@@ -4,6 +4,14 @@ A dataset is a collection of files and associated metadata, represented as a SQL
 
 Repositories contain copies of datasets. This copy can be total (contains every copy in the dataset) or partial (contains only some of the files in the dataset).
 
+The schema of a dataset such as `gallery-dl` is contained in the `gallery-dl.dataset` file. Datasets can be manually inspected with the `dolt-annex dataset read-table` command. For example, if `gallery-dl.dataset` contains `tables[].name = "submissions"`, then the command
+
+```
+$ dolt-annex dataset read-table --dataset gallery-dl --table-name submissions
+```
+
+would list all submissions.
+
 # Dolt
 
 Dolt is a version controlled SQL database with Git semantics. Dataset metadata is stored in Dolt as tables. For each dataset, dolt-annex maintains a Dolt branch with a table row for each file that the local repository has a copy of. Dolt-annex also has a branch for each remote repository that it has pushed or pulled that dataset to/from.

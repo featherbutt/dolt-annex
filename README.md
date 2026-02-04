@@ -41,6 +41,53 @@ The curent set of useful subcommands are:
 - `gallery-dl` - uses [gallery-dl](https://github.com/mikf/gallery-dl) to download files from a site supported by gallery-dl, and imports them into your annex.
 - `server` - create a sandboxed SFTP server, allowing dolt-annex to act as a remote.
 
+## Docker quickstart
+
+TODO: Re-verify these instructions for a fresh install. For example, config.json should have `spawn_dolt_server = false` probably.
+
+```
+$ git clone https://github.com/featherbutt/dolt-annex.git
+$ cd dolt-annex
+$ docker build -t dolt-annex-image
+$ mkdir -p /path/to/where/you/want/dolt-annex
+$ CONTAINER_ID="$(docker run -d -v /path/to/where/you/want/dolt-annex:/repo dolt-annex-image)"
+$ docker exec -d "${CONTAINER_ID}" dolt-annex gallery-dl https://e621.net/posts/4490888
+$ docker exec -it "${CONTAINER_ID}" bash  # From here you can run other dolt-annex commands
+```
+
+To manage future runs, you can even create a systemd unit file, such as:
+
+```
+dolt_annex_d.sh:
+----------------
+#!/bin/bash
+CONTAINER_ID="$(docker run -d -v /path/to/where/you/want/dolt-annex:/repo dolt-annex-image)"
+docker exec "${CONTAINER_ID}" dolt-annex gallery-dl '[URL to search results page you want gallery-dl to paginate and download]'
+docker kill "${CONTAINER_ID}"
+```
+
+```
+/etc/systemd/system/dolt-annex-d.service
+--------------------------------------
+[Unit]
+Description=dolt-annex and long-running gallery-dl
+
+[Service]
+ExecStart=/path/to/dolt_annex_d.sh
+User=[me]
+Group=[me]
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+$ systemctl start dolt-annex-d
+$ systemctl enable dolt-annex-d
+```
+
+And further docker administration can be done by finding the container id via `docker ps` and bash exec-ing into it.
+
 ## `dolt-annex import` 
 
 Format: `dolt-annex import [--move|--copy|--symlink] --importer $IMPORTER --dataset $DATASET" --file-key-type $FILE_KEY_TYPE $DIRECTORY`
@@ -50,3 +97,28 @@ Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.
 ## `dolt-annex pull` and `dolt-annex push`
 
 ## `dolt-annex gallery-dl`
+
+```
+$ dolt-annex gallery-dl https://e621.net/posts/4490888
+```
+
+Would use gallery-dl to download this link. Gallery-dl can also be used to automatically paginate and download results from search pages of some websites. Dolt-annex's use of gallery-dl can be further configured in `gallery_dl_config.json`.
+
+## `dolt-annex dataset read-table`
+
+```
+$ dolt-annex dataset read-table --dataset gallery-dl --table-name submissions
+````
+
+Would list all gallery-dl submissions. If the file exists, see `gallery-dl.dataset` for other tables that can be listed.
+
+Append `--where source=archiveofourown.org` to filter to just AO3 submissions.
+
+## `dolt-annex filestore export-file`
+
+```
+$ dolt-annex filestore export-file --file-key SHA256E-s16682--174324580ef0a850a2223b74fa305eb92b39ddfbff785c92076c67a2e9b0e412.html
+```
+
+To export a specific file. Obtain file-keys from commands like `dolt-annex dataset read-table` above.
+
