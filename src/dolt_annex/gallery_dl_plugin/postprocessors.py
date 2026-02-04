@@ -50,7 +50,7 @@ def gallery_dl_post(metadata: dict):
             table: FileTable = dataset.get_table("metadata")
             await import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json")
             context.post_metadata_files_processed += 1
-    tasks.create_task(continuation())
+    tasks.put(continuation())
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -103,7 +103,7 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
             await import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
             context.submission_metadata_files_processed += 1
 
-    tasks.create_task(continuation())
+    tasks.put_nowait(continuation())
 
 async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
