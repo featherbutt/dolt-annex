@@ -78,7 +78,7 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
+async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, capture_output: bool, *args) -> GalleryDLOutput:
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
@@ -90,10 +90,13 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
         gallery_dl_context = GalleryDLContext(repo=repo, dataset=dataset, tasks=tasks)
         def gallery_dl_main():
             with (
-                contextlib.redirect_stdout(gallery_dl_stdout),
-                contextlib.redirect_stderr(gallery_dl_stderr),
+                contextlib.ExitStack() as stack,
                 with_gallery_dl_context(gallery_dl_context),
             ):
+                if capture_output:
+                    stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
+                    stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
+
                 gallery_dl.main()
                 tasks.shutdown()
 
@@ -109,8 +112,8 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
             pass
 
         return GalleryDLOutput(
-            stdout="",
-            stderr="",
+            stdout=gallery_dl_stdout.getvalue(),
+            stderr=gallery_dl_stderr.getvalue(),
             submission_files_processed=gallery_dl_context.submission_files_processed,
             submission_metadata_files_processed=gallery_dl_context.submission_metadata_files_processed,
             post_metadata_files_processed=gallery_dl_context.post_metadata_files_processed,
