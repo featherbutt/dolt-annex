@@ -14,7 +14,6 @@ import io
 import queue
 import sys
 from pathlib import Path
-import threading
 
 import gallery_dl
 
@@ -97,19 +96,23 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                     stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
                     stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
 
-                gallery_dl.main()
-                tasks.shutdown()
+                try:
+                    gallery_dl.main()
+                finally:
+                    tasks.shutdown()
 
-        threading.Thread(target=gallery_dl_main).start()
+        loop = asyncio.get_running_loop()
+        gallery_dl_thread = loop.run_in_executor(None, gallery_dl_main)
 
         try:
-            loop = asyncio.get_running_loop()
             while True:
                 task = await loop.run_in_executor(None, tasks.get)
                 await task
                 tasks.task_done()
         except queue.ShutDown:
             pass
+
+        await gallery_dl_thread
 
         return GalleryDLOutput(
             stdout=gallery_dl_stdout.getvalue(),
