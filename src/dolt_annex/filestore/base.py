@@ -33,12 +33,12 @@ class FileStore(abc.ABC):
         """
         return await maybe_await(self.put_file_object(file_path.open(), file_key))
 
-    def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
         """
         Upload an in-memory file to the remote.
         """
-        return self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
-
+        return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
+    
     @abstractmethod
     def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """Upload a file-like object to the remote."""
