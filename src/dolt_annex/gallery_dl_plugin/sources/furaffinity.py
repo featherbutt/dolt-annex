@@ -11,7 +11,7 @@ class Furaffinity(GalleryDLSource):
 
     @override
     def supported_subcategories(self) -> list[str]:
-        return ["post"]
+        return ["post", "search", "favorite", "gallery"]
     
     @override
     def table_key(self, metadata: dict[str, Any]) -> TableRow:
@@ -22,7 +22,10 @@ class Furaffinity(GalleryDLSource):
         return [
             "comments",
             "favorites",
-            "views"
+            "views",
+            "search",
+            "user",
+            "favorite_id",
         ]
     
     @override

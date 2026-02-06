@@ -37,10 +37,12 @@ def gallery_dl_post(metadata: dict):
     repo = context.repo
     tasks = context.tasks
 
+    # remove subcategory
+    public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
+
     async def continuation():
         for table_row in source.post_metadata(metadata):
-            # remove subcategory
-            public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
+            
             metadata_bytes = json.dumps(    
                 public_metadata,
                 ensure_ascii=False,
@@ -103,7 +105,7 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
             await import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
             context.submission_metadata_files_processed += 1
 
-    tasks.put_nowait(continuation())
+    tasks.put(continuation())
 
 async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
@@ -127,5 +129,7 @@ async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table:
     file_key = Sha256E.make(size, sha256, extension)
 
     result = await maybe_await(local_filestore.put_file_bytes(file_bytes, file_key))
+
     await result.wait_for_complete()
+        
     await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
