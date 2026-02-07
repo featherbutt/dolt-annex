@@ -12,8 +12,6 @@ async def test_diff(tmp_path, setup: EnvironmentForTest):
 
     dataset_name = test_dataset_schema.name
     table_name = test_dataset_schema.tables[0].name
-    table_key_column = test_dataset_schema.tables[0].key_columns[0]
-    file_column = test_dataset_schema.tables[0].file_column
 
     remote_name = "test_remote"
     local_name = "__local__"
