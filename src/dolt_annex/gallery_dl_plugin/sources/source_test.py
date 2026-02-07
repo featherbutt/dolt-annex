@@ -17,7 +17,7 @@ import pytest
 
 @dataclass
 class GalleryDLTestContext:
-    target_post_id: int = 0
+    target_post_id: str
     post_metadata: Optional[dict] = None
     subcategory: Optional[str] = None
 
@@ -38,14 +38,14 @@ class SourceUrl:
     
 @dataclass
 class SourceTest:
-    test_id: int
+    test_id: str
     post_url: SourceUrl
     urls: list[SourceUrl]
 
 tests: dict[str, list[SourceTest]] = {
     "furaffinity": [
         SourceTest(
-            test_id=42609833,
+            test_id="42609833",
             post_url=SourceUrl("post", "https://www.furaffinity.net/view/42609833/"),
             urls=[
                 SourceUrl("search", "https://www.furaffinity.net/search/?q=%40keywords+bindingsin"),
@@ -53,7 +53,7 @@ tests: dict[str, list[SourceTest]] = {
             ],
         ),
         SourceTest(
-            test_id=31302258,
+            test_id="31302258",
             post_url=SourceUrl("post", "https://www.furaffinity.net/view/31302258/"),
             urls=[
                 SourceUrl("gallery", "https://www.furaffinity.net/gallery/entvanen/"),
@@ -63,17 +63,27 @@ tests: dict[str, list[SourceTest]] = {
     ],
     "pixiv": [
         SourceTest(
-            test_id=204505,
+            test_id="204505",
             post_url=SourceUrl("work", "https://www.pixiv.net/en/artworks/204505"),
             urls=[
                 SourceUrl("search", "https://www.pixiv.net/en/tags/%E7%9F%B3%E6%AE%B5/artworks?order=date")
             ],
         ),
         SourceTest(
-            test_id=24254334,
+            test_id="24254334",
             post_url=SourceUrl("work", "https://www.pixiv.net/en/artworks/24254334"),
             urls=[
                 SourceUrl("artworks", "https://www.pixiv.net/en/users/39130")
+            ],
+        ),
+    ],
+    "inkbunny": [
+        SourceTest(
+            test_id="2859344",
+            post_url=SourceUrl("post", "https://inkbunny.net/s/2859344"),
+            urls=[
+                SourceUrl("user", "https://inkbunny.net/bindingsin/"),
+                SourceUrl("search", "https://inkbunny.net/submissionsviewall.php?mode=search&page=1&orderby=&text=0c3af53e7b6bee504f853914d70ec0cc&md5=yes")
             ],
         ),
     ],
@@ -84,7 +94,7 @@ skipped_sources = [
     "pixiv",
 ]
 
-def get(url: str, test_id: int, subcategory: Optional[str] = None) -> dict:
+def get(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
     config_path = pathlib.Path(__file__).parent.parent / "gallery_dl_test_config.json"
 
     # -N file:id allows us to skip downloading files since we only care about the metadata

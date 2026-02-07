@@ -56,6 +56,10 @@ class GalleryDLSource:
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
         return []
+    
+    def id(self, metadata: dict[str, Any]) -> str:
+        """A unique identifier for the post."""
+        return str(metadata["id"])
 
 def mutate_remove_field(d: dict | list, field_to_remove: str | list[str]):
     if isinstance(d, list):

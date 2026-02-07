@@ -21,7 +21,7 @@ def gallery_dl_post_test(metadata: dict):
 
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
-    if public_metadata["id"] == context.target_post_id:
+    if source.id(public_metadata) == context.target_post_id:
         context.post_metadata = public_metadata
         context.subcategory = subcategory
         raise gallery_dl.exception.TerminateExtraction()
