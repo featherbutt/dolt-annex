@@ -11,7 +11,7 @@ class Pixiv(GalleryDLSource):
 
     @override
     def supported_subcategories(self) -> list[str]:
-        return ["artworks", "user", "tags"]
+        return ["artworks", "user", "tags", "work", "search"]
     
     @override
     def table_key(self, metadata: dict[str, Any]) -> TableRow:
@@ -34,12 +34,9 @@ class Pixiv(GalleryDLSource):
             "restriction_attributes",
             ["user", "is_followed"],
             ["user", "is_access_blocking_user"],
+            "search",
         ]
     
     @override
     def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         yield TableRow(("pixiv.net", metadata["id"], metadata["date"]))
-
-    @override
-    def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        yield TableRow(("pixiv.net", metadata["id"], metadata["date"], metadata["num"]))

@@ -40,19 +40,18 @@ def gallery_dl_post(metadata: dict):
     # remove subcategory
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
-    async def continuation():
-        for table_row in source.post_metadata(metadata):
-            
-            metadata_bytes = json.dumps(    
-                public_metadata,
-                ensure_ascii=False,
-                sort_keys=True,
-                indent=4,
-                default=json_default).encode('utf-8') + b'\n'
-            table: FileTable = dataset.get_table("metadata")
-            await import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json")
-            context.post_metadata_files_processed += 1
-    tasks.put(continuation())
+    for table_row in source.post_metadata(metadata):
+        
+        metadata_bytes = json.dumps(    
+            public_metadata,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=4,
+            default=json_default).encode('utf-8') + b'\n'
+        table: FileTable = dataset.get_table("metadata")
+        tasks.put(import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json"))
+        context.post_metadata_files_processed += 1
+    
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -98,14 +97,12 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     file_system = fs.osfs.OSFS(temp_path.parent.as_posix())
     temp_path = Path(file_system, temp_path.name)
 
-    async def continuation():
-        await import_file(repo.uuid, repo.filestore, submissions_table, source.table_key(metadata), temp_path, metadata["extension"], metadata["sha256"])
-        context.submission_files_processed += 1
-        for metadata_key in source.file_metadata(metadata):
-            await import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json")
-            context.submission_metadata_files_processed += 1
-
-    tasks.put(continuation())
+    submission_table_key = source.table_key(metadata)
+    tasks.put(import_file(repo.uuid, repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
+    context.submission_files_processed += 1
+    for metadata_key in source.file_metadata(metadata):
+        tasks.put(import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.submission_metadata_files_processed += 1
 
 async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""

@@ -23,4 +23,5 @@ def gallery_dl_post_test(metadata: dict):
 
     if public_metadata["id"] == context.target_post_id:
         context.post_metadata = public_metadata
+        context.subcategory = subcategory
         raise gallery_dl.exception.TerminateExtraction()
