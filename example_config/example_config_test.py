@@ -15,7 +15,7 @@ from dolt_annex.datatypes.common import MySQLConnection, SSHConnection
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.datatypes.config import Config, UserConfig, DoltConfig, SshSettings
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 
 def test_example_config():
     example_config = Config(
@@ -41,7 +41,7 @@ def test_example_config():
         ),
         local_repo_name="__local__",
         default_annex_remote="origin",
-        default_file_key_type=Sha256e,
+        default_file_key_type=Sha256E,
     )
 
     example_local_repo = RepoModel(
@@ -50,7 +50,7 @@ def test_example_config():
         filestore = AnnexFSModel(
             root=pathlib.Path("./annex"),
         ),
-        key_format = Sha256e,
+        key_format = Sha256E,
     )
 
     example_remote_repo = RepoModel(
@@ -65,7 +65,7 @@ def test_example_config():
                 path=pathlib.Path("."),
             )
         ),
-        key_format = Sha256e,
+        key_format = Sha256E,
     )
 
     example_dataset_schema = DatasetSchema(

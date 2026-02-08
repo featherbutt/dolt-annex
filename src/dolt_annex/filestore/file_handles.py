@@ -13,9 +13,9 @@ import aiofiles
 from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes import FileKey
-from dolt_annex.datatypes.file_io import WritableFileObject, FileInfo, ReadableFileObject
+from dolt_annex.datatypes.async_types import ReadableFileObject, WritableFileObject
+from dolt_annex.datatypes.file_io import FileInfo
 from dolt_annex.filestore.cas import ContentAddressableStorage
-
 
 CHUNK_SIZE = 8092
 
@@ -39,6 +39,9 @@ class ExistingFileHandle(FileHandle, ReadableFileObject):
         if size == -1:
             return self.readfile.read()
         return self.readfile.read(size)
+
+    def readinto(self, buffer: Buffer, /) -> Awaitable[int]:
+        return self.readfile.readinto(buffer)
 
     def close(self) -> Awaitable[None]:
         return self.readfile.close()

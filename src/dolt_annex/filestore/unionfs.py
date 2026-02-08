@@ -5,8 +5,8 @@ from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
 from typing_extensions import override, Any
 
-from dolt_annex.datatypes.async_utils import Result
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
@@ -24,16 +24,19 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
-        return await maybe_await(self.children[0].put_file_object(in_fd, file_key))
+        return await maybe_await(self.children[0].put_file_object(data_source, file_key))
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         for child in self.children:
             try:
-                return await maybe_await(child.get_file_object(file_key))
+                async with child.get_file_object(file_key) as file_obj:
+                    yield file_obj
+                    return
             except FileNotFoundError:
                 continue
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
@@ -90,13 +93,20 @@ class UnionFS(FileStore):
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
     @override
-    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         for child in self.children:
             try:
                 return await maybe_await(child.fstat(file_obj))
             except FileNotFoundError:
                 continue
         raise FileNotFoundError("File object not found in any child filestore.")
+    
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        for child in self.children:
+            if await maybe_await(child.exists(old_key)):
+                return await maybe_await(child.create_alias(old_key, new_key))
+        raise FileNotFoundError(f"File with key {old_key} not found in annex.")
 
 class UnionFSModel(FileStoreModel):
     children: list[FileStoreModel]

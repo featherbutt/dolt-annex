@@ -1,22 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing_extensions import Any, Iterable, override
+from typing_extensions import override
 
-from dolt_annex.datatypes.common import TableRow
 from .base import GalleryDLSource
 
-class Pixiv(GalleryDLSource):
+class Pixiv(GalleryDLSource, source_name = "pixiv.net"):
     """Support for pixiv.net"""
 
     @override
     def supported_subcategories(self) -> list[str]:
-        return ["artworks", "user", "tags"]
+        return ["artworks", "user", "tags", "work", "search"]
     
-    @override
-    def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        return TableRow(("pixiv.net", metadata["id"], metadata["date"], metadata["num"]))
-        
     @override
     def fields_to_remove(self) -> list[str | list[str]]:
         return [
@@ -34,12 +29,5 @@ class Pixiv(GalleryDLSource):
             "restriction_attributes",
             ["user", "is_followed"],
             ["user", "is_access_blocking_user"],
+            "search",
         ]
-    
-    @override
-    def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        yield TableRow(("pixiv.net", metadata["id"], metadata["date"]))
-
-    @override
-    def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        yield TableRow(("pixiv.net", metadata["id"], metadata["date"], metadata["num"]))

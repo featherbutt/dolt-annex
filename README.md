@@ -22,7 +22,7 @@ An unrelated scaling issue for git-annex is that the standard git client creates
 
 dolt-annex depends on [Dolt](https://github.com/dolthub/dolt). Dolt can be installed locally, or dolt-annex can connect to a running Dolt server.
 
-Python 3.10+ is required.
+Python 3.13+ is required.
 
 ## Installation
 
@@ -45,7 +45,7 @@ The curent set of useful subcommands are:
 
 Format: `dolt-annex import [--move|--copy|--symlink] --importer $IMPORTER --dataset $DATASET" --file-key-type $FILE_KEY_TYPE $DIRECTORY`
 
-Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type Sha256e ~/Downloads/prefix.com/files`
+Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type SHA256E ~/Downloads/prefix.com/files`
 
 ## `dolt-annex pull` and `dolt-annex push`
 

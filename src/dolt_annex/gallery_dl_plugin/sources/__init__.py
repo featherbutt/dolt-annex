@@ -6,14 +6,18 @@ from typing_extensions import Dict
 from .base import GalleryDLSource
 from .itaku import Itaku
 from .furaffinity import Furaffinity
+from .inkbunny import Inkbunny
 from .ao3 import AO3
 from .pixiv import Pixiv
+from .nhentai import NHentai
 
 category_to_source : Dict[str, GalleryDLSource]= {
     "itaku": Itaku(),
     "furaffinity": Furaffinity(),
     "ao3": AO3(),
     "pixiv": Pixiv(),
+    "inkbunny": Inkbunny(),
+    "nhentai": NHentai(),
 }
 
 def get_source(category: str, subcategory: str) -> GalleryDLSource:

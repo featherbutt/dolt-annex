@@ -13,8 +13,8 @@ from asyncssh.misc import MaybeAwait
 import fs.osfs
 from fs.base import FS as FileSystem
 
-from dolt_annex.datatypes.async_utils import maybe_await
-from dolt_annex.datatypes.file_io import ReadableFileObject, Path
+from dolt_annex.datatypes.async_types import maybe_await, ReadableFileObject
+from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.logger import logger
@@ -79,7 +79,7 @@ class SFTPServer(asyncssh.SFTPServer):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
-        key = self.cas.file_key_format(path.rsplit(b'/')[-1])
+        key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
         if pflags & asyncssh.FXF_CREAT:
             return await self.create_file(key)
         else:
@@ -399,7 +399,7 @@ class SFTPServer(asyncssh.SFTPServer):
         raise asyncssh.SFTPOpUnsupported("readlink is not supported")
 
     @override
-    def symlink(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def symlink(self, oldpath: bytes, newpath: bytes) -> None:
         """Create a symbolic link
 
            :param oldpath:
@@ -412,8 +412,11 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-
-        raise asyncssh.SFTPOpUnsupported("symlink is not supported")
+        result = await self.cas.file_store.create_alias(
+            self.cas.file_key_format(key=oldpath.rsplit(b'/')[-1]),
+            self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        )
+        await result.wait_for_complete()
 
     @override
     def link(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:

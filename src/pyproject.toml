@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dolt_annex"
-version = "0.5.0"
+version = "0.6.1"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
@@ -10,7 +10,7 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.13"
 typing-extensions = "^4.15.0"
 plumbum = "^1.9.0"
 pymysql = "^1.1.2"

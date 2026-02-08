@@ -3,61 +3,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
 import contextvars
 from dataclasses import dataclass
 from io import BytesIO
-import os
 import pathlib
-from types import TracebackType
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
-from typing_extensions import BinaryIO, Final, Protocol, Self, Buffer, Literal, Generator
+import fs.copy
+from typing_extensions import BinaryIO, Final, Self, Literal
 
 import fs.move
 import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
+from dolt_annex.datatypes.async_types import AwaitOrEnter, Closable, MaybeAwaitable, ReadableStream, maybe_await
+
 
 @dataclass
 class FileInfo:
     size: int | None
-
-# The following protocols describe various file-like objects with different capabilities.
-# Since different filestores have different requirements,
-# these protocols allow us to use the many different filestores in a type-safe way.
-
-class AwaitOrEnter[T](Protocol):
-    def __await__(self) -> Generator[None, None, T]: ...
-    def __aenter__(self) -> Awaitable[T]: ...
-    def __aexit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> Awaitable[None]: ...
-
-class Closable(Protocol):
-    def close(self) -> Awaitable[None]:
-        ...
-
-class ReadableStream(Closable, Protocol):
-    def read(self, size: int = -1, /) -> Awaitable[bytes]:
-        ...
-
-class WritableStream(Closable, Protocol):
-    def write(self, s: Buffer, /) -> Awaitable[int]:
-        ...
-
-class ReadableFileObject(ReadableStream, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
-        ...
-
-    def tell(self) -> Awaitable[int]:
-        ...
-
-class WritableFileObject(WritableStream, ReadableFileObject, Protocol):
-    def seek(self, offset: int, whence: int = os.SEEK_SET, /) -> Awaitable[int]:
-        ...
-
-    def tell(self) -> Awaitable[int]:
-        ...
 
 class ReferenceCountedContextManager[T: Closable]:
     """
@@ -93,16 +58,21 @@ def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
     else:
         return ReferenceCountedContextManager(inner)
 
-type RefCountedFile = ReferenceCountedContextManager[ReadableFileObject]
+type RefCountedFile = ReferenceCountedContextManager[ReadableStream]
 
-def async_open(fd: BinaryIO) -> AwaitOrEnter[AsyncFileIO]:
+def async_open(fd: MaybeAwaitable[BinaryIO]) -> AwaitOrEnter[AsyncFileIO]:
     """
     Wrap a synchronous file object so it can be used asynchronously
     or in an async context manager.
     """
     async def async_file_io():
-        return AsyncFileIO(fd, None, None)
+        return AsyncFileIO(await maybe_await(fd), None, None)
     return AiofilesContextManager(async_file_io())
+
+def async_bytes_io(data: bytes) -> AwaitOrEnter[AsyncBytesIO]:
+    async def async_bytes_io_inner() -> AsyncBytesIO:
+        return AsyncBytesIO(data)
+    return AiofilesContextManager(async_bytes_io_inner())
 
 class AsyncBytesIO(AsyncFileIO):
     """
@@ -117,6 +87,7 @@ class AsyncBytesIO(AsyncFileIO):
         self.data = data
 
 file_system_context = contextvars.ContextVar[FS]("file_system_context", default=OSFS('.'))
+
 @dataclass
 class Path:
     """
@@ -148,7 +119,11 @@ class Path:
         return self.fs.exists(self.path.as_posix())
 
     def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
-        return async_open(self.open_sync(mode=mode))
+        # Avoid opening the file synchronously; wait for the async context instead.
+        # This helps ensure that every file open is matched with a file close.
+        async def open_inner() -> BinaryIO:
+            return self.open_sync(mode)
+        return async_open(open_inner())
 
     def open_sync(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> BinaryIO:
         return self.fs.openbin(self.path.as_posix(), mode)
@@ -197,6 +172,15 @@ class Path:
         link_target = self.fs.getinfo(self.path.as_posix()).target
         assert link_target is not None, "Path is not a symlink"
         return Path(self.fs, link_target)
+
+    def link(self, target: Path) -> None:
+        try:
+            old_syspath = self.fs.getsyspath(self.path.as_posix())
+            new_syspath = target.fs.getsyspath(target.path.as_posix())
+            pathlib.Path(new_syspath).symlink_to(pathlib.Path(old_syspath))
+        except fs.errors.NoSysPath:
+            # Filesystem does not support syspaths; fall back on copying
+            fs.copy.copy_file(self.fs, self.path.as_posix(), target.fs, target.path.as_posix())
 
     @property
     def name(self) -> str:

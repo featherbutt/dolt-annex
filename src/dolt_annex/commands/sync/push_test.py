@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
 
     # Each file should be present in the remote dataset and the remote filestore.
     records = [record1, record2, record3]
-    expected_files_keys = [bytes(Sha256e.from_bytes(record.file_bytes, extension="txt")) for record in records]
+    expected_files_keys = [bytes(Sha256E.from_bytes(record.file_bytes, extension="txt")) for record in records]
     await run(
         args=[
             "dolt-annex", "dataset", "read-table",

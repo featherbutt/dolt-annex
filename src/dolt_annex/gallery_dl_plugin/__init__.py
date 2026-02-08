@@ -6,10 +6,12 @@ gallery-dl integration for dolt-annex.
 """
 
 import asyncio
+from collections.abc import Awaitable
 import contextlib
 import contextvars
 from dataclasses import dataclass
 import io
+import queue
 import sys
 from pathlib import Path
 
@@ -29,7 +31,7 @@ gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 class GalleryDLContext:
     repo: Repo
     dataset: Dataset
-    tasks: asyncio.TaskGroup
+    tasks: queue.Queue[Awaitable]
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
@@ -75,23 +77,46 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
+async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, capture_output: bool, *args) -> GalleryDLOutput:
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
 
     async with Dataset.connect(config, db_batch_size=batch_size, dataset_schema=dataset_schema) as dataset:
-        async with asyncio.TaskGroup() as tasks:
-            gallery_dl_context = GalleryDLContext(repo=repo, dataset=dataset, tasks=tasks)
+        # gallery-dl is synchronous, so we need to run it in a separate thread, and use the
+        # thread-safe queue.Queue to communicate tasks back to the async loop.
+        tasks = queue.Queue[Awaitable]()
+        gallery_dl_context = GalleryDLContext(repo=repo, dataset=dataset, tasks=tasks)
+        def gallery_dl_main():
             with (
-                contextlib.redirect_stdout(gallery_dl_stdout),
-                contextlib.redirect_stderr(gallery_dl_stderr),
+                contextlib.ExitStack() as stack,
                 with_gallery_dl_context(gallery_dl_context),
             ):
-                gallery_dl.main()
+                if capture_output:
+                    stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
+                    stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
+
+                try:
+                    gallery_dl.main()
+                finally:
+                    tasks.shutdown()
+
+        loop = asyncio.get_running_loop()
+        gallery_dl_thread = loop.run_in_executor(None, gallery_dl_main)
+
+        try:
+            while True:
+                task = await loop.run_in_executor(None, tasks.get)
+                await task
+                tasks.task_done()
+        except queue.ShutDown:
+            pass
+
+        await gallery_dl_thread
+
         return GalleryDLOutput(
-            stdout="",
-            stderr="",
+            stdout=gallery_dl_stdout.getvalue(),
+            stderr=gallery_dl_stderr.getvalue(),
             submission_files_processed=gallery_dl_context.submission_files_processed,
             submission_metadata_files_processed=gallery_dl_context.submission_metadata_files_processed,
             post_metadata_files_processed=gallery_dl_context.post_metadata_files_processed,

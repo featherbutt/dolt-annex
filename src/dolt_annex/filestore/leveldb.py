@@ -8,13 +8,15 @@ with the file key as the key and the file contents as the value.
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import pathlib
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_utils import Result, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import AsyncBytesIO
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
@@ -35,17 +37,19 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
-        self.db.put(bytes(file_key), await maybe_await(in_fd.inner.read()))
-        return Result.of(None)
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+        async with data_source as in_fd:
+            self.db.put(bytes(file_key), await maybe_await(in_fd.read()), sync=True)
+        return Result.done()
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         file_bytes = self.db.get(bytes(file_key))
         if file_bytes is None:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return AsyncBytesIO(file_bytes)
-    
+        yield AsyncBytesIO(file_bytes)
+
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
         file_bytes = self.db.get(bytes(file_key))
@@ -54,7 +58,7 @@ class LevelDB(FileStore):
         return FileInfo(size=len(file_bytes))
 
     @override
-    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("LevelDB.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))
@@ -62,6 +66,10 @@ class LevelDB(FileStore):
     @override
     def exists(self, file_key: FileKey) -> bool:
         return self.db.get(bytes(file_key)) is not None
+
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        return await super().create_alias(old_key, new_key)
 
 class LevelDBModel(FileStoreModel):
 

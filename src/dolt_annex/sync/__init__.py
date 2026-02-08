@@ -7,16 +7,18 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing_extensions import Iterable, Optional, Tuple, List
+
+from dolt_annex.datatypes import TableRow
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
-
+from dolt_annex.datatypes.table import FileTableSchema
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.base import filestore_copy, maybe_await
+from dolt_annex.filestore.cas import filestore_copy
 from dolt_annex.table import Dataset, FileTable, TableFilter
 from dolt_annex.logger import logger
-from dolt_annex.datatypes import TableRow
 from dolt_annex.dolt import DoltSqlServer
-from dolt_annex.datatypes.table import FileTableSchema
+
 
 class SyncOperation:
     table: FileTable
@@ -79,9 +81,9 @@ class SyncOperation:
                 raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
             await self.table.flush()
 
-    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[FileKey, TableRow]]) -> bool:
+    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow]]) -> bool:
         has_more = False
-        for key, table_row in keys_and_submissions:
+        for diff_type, key, table_row in keys_and_submissions:
             has_more = True
             await self.work_queue.put((key, table_row))
         return has_more
@@ -94,10 +96,10 @@ class SyncOperation:
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
-            return Result.of(None)
+            return Result.done()
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
             logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
-            return Result.of(None)
+            return Result.done()
         result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
         # We must wait for the copy to complete before updating the dataset.
         async def update_table_on_complete() -> None:
@@ -157,11 +159,7 @@ async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: 
     # TODO: This only returns the files moved in the last table.
     return sync_op.files_moved
 
-
-
-
-
-def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[FileKey, TableRow]]:
+def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: str, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow]]:
     refs = [in_ref, not_in_ref]
     refs.sort()
     union_branch_name = f"union-{refs[0]}-{refs[1]}-{dataset_name}"
@@ -181,8 +179,8 @@ def diff_keys(dolt: DoltSqlServer, in_ref: str, not_in_ref: str, dataset_name: s
         else:
             query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
         # TODO: Wrap this in a helper function
-        for (annex_key, _, *key_parts) in query_results:
-            yield (FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
+        for (annex_key, diff_type, *key_parts) in query_results:
+            yield (diff_type, FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
 
 def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
     """

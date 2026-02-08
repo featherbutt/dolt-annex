@@ -2,7 +2,7 @@ from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
 
-from . import insert_record, read_table
+from . import insert_record, read_table, diff
 
 class DatasetSubcommand(CommandGroup, SubCommand):
     """
@@ -13,3 +13,4 @@ class DatasetSubcommand(CommandGroup, SubCommand):
 
 DatasetSubcommand.subcommand("insert-record", insert_record.InsertRecord)
 DatasetSubcommand.subcommand("read-table", read_table.ReadTable)
+DatasetSubcommand.subcommand("diff", diff.Diff)

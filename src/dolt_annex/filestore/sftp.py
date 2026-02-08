@@ -21,10 +21,10 @@ from typing import Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
-from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.file_io import ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, copy
@@ -35,22 +35,26 @@ class SftpFileStore(FileStore):
     sftp: asyncssh.SFTPClient
 
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
-        async with self.sftp.open(remote_file_path, 'wb') as out_fd:
-            await copy(src=in_fd.inner, dst=out_fd)
-        return Result.of(None)
+        async with (
+            self.sftp.open(remote_file_path, 'wb') as out_fd,
+            data_source as in_fd,
+        ):
+            await copy(src=in_fd, dst=out_fd)
+        return Result.done()
 
     @override
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return await self.sftp.open(remote_file_path, 'rb')
+        yield await self.sftp.open(remote_file_path, 'rb')
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
@@ -58,7 +62,7 @@ class SftpFileStore(FileStore):
          return await self.fstat(file_obj)
 
     @override
-    async def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, asyncssh.SFTPClientFile):
             raise TypeError("SftpFileStore.fstat was passed a file object that did not originate from this filestore.")
         stat_result = await file_obj.stat()
@@ -88,6 +92,22 @@ class SftpFileStore(FileStore):
             return bool(stat)
         except asyncssh.SFTPNoSuchFile:
             return False
+  
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        new_relative_path = self.get_key_path(new_key).as_posix()
+        await self.sftp.makedirs(Path(new_relative_path).parent.as_posix(), exist_ok=True)
+
+        # If we supply a relative path for `old_path`, it will get
+        # interpreted relative to the server's CWD. We need to make it absolute.
+        old_absolute_path = self.sftp.compose_path(self.get_key_path(old_key).as_posix())
+        new_absolute_path = self.sftp.compose_path(new_relative_path)
+
+        await self.sftp.symlink(
+            oldpath=old_absolute_path,
+            newpath=new_absolute_path,
+        )
+        return Result.done()
 
     @classmethod
     @asynccontextmanager

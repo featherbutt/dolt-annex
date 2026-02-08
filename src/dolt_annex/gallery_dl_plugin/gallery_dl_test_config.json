@@ -1,0 +1,12 @@
+{
+    "extractor": {
+		"path-metadata": "_path_metadata",
+		"postprocessors": [
+			{
+				"name": "python",
+				"event": "post",
+				"function": "dolt_annex:gallery_dl_post_test"
+			}
+		]
+    }
+}

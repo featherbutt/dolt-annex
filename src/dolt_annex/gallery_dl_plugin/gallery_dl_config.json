@@ -45,6 +45,9 @@
         },
 		"ao3": {
 			"formats": ["html"]
+		},
+		"pixiv": {
+			"filename": "{category}-{subcategory}-{id}-{num}.{extension}"
 		}
     }
 }

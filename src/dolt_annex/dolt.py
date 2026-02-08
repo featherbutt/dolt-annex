@@ -21,7 +21,6 @@ class DoltSqlServer:
     """A connection to a Dolt SQL server."""
     db_config: Dict[str, Any]
     connection: pymysql.connections.Connection
-    cursor: pymysql.cursors.Cursor
     active_branch: str
     db_name: str
 
@@ -35,10 +34,10 @@ class DoltSqlServer:
             self.dolt_server_process = None
             self.connection = pymysql.connect(**db_config)
 
-        self.cursor = self.connection.cursor()
+        cursor = self.connection.cursor()
 
-        self.cursor.execute("SELECT ACTIVE_BRANCH()")
-        res = self.cursor.fetchone()
+        cursor.execute("SELECT ACTIVE_BRANCH()")
+        res = cursor.fetchone()
         assert res is not None
         self.active_branch = res[0]
 
@@ -60,7 +59,7 @@ class DoltSqlServer:
             dolt = (dolt > server_logfile)
         if (server_err_logfile := os.getenv("DA_SERVER_ERR_LOGFILE")) is not None:
             dolt = (dolt >= server_err_logfile)
-        dolt_server_process = dolt.popen(["sql-server", *args])
+        dolt_server_process = dolt.popen(["sql-server", *args], start_new_session=True)
         while True:
             try:
                 return dolt_server_process, pymysql.connect(**self.db_config)
@@ -69,14 +68,16 @@ class DoltSqlServer:
                 time.sleep(1)
 
     def executemany(self, sql: str, values):
-        self.cursor.executemany(sql, values)
-        self.cursor.execute("COMMIT;")
+        cursor = self.connection.cursor()
+        cursor.executemany(sql, values)
+        cursor.execute("COMMIT;")
         self.connection.commit()
     
     def execute(self, sql: str, values):
-        self.cursor.execute(sql, values)
-        self.cursor.fetchall()
-        self.cursor.execute("COMMIT;")
+        cursor = self.connection.cursor()
+        cursor.execute(sql, values)
+        cursor.fetchall()
+        cursor.execute("COMMIT;")
         self.connection.commit()
     
     def query(self, sql: str, values = ()):
@@ -90,14 +91,14 @@ class DoltSqlServer:
         self.connection.commit()
 
     def commit(self, amend: bool = False):
-        logger.debug("dolt add")
-        self.cursor.execute("call DOLT_ADD('.');")
+        cursor = self.connection.cursor()
+        cursor.execute("call DOLT_ADD('.');")
         logger.debug("dolt commit")
         try:
             if amend:
-                self.cursor.execute("call DOLT_COMMIT('--amend');")
+                cursor.execute("call DOLT_COMMIT('--amend');")
             else:
-                self.cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
+                cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
         except pymysql.err.OperationalError as e:
             if "nothing to commit" not in str(e):
                 raise
@@ -118,7 +119,8 @@ class DoltSqlServer:
             raise DoltException(f"Failed to find start point {start_point}") from e
 
         try:
-            self.cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
+            cursor = self.connection.cursor()
+            cursor.execute("call DOLT_BRANCH(%s, %s);", (branch, start_point))
         except pymysql.err.OperationalError as e:
             if "already exists" not in str(e):
                 raise DoltException(f"Failed to create branch {branch} from {start_point}: {e}") from e
@@ -134,28 +136,31 @@ class DoltSqlServer:
 
     def pull_branch(self, branch: str, remote: Repo):
         with self.set_branch(branch):
-            self.cursor.execute("call DOLT_PULL(%s, %s)", (remote.name, branch))
+            cursor = self.connection.cursor()
+            cursor.execute("call DOLT_PULL(%s, %s)", (remote.name, branch))
 
     def push_branch(self, branch: str, remote: Repo):
         with self.set_branch(branch):
-            self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote.name, branch))
-            res = self.cursor.fetchone()
+            cursor = self.connection.cursor()
+            cursor.execute("call DOLT_PUSH(%s, %s)", (remote.name, branch))
+            res = cursor.fetchone()
             assert res is not None
             status, _ = res
             if status != 0:
                 # In the event of a conflict, attempt merging first.
                 logger.debug(f"Potential conflict, attempting to merge {branch} with {remote}")
                 self.pull_branch(branch, remote)
-                self.cursor.execute("call DOLT_PUSH(%s, %s)", (remote, branch))
-                res = self.cursor.fetchone()
+                cursor.execute("call DOLT_PUSH(%s, %s)", (remote, branch))
+                res = cursor.fetchone()
                 assert res is not None
                 status, _ = res
                 if status != 0:
                     raise DoltException(f"Failed to push {branch} to {remote} after merge")
 
     def get_revision(self, ref: str):
-        self.cursor.execute("SELECT DOLT_HASHOF(%s);", ref)
-        res = self.cursor.fetchone()
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT DOLT_HASHOF(%s);", ref)
+        res = cursor.fetchone()
         assert res is not None
         return res[0]
 
@@ -163,16 +168,17 @@ class DoltSqlServer:
         """Merge the given branch into the current branch."""
         with self.set_branch(branch):
             self.commit(amend=True)
+        cursor = self.connection.cursor()
         try:
-            self.cursor.execute("call DOLT_MERGE(%s);", (branch,))
+            cursor.execute("call DOLT_MERGE(%s);", (branch,))
         except pymysql.err.OperationalError as e:
             if "nothing to merge" not in str(e):
                 raise DoltException(f"Failed to merge {branch} into {self.active_branch}") from e
-        res = self.cursor.fetchone()
+        res = cursor.fetchone()
         assert res is not None
         _, _, conflicts, _ = res
         if conflicts > 0:
-            self.cursor.execute("call DOLT_MERGE('--abort');")
+            cursor.execute("call DOLT_MERGE('--abort');")
             raise DoltException(f"Failed to merge {branch} into {self.active_branch}: unresolvable conflicts detected")
         
     def initialize_dataset_source(self, dataset_schema: DatasetSchema, repo_uuid: UUID):
@@ -200,11 +206,11 @@ class DoltBranch:
 
     def __enter__(self):
         self.previous_branches.append(self.dolt.active_branch)
-        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s, '--')", self.branch)
+        self.dolt.execute("call DOLT_CHECKOUT(%s, '--')", self.branch)
         self.dolt.active_branch = self.branch
         return self.dolt.set_branch(self.branch)
 
     def __exit__(self, exc_type, exc_value, traceback):
         active_branch = self.previous_branches.pop()
-        self.dolt.cursor.execute("call DOLT_CHECKOUT(%s, '--')", active_branch)
+        self.dolt.execute("call DOLT_CHECKOUT(%s, '--')", active_branch)
         self.dolt.active_branch = active_branch

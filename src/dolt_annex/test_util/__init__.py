@@ -7,20 +7,18 @@ from dataclasses import dataclass
 import io
 from pathlib import Path
 import sys
-import uuid
 from typing_extensions import Optional
 
 from plumbum import cli # type: ignore[import]
 import pytest
 
 from dolt_annex.application import Application
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
-from dolt_annex.datatypes.repo import RepoModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.file_keys.sha256e import Sha256e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
 from dolt_annex.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
 @dataclass
@@ -29,14 +27,12 @@ class EnvironmentForTest:
     The output of dolt_annex.conftest.setup
     """
     local_file_store: ContentAddressableStorage
+    local_repo: Repo
     remote_file_store: ContentAddressableStorage
+    remote_repo: Repo
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
-
-# Arbitrary UUIDs for local and remote repos
-local_uuid = uuid.UUID("3fca31d9-f0dd-424e-b0e9-3cd4a26e9d68")
-remote_uuid = uuid.UUID("36b60d94-fbdf-476b-9479-f0abc61fa5ba")
 
 test_config = Config(
     user=UserConfig(
@@ -48,7 +44,7 @@ test_config = Config(
         default_commit_message="update",
         spawn_dolt_server=True
     ),
-    default_file_key_type=Sha256e,
+    default_file_key_type=Sha256E,
 )
 
 test_dataset_schema = DatasetSchema(
@@ -126,16 +122,3 @@ async def run(
         raise AssertionError(f"Did not expect '{expected_output_does_not_contain}' in output, got: {output}")
 
     
-async def create_test_filestore(name: str, uuid: uuid.UUID, files: Iterable[bytes]) -> ContentAddressableStorage:
-    annex_fs_model = MemoryFSModel()
-    repo = RepoModel(
-        name=name,
-        uuid=uuid,
-        key_format=Sha256e,
-        filestore= annex_fs_model
-    )
-    annex_fs = MemoryFS(files=annex_fs_model.files)
-    cas = ContentAddressableStorage(annex_fs, Sha256e)
-    for file_content in files:
-        await cas.put_file_bytes(file_content)
-    return cas

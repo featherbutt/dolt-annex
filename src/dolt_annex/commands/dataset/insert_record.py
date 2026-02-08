@@ -2,7 +2,7 @@ from typing_extensions import cast
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.datatypes.async_utils import maybe_await
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
@@ -48,7 +48,7 @@ class InsertRecord(cli.Application):
         "--file-key-type",
         str,
         help="The type of file key to use",
-        default = "Sha256e",
+        default = "SHA256E",
     )
 
     extension = cli.SwitchAttr(

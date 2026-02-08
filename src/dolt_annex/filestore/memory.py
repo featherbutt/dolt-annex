@@ -6,11 +6,13 @@ MemoryFS is an in-memory filestore useful for testing. It does not persist files
 across restarts.
 """
 
+from collections.abc import AsyncGenerator
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_utils import Result, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO, ReadableFileObject, RefCountedFile
+from dolt_annex.datatypes.file_io import AsyncBytesIO
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 
@@ -32,13 +34,14 @@ class MemoryFS(FileStore):
         """Move an on-disk file to the annex."""
         async with file_path.open() as f:
             self.files[bytes(file_key)] = await f.read()
-        return Result.of(None)
+        return Result.done()
              
     @override
-    async def put_file_object(self, in_fd: RefCountedFile, file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Copy a file-like object into the annex."""
-        self.files[bytes(file_key)] = await in_fd.inner.read()
-        return Result.of(None)
+        async with data_source as in_fd:
+            self.files[bytes(file_key)] = await in_fd.read()
+        return Result.done()
 
     def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
         """
@@ -47,19 +50,21 @@ class MemoryFS(FileStore):
         If file_key is not provided, it will be computed.
         """
         self.files[bytes(file_key)] = file_bytes
-        return Result.of(None)
+        return Result.done()
 
-    async def get_file_object(self, file_key: FileKey) -> ReadableFileObject:
+    @override
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         if bytes(file_key) not in self.files:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        return AsyncBytesIO(self.files[bytes(file_key)])
+        yield AsyncBytesIO(self.files[bytes(file_key)])
         
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
         return FileInfo(size=len(self.files[bytes(file_key)]))
 
     @override
-    def fstat(self, file_obj: ReadableFileObject) -> FileInfo:
+    def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("MemoryFS.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))
@@ -67,6 +72,11 @@ class MemoryFS(FileStore):
     @override
     def exists(self, file_key: FileKey) -> bool:
         return bytes(file_key) in self.files
+
+    @override
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        self.files[bytes(new_key)] = self.files[bytes(old_key)]
+        return Result.done()
 
 class MemoryFSModel(FileStoreModel):
 

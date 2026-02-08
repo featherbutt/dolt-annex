@@ -38,6 +38,12 @@ class GalleryDL(cli.Application):
         help="If set, use the specified repo instead of the default repo",
     )
 
+    capture_output = cli.Flag(
+        "--capture-output",
+        help="If set, capture gallery-dl's stdout and stderr and include them in the output JSON",
+        default=False,
+    )
+
     async def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
         dataset_name = self.dataset
@@ -53,7 +59,7 @@ class GalleryDL(cli.Application):
             shutil.copy(skip_db_path, "skip.sqlite3")
             
         async with Repo.open(self.parent.config, self.repo) as repo:
-            output = await run_gallery_dl(self.parent.config, repo, self.batch_size, dataset_schema, *args)
+            output = await run_gallery_dl(self.parent.config, repo, self.batch_size, dataset_schema, self.capture_output, *args)
         print(json.dumps(dataclasses.asdict(output), indent=2))
         return 0
     

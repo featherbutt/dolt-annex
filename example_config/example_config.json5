@@ -52,8 +52,8 @@
     },
     
     // The format used to key files in newly created filestores.
-    // Currently only "Sha256e" is supported.
-    "default_file_key_type": "Sha256e",
+    // Currently only "SHA256E" is supported.
+    "default_file_key_type": "SHA256E",
 
     "local_repo_name": "__local__",
 }

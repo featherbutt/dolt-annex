@@ -6,7 +6,7 @@ from typing_extensions import Any, Iterable, override
 from dolt_annex.datatypes.common import TableRow
 from .base import GalleryDLSource, mutate_remove_fields
 
-class Itaku(GalleryDLSource):
+class Itaku(GalleryDLSource, source_name = "itaku.ee"):
     """Support for itaku.ee"""
 
     @override
@@ -18,9 +18,13 @@ class Itaku(GalleryDLSource):
         return TableRow((
             "itaku.ee/images",
             metadata["id"],
-            metadata.get("date_edited") or metadata.get("date_added"),
+            self.updated_date(metadata),
             1,
         ))
+
+    @override
+    def updated_date(self, metadata: dict[str, Any]) -> Any:
+        return metadata.get("date_edited") or metadata.get("date_added")
 
     @override
     def fields_to_remove(self) -> list[str | list[str]]:
@@ -69,7 +73,7 @@ class Itaku(GalleryDLSource):
             yield TableRow((
                 "itaku.ee",
                 metadata["id"],
-                metadata.get("date_edited") or metadata.get("date_added"),
+                self.updated_date(metadata),
             ))
 
     @override
@@ -77,5 +81,5 @@ class Itaku(GalleryDLSource):
         yield TableRow((
             "itaku.ee/images",
             metadata["id"],
-            metadata.get("date_edited") or metadata.get("date_added"),
+            self.updated_date(metadata),
         ))

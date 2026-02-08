@@ -93,7 +93,7 @@ class Import(cli.Application):
         "--file-key-type",
         str,
         help="The type of file key to use",
-        default = "Sha256e",
+        default = "SHA256E",
     )
         
     async def main(self, *files_or_directories: str):
