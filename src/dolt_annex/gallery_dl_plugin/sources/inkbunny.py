@@ -6,16 +6,12 @@ from typing_extensions import Any, Iterable, override
 from dolt_annex.datatypes.common import TableRow
 from .base import GalleryDLSource
 
-class Inkbunny(GalleryDLSource):
+class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
     """Support for inkbunny.net"""
 
     @override
     def supported_subcategories(self) -> list[str]:
         return ["post", "user", "search"]
-    
-    @override
-    def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        return TableRow(( "inkbunny.net", metadata["submission_id"], metadata["date"], metadata["num"]))
     
     @override
     def fields_to_remove(self) -> list[str | list[str]]:
@@ -33,10 +29,6 @@ class Inkbunny(GalleryDLSource):
             "search",
         ]
     
-    @override
-    def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        return [TableRow(( "inkbunny.net", metadata["submission_id"], metadata["date"]))]
-
     @override
     def id(self, metadata: dict[str, Any]) -> str:
         """A unique identifier for the post."""

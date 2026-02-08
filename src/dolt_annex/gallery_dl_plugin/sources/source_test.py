@@ -87,6 +87,16 @@ tests: dict[str, list[SourceTest]] = {
             ],
         ),
     ],
+    "nhentai": [
+        SourceTest(
+            test_id="454571",
+            post_url=SourceUrl("gallery", "https://nhentai.net/g/454571/"),
+            urls=[
+                SourceUrl("gallery", "https://nhentai.net/tag/aira-shiratori/"),
+                SourceUrl("gallery", "https://nhentai.net/search/?q=invincible+onigiri")
+            ],
+        ),
+    ],
 }
 
 # Sources that require authentication are skipped in CI

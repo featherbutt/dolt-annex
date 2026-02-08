@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import abstractmethod
+from typing import ClassVar
 from typing_extensions import Any, Iterable
 
 from dolt_annex.datatypes.common import TableRow
@@ -13,9 +14,16 @@ def is_private_field(field: str) -> bool:
 class GalleryDLSource:
     """A supported gallery-dl source. Methods describe how to parse and process metadata from that source."""
 
-    @abstractmethod
+    source_name: ClassVar[str]
+
+    def __init_subclass__(cls, source_name: str, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        cls.source_name = source_name
+
     def table_key(self, metadata: dict[str, Any]) -> TableRow:
         """The table key used for submissions from this source."""
+        return TableRow(( self.source_name, self.id(metadata), self.updated_date(metadata), self.page_number(metadata)))
 
     @abstractmethod
     def supported_subcategories(self) -> list[str]:
@@ -26,11 +34,11 @@ class GalleryDLSource:
         - Submissions have identical metadata when downloaded from this subcategory's endpoint vs. other endpoints.
         - Any fields that change frequently (e.g. view counts) are removed in `fields_to_remove`.
         """
-    
+
     def exclude_field(self, field: str) -> bool:
         """Whether to exclude a given field from the imported metadata."""
         return is_private_field(field) or field == "subcategory" or field in self.fields_to_remove()
-    
+
     @abstractmethod
     def fields_to_remove(self) -> list[str | list[str]]:
         """
@@ -51,15 +59,30 @@ class GalleryDLSource:
 
     @abstractmethod
     def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        """The table row for 'post' metadata."""
+        return [TableRow(( self.source_name, self.id(metadata), self.updated_date(metadata)))]
 
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
         return []
-    
+
     def id(self, metadata: dict[str, Any]) -> str:
         """A unique identifier for the post."""
         return str(metadata["id"])
+
+    def updated_date(self, metadata: dict[str, Any]) -> Any:
+        """The date the post was last updated, or the original date if there are no updates."""
+        return metadata["date"]
+
+    def page_number(self, metadata: dict[str, Any]) -> int:
+        """
+        The page number of the image within the post, if applicable.
+        
+        Used to distinguish between multiple files from the same post.
+        """
+        return metadata.get("num", 1)
+
+
+
 
 def mutate_remove_field(d: dict | list, field_to_remove: str | list[str]):
     if isinstance(d, list):
