@@ -59,7 +59,7 @@ class DoltSqlServer:
             dolt = (dolt > server_logfile)
         if (server_err_logfile := os.getenv("DA_SERVER_ERR_LOGFILE")) is not None:
             dolt = (dolt >= server_err_logfile)
-        dolt_server_process = dolt.popen(["sql-server", *args])
+        dolt_server_process = dolt.popen(["sql-server", *args], start_new_session=True)
         while True:
             try:
                 return dolt_server_process, pymysql.connect(**self.db_config)
