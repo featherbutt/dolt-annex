@@ -124,13 +124,13 @@ def all_filestore_type_parameters():
         yield pytest.param(fs, id=fs.type_name())
 
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
-async def cas(request, base_config) -> AsyncGenerator[ContentAddressableStorage]:
+async def cas(request, test_config) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = request.param
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
-        async with filestore_model.open(base_config) as filestore:
+        async with filestore_model.open(test_config) as filestore:
             yield ContentAddressableStorage(filestore, Sha256E, [SHA1e])
 
 @pytest.mark.asyncio
@@ -162,13 +162,13 @@ async def test_file_stores(cas: ContentAddressableStorage):
 
 
 @pytest.mark.asyncio
-async def test_unionfs(temp_dir: pathlib.Path, base_config: Config):
+async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
     child_filestores = [
         ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel()),
         MemoryFSModel(),
         AnnexFSModel(root=temp_dir),
     ]
-    async with UnionFSModel(children=child_filestores).open(base_config) as union_filestore:
+    async with UnionFSModel(children=child_filestores).open(test_config) as union_filestore:
 
         # Create a file in each child filestore
         for i, child in enumerate(union_filestore.children):

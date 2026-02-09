@@ -23,10 +23,10 @@ from dolt_annex.file_keys import Sha256E, MD5e
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
-from dolt_annex.test_util import test_config, EnvironmentForTest
+from dolt_annex.test_util import EnvironmentForTest
 
 @pytest.fixture
-def base_config() -> Config:
+def test_config() -> Config:
     return Config()
 
 @pytest.fixture
@@ -85,8 +85,8 @@ def init_dolt(dolt):
     yield dolt
 
 @contextlib.asynccontextmanager
-async def create_test_filestore(filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
-    async with filestore_model.open(test_config) as filestore:
+async def create_test_filestore(config: Config, filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
+    async with filestore_model.open(config) as filestore:
         cas = ContentAddressableStorage(filestore, Sha256E, [MD5e])
         for file_content in files:
             await cas.put_file_bytes(file_content)
@@ -98,13 +98,13 @@ def loadable_context():
         yield
 
 @pytest_asyncio.fixture 
-async def local_filestore(temp_dir: pathlib.Path, local_uuid: UUID, local_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
-    async with create_test_filestore(local_filestore_model, []) as local_filestore:
+async def local_filestore(temp_dir: pathlib.Path, local_uuid: UUID, local_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+    async with create_test_filestore(test_config, local_filestore_model, []) as local_filestore:
         yield local_filestore
 
 @pytest_asyncio.fixture 
-async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> AsyncGenerator[ContentAddressableStorage]:
-    async with create_test_filestore(remote_filestore_model, []) as remote_filestore:
+async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: UUID, remote_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+    async with create_test_filestore(test_config, remote_filestore_model, []) as remote_filestore:
         yield remote_filestore
 
 @pytest.fixture
@@ -135,6 +135,7 @@ async def setup(
     remote_repo_model: RepoModel,
     local_repo: Repo,
     remote_repo: Repo,
+    test_config: Config
     ) -> AsyncGenerator[EnvironmentForTest]:
         with (temp_dir / "config.json").open("w") as f:
             f.write(test_config.model_dump_json())
@@ -144,4 +145,5 @@ async def setup(
             local_repo=local_repo,
             remote_file_store=remote_filestore,
             remote_repo=remote_repo,
+            config=test_config
         )

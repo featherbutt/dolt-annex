@@ -21,7 +21,7 @@ from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.table import Dataset
 from dolt_annex.sync import move_dataset
-from dolt_annex.test_util import EnvironmentForTest, test_config, test_dataset_schema
+from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 
 # Try every combination of two and from types.
 def all_filestore_types(prefix: pathlib.Path) -> Generator[FileStoreModel]:
@@ -65,7 +65,7 @@ async def test_detect_corruption(
     to_repo = setup.remote_repo
     BATCH_SIZE = 1000 # Arbitrary batch size for this command
     FILTERS = [] # Allow for any setup delays
-    async with Dataset.connect(test_config, BATCH_SIZE, test_dataset_schema) as dataset:
+    async with Dataset.connect(setup.config, BATCH_SIZE, test_dataset_schema) as dataset:
         # TODO: handle initializing branches automatically
         dataset.dolt.initialize_dataset_source(test_dataset_schema, from_repo.uuid)
         dataset.dolt.initialize_dataset_source(test_dataset_schema, to_repo.uuid)
