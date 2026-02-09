@@ -15,6 +15,7 @@ import pytest
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
+from dolt_annex.gallery_dl_plugin.sources.e621 import E621
 from dolt_annex.gallery_dl_plugin.sources.furaffinity import Furaffinity
 from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
@@ -162,6 +163,27 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s71612--67f7f28a088200063e4bd41773595ae02d692c4ea9934ea46aa1cb79972b524a.webp"),
                     last_updated=datetime(2026, 1, 25, 12, 6, 43)
+                )],
+            )
+        ],
+    ),
+    E621: SourceTests(
+        metadata_tests=[
+            MetadataTest(
+                test_id="14",
+                post_url=SourceUrl("post", "https://e621.net/posts/14"),
+                urls=[
+                    SourceUrl("tag", "https://e621.net/posts?tags=incendax+order%3Aid"),
+                ],
+            ),
+        ],
+        import_tests=[
+            ImportTest(
+                post_url=SourceUrl("post", "https://e621.net/posts/14"),
+                id=14,
+                rows=[TableRow(
+                    file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
+                    last_updated=datetime(2026, 2, 7, 7, 23, 37)
                 )],
             )
         ],
