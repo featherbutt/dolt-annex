@@ -7,7 +7,7 @@
 		"path-metadata": "_path_metadata",
 		"base-directory": "./gallery-dl-temp",
 		"directory": [],
-		"filename": "{category}-{subcategory}-{_id}-{_updated_date}-{_page_number}.{extension}",
+		"filename": "{category}-{subcategory}-{_id}-{_date}-{_page_number}.{extension}",
 		"postprocessors": [
 			{
 				"name": "python",
@@ -31,7 +31,7 @@
 				"exclude": [
 					"subcategory"
 				],
-				"filename": "{category}-{subcategory}-{_id}-{_updated_date}-{_page_number}.{extension}.json"
+				"filename": "{category}-{subcategory}-{_id}-{_date}-{_page_number}.{extension}.json"
 			},
 			{
 				"name": "python",
