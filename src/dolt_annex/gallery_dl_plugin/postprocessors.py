@@ -8,6 +8,7 @@ Helper functions that gallery-dl postprocessors can use to format data for dolt-
 import hashlib
 import json
 import pathlib
+import sys
 from uuid import UUID
 from typing_extensions import Any, Optional
 
@@ -26,6 +27,10 @@ from .sources import GalleryDLSource, get_source
 
 def gallery_dl_post(metadata: dict):
     """The entrypoint for 'post' postprocessor hooks (run at the start of a batch of related downloads)"""
+    context = _gallery_dl_context.get()
+    if context.abort_flag:
+        sys.exit(1)
+        
     category = metadata["category"]
     subcategory = metadata["subcategory"]
     source = get_source(category, subcategory)
