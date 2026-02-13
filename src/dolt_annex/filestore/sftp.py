@@ -21,13 +21,15 @@ from typing import Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
+from asyncssh.sftp import SFTPError
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileStore, FileStoreModel, copy
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wrap_errors
+
 
 @dataclass
 class SftpFileStore(FileStore):
@@ -35,6 +37,7 @@ class SftpFileStore(FileStore):
     sftp: asyncssh.SFTPClient
 
     @override
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote."""
         remote_file_path = self.get_key_path(file_key).as_posix()
@@ -48,6 +51,7 @@ class SftpFileStore(FileStore):
 
     @override
     @await_or_enter
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
@@ -57,11 +61,13 @@ class SftpFileStore(FileStore):
         yield await self.sftp.open(remote_file_path, 'rb')
 
     @override
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def stat(self, file_key: FileKey) -> FileInfo:
          file_obj = await self.get_file_object(file_key)
          return await self.fstat(file_obj)
 
     @override
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, asyncssh.SFTPClientFile):
             raise TypeError("SftpFileStore.fstat was passed a file object that did not originate from this filestore.")
@@ -94,6 +100,7 @@ class SftpFileStore(FileStore):
             return False
   
     @override
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         new_relative_path = self.get_key_path(new_key).as_posix()
         await self.sftp.makedirs(Path(new_relative_path).parent.as_posix(), exist_ok=True)
@@ -111,6 +118,7 @@ class SftpFileStore(FileStore):
 
     @classmethod
     @asynccontextmanager
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def open(cls, connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
         """Connect to an SFTP filestore."""
         extra_opts = {}

@@ -14,6 +14,7 @@ from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import FileTableSchema
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStoreError
 from dolt_annex.filestore.cas import filestore_copy
 from dolt_annex.table import Dataset, FileTable, TableFilter
 from dolt_annex.logger import logger
@@ -63,7 +64,7 @@ class SyncOperation:
                 )
                 await result.wait_for_complete()
                 self.files_moved.append(key)
-            except FileNotFoundError as e:
+            except (FileNotFoundError, FileStoreError) as e:
                 self.pending_exceptions.append(e)
             finally:
                 self.work_queue.task_done()

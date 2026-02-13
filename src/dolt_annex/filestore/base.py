@@ -7,6 +7,7 @@ from abc import abstractmethod
 import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from functools import wraps
 from typing import TYPE_CHECKING
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
@@ -18,6 +19,21 @@ from dolt_annex.file_keys import FileKey
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
+
+class FileStoreError(Exception):
+    pass
+
+def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
+    """Decorator to wrap exceptions of one type as another type."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except wrap as e:
+                raise into from e
+        return wrapper
+    return decorator
 
 class FileStore(abc.ABC):
 
