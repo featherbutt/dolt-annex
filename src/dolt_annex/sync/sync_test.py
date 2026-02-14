@@ -10,6 +10,7 @@ import pytest_asyncio
 
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.datatypes.config import Config
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
@@ -90,6 +91,7 @@ async def test_detect_corruption(
 @pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")))
 @pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
 async def test_async_move(
+    test_config: Config,
     setup: EnvironmentForTest,
     added_file_keys: list[Sha256E],
 ):

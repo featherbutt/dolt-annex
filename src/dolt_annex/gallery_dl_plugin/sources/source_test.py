@@ -183,7 +183,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=14,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
-                    last_updated=datetime(2026, 2, 7, 7, 23, 37)
+                    last_updated=datetime(2026, 2, 14, 21, 3, 57)
                 )],
             )
         ],
