@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-``
+
 from tarfile import TarFile, TarInfo, BLOCKSIZE, NUL
 
 from dolt_annex.datatypes.async_types import ReadableStream, WritableFileObject
