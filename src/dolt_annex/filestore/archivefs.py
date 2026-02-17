@@ -12,19 +12,20 @@ import asyncio
 from contextlib import asynccontextmanager, contextmanager
 import pathlib
 import tarfile
-from typing import AsyncGenerator, Generator, Optional
+from typing import AsyncGenerator, BinaryIO, Generator
 import uuid
-from filelock import FileLock, Timeout
 from pydantic import InstanceOf
 from typing_extensions import override, Tuple
 
 from fs.base import FS as FileSystem
+import fs.memoryfs
 import fs.osfs
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
+from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 from dolt_annex.tarfile_utils import addfile, advance_to_end
@@ -34,12 +35,12 @@ from .base import FileInfo, FileStore, FileStoreModel
 class ArchiveFS(FileStore):
     """
     ArchiveFS is a filestore that stores many files in a few archive files.
-    
+
     It relies on a secondary filestore to map file keys to archive files and offsets within those files.
 
     This reduces the size of values in the secondary filestore.
     """
-    
+
     file_system: FileSystem
     secondary: FileStore
     files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
@@ -49,6 +50,7 @@ class ArchiveFS(FileStore):
     writable_archives_dir: Path
     finalized_archives_dir: Path
     locks_dir: Path
+    lock_manager: LockManager
 
     def __init__(
             self, *,
@@ -62,7 +64,7 @@ class ArchiveFS(FileStore):
         self.secondary = secondary
         self.workers = workers
         self.max_archive_size = max_archive_size
-        
+
         self.writable_archives_dir = Path(self.file_system, "writable_archives")
         self.finalized_archives_dir = Path(self.file_system, "finalized_archives")
         self.locks_dir = Path(self.file_system, "locks")
@@ -71,43 +73,40 @@ class ArchiveFS(FileStore):
         self.finalized_archives_dir.mkdirs(exist_ok=True)
         self.locks_dir.mkdirs(exist_ok=True)
 
+        self.lock_manager = new_lock_manager(self.locks_dir)
         self.files_queue = asyncio.Queue()
         for _ in range(num_workers):
             workers.create_task(self._worker_loop())
 
     @contextmanager
-    def open_archive_file_for_write(self, archive_file_path: Path) -> Generator[Optional[tarfile.TarFile]]:
-        lock_path = self.locks_dir / f"{archive_file_path.name}.lock"
-        lock_syspath = lock_path.getsyspath()
-        assert lock_syspath is not None, "ArchiveFS requires a local filesystem that supports file locks."
-        try:
-            lock = FileLock(lock_syspath, blocking=False)
-            with lock:
-                archive_file_path.touch()
-                archive_fd_sync = archive_file_path.open_sync('r+b')
-                archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')
-                yield archive_tar
-        except Timeout:
-            # The lock is held by another process, so we cannot access this archive file.
-            yield None
+    def open_archive_file_for_write(self, archive_file_path: Path) -> Generator[Tuple[tarfile.TarFile, BinaryIO], None, None]:
+        with self.lock_manager.lock(archive_file_path.name):
+            archive_file_path.touch()
+            archive_fd_sync = archive_file_path.open_sync('r+b')
+            archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')
+            yield archive_tar, archive_fd_sync
 
     @contextmanager
-    def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, Path], None, None]:
+    def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, BinaryIO, Path], None, None]:
         # Attempt to acquire a lock on a "hot" archive file.
         for archive_file in self.writable_archives_dir.children():
-            with self.open_archive_file_for_write(archive_file) as archive_tar:
-                if archive_tar is not None:
-                    yield archive_tar, archive_file
+            try:
+                with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
+                    yield archive_tar, archive_fd, archive_file
                     return
+            except FailedToAcquireLock:
+                continue
         
         # If we cannot acquire a lock on any existing writable archive files, create a new one.
         while True:
             new_archive_file_name = f"{uuid.uuid7()}.tar"
             new_archive_file_path = self.writable_archives_dir / new_archive_file_name
-            with self.open_archive_file_for_write(new_archive_file_path) as archive_tar:
-                if archive_tar is not None:
-                    yield archive_tar, new_archive_file_path
+            try:
+                with self.open_archive_file_for_write(new_archive_file_path) as (archive_tar, archive_fd):
+                    yield archive_tar, archive_fd, new_archive_file_path
                     return
+            except FailedToAcquireLock:
+                continue
 
     async def _worker_loop(self) -> None:
         while True:
@@ -235,5 +234,3 @@ class ArchiveFSModel(FileStoreModel):
     def type_name(self) -> str:
         """Get the type name of the filestore. Used in tests."""
         return f"ArchiveFS({self.secondary.type_name()})"
-
-
