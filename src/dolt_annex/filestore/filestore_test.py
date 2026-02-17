@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import contextlib
 import pathlib
 import random
+import tarfile
 import tempfile
 from tokenize import maybe
 import pytest_asyncio
@@ -110,7 +111,7 @@ def local_filestore_types():
     yield LevelDBModel(root=pathlib.Path("leveldb"))
     yield AnnexFSModel(root=fs.memoryfs.MemoryFS())
     yield UnionFSModel(children=[MemoryFSModel()])
-    yield ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
+    yield ArchiveFSModel(num_workers=1, root=pathlib.Path('.'), secondary=MemoryFSModel())
 
 
 def all_filestore_types() -> Generator[FileStoreModel]:
@@ -164,9 +165,9 @@ async def test_file_stores(cas: ContentAddressableStorage):
 @pytest.mark.asyncio
 async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
     child_filestores = [
-        ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel()),
+        ArchiveFSModel(num_workers=1, root=temp_dir / "archive_root", secondary=MemoryFSModel()),
         MemoryFSModel(),
-        AnnexFSModel(root=temp_dir),
+        AnnexFSModel(root=temp_dir / "annex_root"),
     ]
     async with UnionFSModel(children=child_filestores).open(test_config) as union_filestore:
 
@@ -200,6 +201,64 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
             result = await maybe_await(union_filestore.create_alias(file_key, alias_key))
             await result.wait_for_complete()
             assert await maybe_await(child.exists(alias_key))
+
+def assert_tarfile_has_members(tar_file_path: Path, expected_num_members: int):
+    with (
+        tar_file_path.open_sync("rb") as f,
+        tarfile.open(fileobj=f) as tar
+    ):
+        assert len(tar.getmembers() ) == expected_num_members
+
+def assert_single_tarfile_has_members(archive_dir: Path, expected_num_members: int):
+    archive_files = list(archive_dir.children())
+    assert len(archive_files) == 1
+    assert_tarfile_has_members(archive_files[0], expected_num_members)
+
+@pytest.mark.asyncio
+async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Config):
+    """
+    Test that archive files are finalized (moved to finalized_archives_dir) when they exceed max_archive_size,
+    and that new archive files are created for subsequent writes.
+    """
+    async with ArchiveFSModel(
+        num_workers=1,
+        root=temp_dir / "archive_root",
+        secondary=MemoryFSModel(),
+        max_archive_size=1536
+    ).open(test_config) as archive_filestore:
+
+        # Every archive entry has a 512 byte header, and data is written in 512 byte blocks.
+        # A max_archive_size of 1536 will fill after the second file is added.
+        # Finalization is not guarenteed to happen immediately, since the task finishes
+        # before finalization, but will happen before the third file is added.
+
+        for i in range(3):
+            content = f"file_{i}_".encode()
+            result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
+            await result.wait_for_complete()
+
+        # Flush to ensure all writes are complete
+        await maybe_await(archive_filestore.flush())
+
+        # There should be exactly 1 finalized archive, containing the first 2 files.
+        # TODO: Inspect archive file contents.
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+
+        # There should be exactly 1 writable archive, containing the third file.
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
+
+        # Adding another file should write to the new archive file, without affecting the finalized archive.
+
+        content = b"file_4_"
+        result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
+        await result.wait_for_complete()
+
+        await maybe_await(archive_filestore.flush())
+
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+
+        # There should be exactly 1 writable archive, containing the third and fourth files.
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
 
 if __name__ == "__main__":
     pytest.main([__file__])

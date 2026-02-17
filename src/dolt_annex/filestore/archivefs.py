@@ -111,9 +111,7 @@ class ArchiveFS(FileStore):
 
     async def _worker_loop(self) -> None:
         while True:
-            with self.get_archive_file_for_write() as (archive_tar, archive_file):
-                archive_fd_sync = archive_tar.fileobj
-                # assert isinstance(archive_fd_sync, BinaryIO), "Failed to get file object from archive_tar."
+            with self.get_archive_file_for_write() as (archive_tar, archive_fd_sync, archive_file):
                 async with async_open(archive_fd_sync) as archive_fd:
                     with archive_tar:
                         advance_to_end(archive_tar)
@@ -121,7 +119,7 @@ class ArchiveFS(FileStore):
                             try:
                                 file_key, data_source, callback = await self.files_queue.get()
                             except asyncio.QueueShutDown:
-                                break
+                                return
                             try:
                                 tar_info = tarfile.TarInfo(name=str(file_key))
                                 tar_info.size = file_key.size
@@ -139,6 +137,7 @@ class ArchiveFS(FileStore):
                                 callback.set_exception(e)
                             finally:
                                 self.files_queue.task_done()
+
             # Move the archive file to the finalized directory so that it is no longer used for writing.
             archive_file.rename(self.finalized_archives_dir / archive_file.name)
 
@@ -161,7 +160,11 @@ class ArchiveFS(FileStore):
         offset = int(offset_str)
         size = int(size_str)
 
-        archive_file_path = Path(self.file_system) / archive_file_name
+        # Try to find the archive file in writable_archives_dir first, then finalized_archives_dir
+        archive_file_path = self.writable_archives_dir / archive_file_name
+        if not archive_file_path.exists():
+            archive_file_path = self.finalized_archives_dir / archive_file_name
+
         archive_fd = archive_file_path.open_sync('rb')
         file_in_file = tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
         yield ExistingFileHandle(await async_open(file_in_file), FileInfo(size=size))
