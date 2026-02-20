@@ -98,6 +98,8 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                     stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
 
                 try:
+                    # Clear gallery_dl's internal state to avoid interference between runs.
+                    gallery_dl.config.clear()
                     gallery_dl.main()
                 finally:
                     tasks.shutdown()

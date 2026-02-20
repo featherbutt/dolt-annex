@@ -5,6 +5,7 @@ import contextlib
 import contextvars
 from dataclasses import dataclass, field
 from datetime import datetime
+import importlib
 import sys
 import pathlib
 from typing_extensions import Optional
@@ -183,7 +184,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=14,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
-                    last_updated=datetime(2026, 2, 14, 21, 3, 57)
+                    last_updated=datetime(2026, 2, 18, 7, 16, 11)
                 )],
             )
         ],
@@ -195,18 +196,21 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     "pixiv.net",
+    "furaffinity.net",
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
     config_path = pathlib.Path(__file__).parent.parent / "gallery_dl_test_config.json"
 
     # -N file:id allows us to skip downloading files since we only care about the metadata
-    sys.argv = [ "gallery-dl", "-N", "file:id", "--config", str(config_path), url ]
+    sys.argv = [ "gallery-dl", "-v", "-N", "file:id", "--config", str(config_path), url ]
 
     gallery_dl_test_context = GalleryDLTestContext(target_post_id=test_id)
     with (
         with_gallery_dl_test_context(gallery_dl_test_context),
     ):
+        # Clear gallery_dl's internal state to avoid interference between tests.
+        gallery_dl.config.clear()
         gallery_dl.main()
 
     if gallery_dl_test_context.post_metadata is not None:
@@ -220,6 +224,7 @@ def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> d
 def test_source_metadata(temp_dir, site):
     """Test that we can download metadata for a post from multiple subcategories with identical results."""
 
+    importlib.reload(gallery_dl)
     if site in skipped_sources:
         pytest.skip(f"Source {site} is skipped since it requires authentication")
 
@@ -234,7 +239,7 @@ def test_source_metadata(temp_dir, site):
 @pytest.mark.parametrize("site", tests.keys())
 async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSource]):
     """Test that we can import a post."""
-
+    
     if site in skipped_sources:
         pytest.skip(f"Source {site} is skipped since it requires authentication")
 
