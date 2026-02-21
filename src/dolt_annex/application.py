@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
 from pathlib import Path
 from typing_extensions import Literal
 
@@ -30,7 +31,7 @@ default_config_file_locations = [
 class Application(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
-    VERSION = "0.6.1"
+    VERSION = "0.7.0"
 
     config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
 
@@ -49,6 +50,8 @@ class Application(CommandGroup):
     annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
 
     config: Config
+
+    log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
     def main(self, *args) -> Literal[0, 1]:
         # Set each config parameter in order of preference:
@@ -82,6 +85,8 @@ class Application(CommandGroup):
 
         if self.dolt_server_socket:
             self.config.dolt.connection.server_socket = self.dolt_server_socket
+
+        logging.basicConfig(level=self.log_level.upper())
 
         if args:
             print(f"Unknown command: dolt-annex {args[0]}")

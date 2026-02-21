@@ -10,6 +10,7 @@ import pytest_asyncio
 
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.datatypes.config import Config
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
@@ -21,7 +22,7 @@ from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.table import Dataset
 from dolt_annex.sync import move_dataset
-from dolt_annex.test_util import EnvironmentForTest, test_config, test_dataset_schema
+from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 
 # Try every combination of two and from types.
 def all_filestore_types(prefix: pathlib.Path) -> Generator[FileStoreModel]:
@@ -65,7 +66,7 @@ async def test_detect_corruption(
     to_repo = setup.remote_repo
     BATCH_SIZE = 1000 # Arbitrary batch size for this command
     FILTERS = [] # Allow for any setup delays
-    async with Dataset.connect(test_config, BATCH_SIZE, test_dataset_schema) as dataset:
+    async with Dataset.connect(setup.config, BATCH_SIZE, test_dataset_schema) as dataset:
         # TODO: handle initializing branches automatically
         dataset.dolt.initialize_dataset_source(test_dataset_schema, from_repo.uuid)
         dataset.dolt.initialize_dataset_source(test_dataset_schema, to_repo.uuid)
@@ -90,6 +91,7 @@ async def test_detect_corruption(
 @pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")))
 @pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
 async def test_async_move(
+    test_config: Config,
     setup: EnvironmentForTest,
     added_file_keys: list[Sha256E],
 ):

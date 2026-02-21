@@ -35,6 +35,7 @@ class GalleryDLContext:
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
+    abort_flag: bool = False
 
 _gallery_dl_context = contextvars.ContextVar[GalleryDLContext]("gallery_dl_context")
 
@@ -97,6 +98,8 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                     stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
 
                 try:
+                    # Clear gallery_dl's internal state to avoid interference between runs.
+                    gallery_dl.config.clear()
                     gallery_dl.main()
                 finally:
                     tasks.shutdown()
@@ -111,6 +114,8 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                 tasks.task_done()
         except queue.ShutDown:
             pass
+        finally:
+            gallery_dl_context.abort_flag = True
 
         await gallery_dl_thread
 

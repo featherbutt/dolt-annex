@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import contextvars
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
+from typing import Optional
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
 import fs.copy
@@ -199,3 +201,17 @@ class Path:
 
     def __hash__(self) -> int:
         return hash(self.path)
+    
+    def getsyspath(self) -> Optional[str]:
+        """
+        Get the file path on the local filesystem corresponding to this file.
+        
+        Returns None if the file is not accessible via a local file path.
+        """
+        try:
+            return self.fs.getsyspath(self.path.as_posix())
+        except fs.errors.NoSysPath:
+            return None
+
+    def children(self) -> Iterable[Path]:
+        return (self / child for child in self.fs.listdir(self.path.as_posix()))

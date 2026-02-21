@@ -3,6 +3,7 @@
 
 import dataclasses
 import json
+import logging
 from pathlib import Path
 import shutil
 from plumbum import cli # type: ignore
@@ -10,8 +11,9 @@ from plumbum import cli # type: ignore
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.logger import logger
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl, skip_db_path
+
+logger = logging.getLogger(__name__)
 
 class GalleryDL(cli.Application):
     """Downlad files using gallery-dl and import them into dolt-annex"""
@@ -51,7 +53,7 @@ class GalleryDL(cli.Application):
         dataset_schema = DatasetSchema.load(dataset_name)
         if not dataset_schema:
             # Initialize the dataset if it doesn't exist
-            logger.info(f"Dataset {dataset_name} not found, creating with default schema.")
+            logger.info("Dataset %s not found, creating with default schema.", dataset_name)
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save()
             

@@ -7,6 +7,8 @@ from abc import abstractmethod
 import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from functools import wraps
+import inspect
 from typing import TYPE_CHECKING
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
@@ -18,6 +20,47 @@ from dolt_annex.file_keys import FileKey
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
+
+class FileStoreError(Exception):
+    pass
+
+def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
+    """Decorator to wrap exceptions of one type as another type."""
+    def decorator(func):
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                try:
+                    return await func(*args, **kwargs)
+                except wrap as e:
+                    raise into from e
+            return async_wrapper
+        elif inspect.isgeneratorfunction(func):
+            @wraps(func)
+            def generator_wrapper(*args, **kwargs):
+                try:
+                    yield from func(*args, **kwargs)
+                except wrap as e:
+                    raise into from e
+            return generator_wrapper
+        elif inspect.isasyncgenfunction(func):
+            @wraps(func)
+            async def asyncgen_wrapper(*args, **kwargs):
+                try:
+                    async for item in func(*args, **kwargs):
+                        yield item
+                except wrap as e:
+                    raise into from e
+            return asyncgen_wrapper
+        else:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                try:
+                    return func(*args, **kwargs)
+                except wrap as e:
+                    raise into from e
+            return wrapper
+    return decorator
 
 class FileStore(abc.ABC):
 

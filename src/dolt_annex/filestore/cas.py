@@ -79,7 +79,7 @@ class ContentAddressableStorage:
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote. If file_key is provided, it will be compared to the computed key and an error will be raised if they do not match."""
 
-        generators = self.file_key_generators()
+        generators = self.file_key_generators(file_key.extension)
         @asynccontextmanager
         async def open_data_source() -> AsyncGenerator[ReadableStream]: 
             async with data_source as in_fd:

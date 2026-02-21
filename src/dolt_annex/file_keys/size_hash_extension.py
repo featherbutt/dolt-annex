@@ -47,6 +47,13 @@ class SizeHashExtensionFileKey(FileKey, is_abstract=True):
             size_str = self.key.split(b'--')[0].split(b'-s')[1]
             self._file_size = int(size_str)
         return self._file_size
+    
+    @property
+    def extension(self) -> Optional[str]:
+        parts = self.key.rsplit(b'.', 1)
+        if len(parts) == 1:
+            return None
+        return parts[1].decode("utf-8")
 
     @classmethod
     async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:

@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
 import sys
 from plumbum import cli # type: ignore
 
-from dolt_annex.logger import logger
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.cas import filestore_copy
+
+logger = logging.getLogger(__name__)
 
 class Copy(SubCommand):
     """Copy one or more files from one repo to another."""
@@ -47,6 +49,6 @@ class Copy(SubCommand):
                     key=queried_key
                 )
                 await result.wait_for_complete()
-                logger.info(f"Copied key {queried_key} from repo {from_repo.name} to repo {to_repo.name}")
+                logger.info("Copied key %s from repo %s to repo %s", queried_key, from_repo.name, to_repo.name)
         
         return 0

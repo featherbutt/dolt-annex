@@ -107,7 +107,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
         await run(
             args=[
                 "dolt-annex", "filestore", "export-file",
-                "--file-key", expected_file_key,
+                expected_file_key,
             ],
             expected_output_equals=record.file_bytes.decode('utf-8'),
         )

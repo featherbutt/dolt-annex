@@ -30,22 +30,10 @@ class EnvironmentForTest:
     local_repo: Repo
     remote_file_store: ContentAddressableStorage
     remote_repo: Repo
+    config: Config
 
 public_key_path = Path(__file__).parent / "test_keys" / "id_ed25519.pub"
 private_key_path = Path(__file__).parent / "test_keys" / "id_ed25519"
-
-test_config = Config(
-    user=UserConfig(
-        name="A U Thor",
-        email="author@example.com"
-    ),
-    dolt=DoltConfig(
-        default_remote="origin",
-        default_commit_message="update",
-        spawn_dolt_server=True
-    ),
-    default_file_key_type=Sha256E,
-)
 
 test_dataset_schema = DatasetSchema(
     name="test",

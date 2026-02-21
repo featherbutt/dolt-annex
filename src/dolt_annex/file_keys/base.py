@@ -94,6 +94,11 @@ class FileKey:
         """Returns whether this FileKey is the same as another, ignoring extensions."""
         return self.remove_extension() == other.remove_extension()
     
+    @property
+    @abstractmethod
+    def extension(self) -> Optional[str]:
+        """Returns the file extension of this FileKey, if any."""
+    
 class FileKeyGenerator(Protocol):
     
     @abstractmethod

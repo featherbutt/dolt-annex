@@ -3,8 +3,11 @@
 
 """Functionality for interacting with the Dolt server."""
 
+from contextlib import contextmanager
+import logging
 import os
 from pathlib import Path
+import threading
 import time
 from uuid import UUID
 
@@ -14,15 +17,44 @@ from plumbum import local # type: ignore
 import pymysql
 
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.logger import logger
 from dolt_annex.datatypes.repo import Repo
+
+logger = logging.getLogger(__name__)
+
+class ThreadLocalMySqlConnection(threading.local):
+    """
+    A thread-local wrapper around a MySQL connection.
+
+    When accessed for the first time in a new thread, it will create a new connection using the provided configuration.
+    
+    This allows us to have multiple connections to the Dolt SQL server in different threads.
+    """
+
+    connection: pymysql.connections.Connection
+
+    def __init__(self, db_config: Dict[str, Any]):
+        super().__init__()
+        self.connection = pymysql.connect(**db_config)
+
+    @property
+    def cursor(self):
+        return self.connection.cursor
+    
+    @property
+    def close(self):
+        return self.connection.close
+    
+    @property
+    def commit(self):
+        return self.connection.commit
 
 class DoltSqlServer:
     """A connection to a Dolt SQL server."""
     db_config: Dict[str, Any]
-    connection: pymysql.connections.Connection
+    connection: ThreadLocalMySqlConnection
     active_branch: str
     db_name: str
+    dolt_server_process: Any
 
     def __init__(self, dolt_dir: Path, dolt_db_name: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
         self.db_config = db_config
@@ -32,7 +64,7 @@ class DoltSqlServer:
             self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_dir)
         else:
             self.dolt_server_process = None
-            self.connection = pymysql.connect(**db_config)
+            self.connection = ThreadLocalMySqlConnection(db_config)
 
         cursor = self.connection.cursor()
 
@@ -45,10 +77,11 @@ class DoltSqlServer:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self.connection.close()
         if self.dolt_server_process:
             self.dolt_server_process.terminate()
 
-    def spawn_dolt_server(self, dolt_dir: Path) -> Tuple[Any, pymysql.connections.Connection]:
+    def spawn_dolt_server(self, dolt_dir: Path) -> Tuple[Any, ThreadLocalMySqlConnection]:
         dolt = local.cmd.dolt.with_cwd(dolt_dir)
         args = []
         if "port" in self.db_config:
@@ -62,10 +95,19 @@ class DoltSqlServer:
         dolt_server_process = dolt.popen(["sql-server", *args], start_new_session=True)
         while True:
             try:
-                return dolt_server_process, pymysql.connect(**self.db_config)
+                return dolt_server_process, ThreadLocalMySqlConnection(self.db_config)
             except Exception as e:
-                logger.verbose(f"Waiting for SQL server: {str(e)}")
+                logger.debug("Waiting for SQL server: %s", str(e))
                 time.sleep(1)
+
+    @contextmanager
+    def new_connection(self):
+        """Get a new connection to the Dolt SQL server. This is useful for running concurrent operations on the same server."""
+        connection = pymysql.connect(**self.db_config)
+        try:
+            yield connection
+        finally:
+            connection.close()
 
     def executemany(self, sql: str, values):
         cursor = self.connection.cursor()

@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+import logging
 from typing_extensions import Iterable, Optional, Tuple, List
 
 from dolt_annex.datatypes import TableRow
@@ -14,11 +15,12 @@ from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import FileTableSchema
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStoreError
 from dolt_annex.filestore.cas import filestore_copy
 from dolt_annex.table import Dataset, FileTable, TableFilter
-from dolt_annex.logger import logger
 from dolt_annex.dolt import DoltSqlServer
 
+logger = logging.getLogger(__name__)
 
 class SyncOperation:
     table: FileTable
@@ -63,7 +65,7 @@ class SyncOperation:
                 )
                 await result.wait_for_complete()
                 self.files_moved.append(key)
-            except FileNotFoundError as e:
+            except (FileNotFoundError, FileStoreError) as e:
                 self.pending_exceptions.append(e)
             finally:
                 self.work_queue.task_done()
@@ -89,16 +91,16 @@ class SyncOperation:
         return has_more
     
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> Result[None]:
-        logger.info(f"moving {table_row}: {key}")
+        logger.info("moving %s: %s", table_row, key)
 
         if await maybe_await(self.to_repo.filestore.exists(key)):
-            logger.debug(f"file {key} already exists in destination filestore")
+            logger.debug("file %s already exists in destination filestore", key)
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.table.insert_file_source(table_row, key, self.to_repo.uuid)
             return Result.done()
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
-            logger.debug(f"Missing file {key} in source filestore, skipping due to --ignore-missing")
+            logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return Result.done()
         result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
         # We must wait for the copy to complete before updating the dataset.

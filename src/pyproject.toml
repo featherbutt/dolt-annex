@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dolt_annex"
-version = "0.6.1"
+version = "0.7.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
@@ -26,6 +26,7 @@ fs = {git = "https://github.com/milahu/pyfilesystem2", rev = "6ba132f"}
 pyjson5 = "^2.0.0"
 plyvel = {version = "^1.5.1", optional = true}
 aiofiles = "^25.1.0"
+filelock = "^3.20.3"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'

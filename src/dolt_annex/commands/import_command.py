@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 import os
 import pathlib
 from typing import List
@@ -13,20 +14,18 @@ from fs.info import Info
 from plumbum import cli # type: ignore
 
 from dolt_annex import importers
-from dolt_annex import filestore
 from dolt_annex.commands import CommandGroup
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.application import Application
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.importers.base import get_importer
-from dolt_annex.logger import logger
-from dolt_annex.datatypes import FileKey
 from dolt_annex.table import Dataset
 from dolt_annex.datatypes.file_io import Path
+
+logger = logging.getLogger(__name__)
 
 class AnnexImportError(Exception):
     pass
@@ -165,7 +164,7 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
                 path = path.readlink()
         if importer and importer.skip(path):
             return
-        logger.debug(f"Importing file {path}")
+        logger.debug("Importing file %s", path)
         key = await import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
