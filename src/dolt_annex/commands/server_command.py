@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
+
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.config import Config
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.logger import logger
 from dolt_annex.server.ssh import server_context
 
+logger = logging.getLogger(__name__)
 class Server(cli.Application):
     """Starts a sandboxed SFTP server to provide access to the filestore."""
 
@@ -56,6 +58,6 @@ class Server(cli.Application):
                     server_host_key=self.server_keyfile,
                 ) as server,
             ):
-                logger.info(f'Serving over sftp at {self.host}:{self.port}')
+                logger.info("Serving over sftp at %s:%d", self.host, self.port)
                 await server.wait_closed()
 

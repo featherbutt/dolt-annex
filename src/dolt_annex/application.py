@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
 from pathlib import Path
 from typing_extensions import Literal
 
@@ -50,6 +51,8 @@ class Application(CommandGroup):
 
     config: Config
 
+    log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+
     def main(self, *args) -> Literal[0, 1]:
         # Set each config parameter in order of preference:
         # 1. Command line argument
@@ -82,6 +85,8 @@ class Application(CommandGroup):
 
         if self.dolt_server_socket:
             self.config.dolt.connection.server_socket = self.dolt_server_socket
+
+        logging.basicConfig(level=self.log_level.upper())
 
         if args:
             print(f"Unknown command: dolt-annex {args[0]}")

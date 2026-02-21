@@ -4,6 +4,7 @@
 """Functionality for interacting with the Dolt server."""
 
 from contextlib import contextmanager
+import logging
 import os
 from pathlib import Path
 import threading
@@ -16,8 +17,9 @@ from plumbum import local # type: ignore
 import pymysql
 
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.logger import logger
 from dolt_annex.datatypes.repo import Repo
+
+logger = logging.getLogger(__name__)
 
 class ThreadLocalMySqlConnection(threading.local):
     """
@@ -95,7 +97,7 @@ class DoltSqlServer:
             try:
                 return dolt_server_process, ThreadLocalMySqlConnection(self.db_config)
             except Exception as e:
-                logger.verbose(f"Waiting for SQL server: {str(e)}")
+                logger.debug("Waiting for SQL server: %s", str(e))
                 time.sleep(1)
 
     @contextmanager

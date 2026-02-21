@@ -3,6 +3,7 @@
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import logging
 import os
 import random
 import time
@@ -14,9 +15,10 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer
-from .logger import logger
 from .datatypes import FileKey, TableRow
 from .datatypes.table import FileTableSchema
+
+logger = logging.getLogger(__name__)
 
 # We must prevent data loss in the event the process is interrupted:
 # - Original file names contain data that is lost when the file is added to the annex
@@ -105,7 +107,7 @@ class FileTable:
 
         new_now = time.time()
         elapsed_time = new_now - self.time
-        logger.debug(f"added {num_keys} keys in {elapsed_time:.2f} seconds")
+        logger.debug("added %d keys in %.2f seconds", num_keys, elapsed_time)
         self.time = new_now
 
     async def __aenter__(self):

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from asyncio import Future
+import logging
 import os
 import pathlib
 import tempfile
@@ -17,8 +18,9 @@ from dolt_annex.datatypes.async_types import maybe_await, ReadableFileObject
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.file_handles import NewFileHandle
-from dolt_annex.logger import logger
 from dolt_annex.filestore.cas import ContentAddressableStorage
+
+logger = logging.getLogger(__name__)
 
 class SFTPServer(asyncssh.SFTPServer):
 
@@ -73,7 +75,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
     @override
     async def open(self, path: bytes, pflags: int, attrs: asyncssh.SFTPAttrs) -> ReadableFileObject:
-        logger.info(f"Opening file: {path}")
+        logger.info("Opening file: %s", path)
 
         if not (pflags & (asyncssh.FXF_READ | asyncssh.FXF_CREAT)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
@@ -110,7 +112,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        logger.info(f"Opening file: {path}")
+        logger.info("Opening file: %s", path)
 
         if not (flags & (asyncssh.FXF_OPEN_EXISTING | asyncssh.FXF_CREATE_NEW)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
