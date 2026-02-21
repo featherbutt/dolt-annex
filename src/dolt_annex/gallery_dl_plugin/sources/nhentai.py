@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
+from datetime import datetime, UTC
 from typing_extensions import Any, override
 
 from .base import GalleryDLSource
@@ -19,7 +19,7 @@ class NHentai(GalleryDLSource, source_name = "nhentai.net"):
 
     @override
     def updated_date(self, metadata: dict[str, Any]) -> Any:
-        return datetime.fromtimestamp(metadata["date"])
+        return datetime.fromtimestamp(metadata["date"], UTC)
 
     @override
     def id(self, metadata: dict[str, Any]) -> str:
