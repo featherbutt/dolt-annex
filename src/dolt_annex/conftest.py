@@ -65,11 +65,10 @@ def remote_repo_model(remote_uuid: UUID, remote_filestore_model: FileStoreModel)
     )
 
 @pytest.fixture
-def temp_dir():
-    with TemporaryDirectory() as tmp_dir:
-        tmp_path = pathlib.Path(tmp_dir)
-        with contextlib.chdir(tmp_path):
-            yield tmp_path
+def temp_dir(tmp_path):
+    tmp_path = pathlib.Path(tmp_path)
+    with contextlib.chdir(tmp_path):
+        yield tmp_path
             
 @pytest.fixture
 def dolt(temp_dir: pathlib.Path):
