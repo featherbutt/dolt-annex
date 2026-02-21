@@ -14,7 +14,7 @@ async def test_export(tmp_path, setup: EnvironmentForTest):
     result = await setup.local_file_store.put_file_bytes(b"new file content", key)
     await result.wait_for_complete()
     await run(
-        args=["dolt-annex", "filestore", "export-file", "--file-key", str(key)],
+        args=["dolt-annex", "filestore", "export-file", str(key)],
         expected_output_contains="new file content"
     )
 

@@ -57,7 +57,7 @@ async def test_import(temp_dir, setup):
     await run(
         args=[
             "dolt-annex", "filestore", "export-file",
-            "--file-key", expected_file_key,
+            expected_file_key,
         ],
         expected_output_equals="test image data"
     )

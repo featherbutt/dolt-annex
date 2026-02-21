@@ -15,11 +15,6 @@ class Export(SubCommand):
 
     parent: CommandGroup
 
-    file_key = cli.SwitchAttr(
-        "--file-key",
-        str,
-        help="The file key to look up. If unset, reads the file key from stdin.",
-    )
 
     repo = cli.SwitchAttr(
         "--repo",
@@ -27,12 +22,8 @@ class Export(SubCommand):
         help="If set, read from this repo instead of the default",
     )
 
-    async def main(self, *args) -> int:
-        if args:
-            print("This command does not take positional arguments")
-            return 1
-
-        file_key = self.file_key or sys.stdin.readline().strip()
+    async def main(self, file_key = None) -> int:
+        file_key = file_key or str(sys.stdin.readline().strip())
         
         queried_key = FileKey.must_parse(bytes(file_key, encoding='utf-8'))
         if self.repo:
