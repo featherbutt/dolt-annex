@@ -8,6 +8,7 @@ This module contains pytest fixtures for setting up tests.
 import pathlib
 import shutil
 import contextlib
+from tempfile import TemporaryDirectory
 from typing import AsyncGenerator, Iterable
 from uuid import UUID
 
@@ -64,10 +65,12 @@ def remote_repo_model(remote_uuid: UUID, remote_filestore_model: FileStoreModel)
     )
 
 @pytest.fixture
-def temp_dir(tmp_path: pathlib.Path):
-    with contextlib.chdir(tmp_path):
-        yield tmp_path
-
+def temp_dir():
+    with TemporaryDirectory() as tmp_dir:
+        tmp_path = pathlib.Path(tmp_dir)
+        with contextlib.chdir(tmp_path):
+            yield tmp_path
+            
 @pytest.fixture
 def dolt(temp_dir: pathlib.Path):
     dolt_dir = pathlib.Path(temp_dir / "dolt")
