@@ -84,11 +84,7 @@ class InsertRecord(cli.Application):
             key_columns = cast(TableRow, self.key_columns.split(','))
             table = dataset.get_table(self.table_name)
 
-            if self.repo:
-                repo_context = Repo.open(base_config, self.repo)
-            else:
-                repo_context = base_config.open_default_repo()
-            async with repo_context as repo:
+            async with Repo.open(base_config, self.repo) as repo:
                 dataset.dolt.initialize_dataset_source(dataset_schema, repo.uuid)
                 await table.insert_file_source(key_columns, key, repo.uuid)
                 await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))

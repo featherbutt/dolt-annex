@@ -16,6 +16,7 @@ from plumbum import cli # type: ignore
 from dolt_annex import importers
 from dolt_annex.commands import CommandGroup
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
@@ -94,6 +95,12 @@ class Import(cli.Application):
         help="The type of file key to use",
         default = "SHA256E",
     )
+
+    repo = cli.SwitchAttr(
+        "--repo",
+        str,
+        help="If set, use the specified repo instead of the default repo",
+    )
         
     async def main(self, *files_or_directories: str):
         base_config: Config = self.parent.config
@@ -114,8 +121,8 @@ class Import(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
-            base_config.open_default_repo() as repo,
-            Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset,
+            Repo.open(self.parent.config, self.repo) as repo,
+            Dataset.connect(self.parent.config, import_config.batch_size, dataset_schema) as dataset,
         ):
             importer = get_importer(*self.importer.split())
             await do_import(repo.filestore, repo.uuid, import_config, dataset, importer, files_or_directories)

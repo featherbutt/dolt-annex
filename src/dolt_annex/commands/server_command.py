@@ -7,6 +7,7 @@ from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.server.ssh import server_context
 
@@ -44,10 +45,17 @@ class Server(cli.Application):
         mandatory = True,
     )
 
+    repo = cli.SwitchAttr(
+        "--repo",
+        str,
+        help="The name of the repo to serve. If not specified, serves the default repo.",
+    )
+
     async def main(self, *args):
         """Entrypoint for server command"""
         config: Config = self.parent.config
-        async with config.open_default_repo() as repo:
+
+        async with Repo.open(self.parent.config, self.repo) as repo:
             cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
             async with (
                 server_context(
