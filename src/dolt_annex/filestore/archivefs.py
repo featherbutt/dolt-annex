@@ -203,7 +203,7 @@ class ArchiveFSModel(FileStoreModel):
 
     # The maximum size of each archive file, in bytes.
     # If an archive file would exceed this size, a new archive file will be created.
-    max_archive_size: int = 4 * (2 << 30)  # 4 GiB
+    max_archive_size: int = 8 * (1 << 30)  # 8 GiB
 
     @override
     @asynccontextmanager
