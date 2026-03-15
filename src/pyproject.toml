@@ -27,6 +27,7 @@ pyjson5 = "^2.0.0"
 plyvel = {version = "^1.5.1", optional = true}
 aiofiles = "^25.1.0"
 filelock = "^3.20.3"
+ruff = "^0.15.4"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
