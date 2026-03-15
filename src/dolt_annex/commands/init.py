@@ -7,8 +7,8 @@ import uuid
 from plumbum import cli, local
 
 from dolt_annex.application import Application
-from dolt_annex.datatypes.repo import Repo, RepoModel
-from dolt_annex.filestore.annexfs import AnnexFS, AnnexFSModel
+from dolt_annex.datatypes.repo import RepoModel
+from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.datatypes.config import Config
 from dolt_annex.data import data_dir
 

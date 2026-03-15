@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from pydantic import BaseModel
 from typing_extensions import List
 
 from .loader import Loadable

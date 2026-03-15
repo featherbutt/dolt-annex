@@ -1,4 +1,5 @@
-from plumbum import cli # type: ignore
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from dolt_annex.commands import CommandGroup, SubCommand
 

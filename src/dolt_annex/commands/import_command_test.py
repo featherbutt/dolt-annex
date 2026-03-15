@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from math import e
 import pytest
 
 from dolt_annex.file_keys import Sha256E
