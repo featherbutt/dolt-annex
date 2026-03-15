@@ -121,8 +121,8 @@ class Import(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
-            Repo.open(self.parent.config, self.repo) as repo,
-            Dataset.connect(self.parent.config, import_config.batch_size, dataset_schema) as dataset,
+            Repo.open(base_config, self.repo) as repo,
+            Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset,
         ):
             importer = get_importer(*self.importer.split())
             await do_import(repo.filestore, repo.uuid, import_config, dataset, importer, files_or_directories)

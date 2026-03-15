@@ -55,7 +55,7 @@ class Server(cli.Application):
         """Entrypoint for server command"""
         config: Config = self.parent.config
 
-        async with Repo.open(self.parent.config, self.repo) as repo:
+        async with Repo.open(config, self.repo) as repo:
             cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
             async with (
                 server_context(
