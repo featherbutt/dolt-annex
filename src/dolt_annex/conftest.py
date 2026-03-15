@@ -8,7 +8,6 @@ This module contains pytest fixtures for setting up tests.
 import pathlib
 import shutil
 import contextlib
-from tempfile import TemporaryDirectory
 from typing import AsyncGenerator, Iterable
 from uuid import UUID
 
