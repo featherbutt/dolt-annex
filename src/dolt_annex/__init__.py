@@ -31,3 +31,5 @@ def main():
         _, continuation = Application.run(exit=False)
         await maybe_await(continuation)
     asyncio.run(run())
+
+__all__ = ["gallery_dl_post", "gallery_dl_prepare", "gallery_dl_after", "gallery_dl_post_test"]
