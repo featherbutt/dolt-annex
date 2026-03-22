@@ -157,6 +157,14 @@ async def test_file_stores(cas: ContentAddressableStorage):
             assert file_info.size == 4
             read_bytes = await f.read()
             assert read_bytes == b"test"
+        await cas.file_store.verify_file(key)
+
+    # Check that a file with the incorrect key does not verify
+    wrong_sha256_key = Sha256E.from_bytes(b"wrong bytes")
+    result = await maybe_await(cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key))
+    await result.wait_for_complete()
+    with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
+        await cas.file_store.verify_file(wrong_sha256_key)
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
