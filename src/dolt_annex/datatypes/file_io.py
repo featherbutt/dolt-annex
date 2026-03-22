@@ -119,6 +119,9 @@ class Path:
 
     def exists(self) -> bool:
         return self.fs.exists(self.path.as_posix())
+    
+    def is_dir(self) -> bool:
+        return self.fs.isdir(self.path.as_posix())
 
     def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
         # Avoid opening the file synchronously; wait for the async context instead.

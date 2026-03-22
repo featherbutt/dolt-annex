@@ -62,7 +62,7 @@ class AnnexFS(FileStore):
     @await_or_enter
     async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         annexed_file_path = self.get_key_path(file_key)
-        if not annexed_file_path.exists():
+        if not annexed_file_path.exists() or annexed_file_path.is_dir():
             # If the file does not exist at the expected path, try the deprecated path.
             annexed_file_path = self.get_old_key_path(file_key)
             if not annexed_file_path.exists():
