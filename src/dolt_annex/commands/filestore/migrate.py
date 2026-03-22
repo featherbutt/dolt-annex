@@ -80,6 +80,7 @@ class Migrate(SubCommand):
                 root = cast(str, walker.path)
                 files = cast(Iterable[fs.info.Info], walker.files)
                 dirs = cast(Iterable[fs.info.Info], walker.dirs)
+                can_remove_dir = True
                 for file in files:
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
@@ -92,6 +93,7 @@ class Migrate(SubCommand):
                             from_filestore.file_system.remove(file_path)
                         else:
                             logger.info("%s exists in destination store, skipping", file_key)
+                            can_remove_dir = False
                     else:
                         logger.info("%s does not exist in destination store, copying", file_key)
                         result = await filestore_copy(
@@ -100,5 +102,8 @@ class Migrate(SubCommand):
                             key=file_key
                         )
                         await result.wait_for_complete()
+                        can_remove_dir = False
+                if can_remove_dir:
+                    from_filestore.file_system.removedir(root)
 
         return 0
