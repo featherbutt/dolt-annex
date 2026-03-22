@@ -141,6 +141,14 @@ class FileStore(abc.ABC):
         avoid transferring data over the network and duplicating storage.
         """
         return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
+    
+    async def verify_file(self, file_key: FileKey) -> None:
+        """
+        Assert that a file has the correct bytes by recomputing its key.
+        """
+        with self.with_file_object(file_key) as in_fd:
+            actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
+            assert actual_key == file_key
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
