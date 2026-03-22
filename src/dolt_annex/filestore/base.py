@@ -146,7 +146,7 @@ class FileStore(abc.ABC):
         """
         Assert that a file has the correct bytes by recomputing its key.
         """
-        with self.with_file_object(file_key) as in_fd:
+        async with self.with_file_object(file_key) as in_fd:
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
             assert actual_key == file_key
 
