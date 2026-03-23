@@ -20,8 +20,12 @@ class FileTableSchema(Loadable, extension="schema", config_dir=pathlib.Path(".")
         """
         Returns the SQL statement to insert a row into the table.
         """
-        cols = ", ".join([self.file_column] + self.key_columns)
-        placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
+        if self.file_column in self.key_columns:
+            cols = ", ".join(self.key_columns)
+            placeholders = ", ".join(["%s"] * (len(self.key_columns)))
+        else:
+            cols = ", ".join([self.file_column] + self.key_columns)
+            placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
         return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
     
 class DatasetSchema(Loadable, extension="dataset", config_dir=pathlib.Path(".")):

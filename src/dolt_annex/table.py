@@ -97,7 +97,10 @@ class FileTable:
         for source, rows in self.added_rows.items():
             branch = f"{source}-{self.dataset_name}"
             with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-                self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
+                if self.schema.file_column in self.schema.key_columns:
+                    self.dolt.executemany(self.schema.insert_sql(), [row[1] for row in rows])
+                else:
+                    self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         for hook in self.flush_hooks:
             await hook()

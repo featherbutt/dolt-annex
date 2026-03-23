@@ -45,17 +45,24 @@ def gallery_dl_post(metadata: dict):
     # remove subcategory
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
-    for table_row in source.post_metadata(metadata):
-        
-        metadata_bytes = json.dumps(    
-            public_metadata,
-            ensure_ascii=False,
-            sort_keys=True,
-            indent=4,
-            default=json_default).encode('utf-8') + b'\n'
-        table: FileTable = dataset.get_table("metadata")
-        tasks.put(import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json"))
-        context.post_metadata_files_processed += 1
+    metadata_bytes = json.dumps(    
+        public_metadata,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=4,
+        default=json_default).encode('utf-8') + b'\n'
+    size = len(metadata_bytes)
+    sha256 = hashlib.sha256(metadata_bytes).hexdigest()
+
+    file_key = Sha256E.make(size, sha256, "json")
+    metadata["_metadata_file_key"] = file_key
+
+    table_row = TableRow(( source.source_name, metadata["_id"], file_key))
+
+    table: FileTable = dataset.get_table("metadata")
+    # return matadata file key on insertion
+    tasks.put(import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json"))
+    context.post_metadata_files_processed += 1
     
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
@@ -75,7 +82,9 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     dataset = context.dataset
     repo = context.repo
     file_table = dataset.get_table("submissions")
-    key = source.table_key(metadata)
+    page_number = source.page_number(metadata)
+    metadata["_page_number"] = page_number
+    key = TableRow(( source.source_name, metadata["_id"], metadata["_metadata_file_key"], page_number))
     if file_table.has_row(repo.uuid, key):
         # We already have this file, skip it.
         metadata["_skip"] = 1
@@ -102,7 +111,7 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     file_system = fs.osfs.OSFS(temp_path.parent.as_posix())
     temp_path = Path(file_system, temp_path.name)
 
-    submission_table_key = source.table_key(metadata)
+    submission_table_key = TableRow(( source.source_name, metadata["_id"], metadata["_metadata_file_key"], source.page_number(metadata)))
     tasks.put(import_file(repo.uuid, repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):

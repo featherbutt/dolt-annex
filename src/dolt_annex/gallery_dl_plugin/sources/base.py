@@ -24,7 +24,7 @@ class GalleryDLSource:
     def table_key(self, metadata: dict[str, Any]) -> TableRow:
         """The table key used for submissions from this source."""
         metadata["_page_number"] = self.page_number(metadata)
-        return TableRow(( self.source_name, metadata["_id"], metadata["_date"], metadata["_page_number"]))
+        return TableRow(( self.source_name, metadata["_id"], metadata["_metadata_file_key"], metadata["_page_number"]))
 
     @abstractmethod
     def supported_subcategories(self) -> list[str]:
@@ -62,7 +62,7 @@ class GalleryDLSource:
 
     @abstractmethod
     def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        return [TableRow(( self.source_name, metadata["_id"], metadata["_date"]))]
+        return [TableRow(( self.source_name, metadata["_id"], metadata["_metadata_file_key"]))]
 
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
