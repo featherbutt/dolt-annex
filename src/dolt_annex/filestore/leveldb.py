@@ -11,12 +11,13 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import pathlib
+from typing import Tuple
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream, maybe_await
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO
+from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
@@ -70,6 +71,11 @@ class LevelDB(FileStore):
     @override
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         return await super().create_alias(old_key, new_key)
+
+    async def iterate_all_files(self) -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        for key, value in self.db.iterator():
+            yield FileKey.must_parse(key), async_bytes_io(value)
+    
 
 class LevelDBModel(FileStoreModel):
 

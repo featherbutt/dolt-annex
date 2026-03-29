@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.async_utils import Result
@@ -149,6 +149,22 @@ class FileStore(abc.ABC):
         async with self.with_file_object(file_key) as in_fd:
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
             assert actual_key == file_key
+
+    def iterate_all_files(self) -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        """
+        Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
+        and it not required to be implemented by all filestores.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement iterate_all_files.")
+    
+    async def verify_all_files(self) -> None:
+        """
+        Verify that all files in the filestore have the correct bytes by recomputing their keys.
+        """
+        async for file_key, in_fd in self.iterate_all_files():
+            async with in_fd as in_fd_opened:
+                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
+                assert actual_key == file_key
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
