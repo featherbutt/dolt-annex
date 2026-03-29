@@ -65,8 +65,8 @@ class SftpFileStore(FileStore):
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
     async def stat(self, file_key: FileKey) -> FileInfo:
-         file_obj = await self.get_file_object(file_key)
-         return await self.fstat(file_obj)
+        async with self.with_file_object(file_key) as file_obj:
+             return await self.fstat(file_obj)
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
