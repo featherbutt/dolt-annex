@@ -85,6 +85,8 @@ class ArchiveFS(FileStore):
             archive_fd_sync = archive_file_path.open_sync('r+b')
             archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')
             yield archive_tar, archive_fd_sync
+            archive_tar.close()
+            archive_fd_sync.close()
 
     @contextmanager
     def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, BinaryIO, Path], None, None]:
@@ -165,8 +167,10 @@ class ArchiveFS(FileStore):
 
         archive_fd = archive_file_path.open_sync('rb')
         file_in_file = tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
-        async with async_open(file_in_file) as fd:
-            yield ExistingFileHandle(fd, FileInfo(size=size))
+        fd = await async_open(file_in_file)
+        yield ExistingFileHandle(fd, FileInfo(size=size))
+        await fd.close()
+        archive_fd.close()
     
     @override
     @await_or_enter
