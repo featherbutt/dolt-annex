@@ -5,11 +5,8 @@
 		"archive-format": "{_skip}",
         "archive-event": [],
 		"path-metadata": "_path_metadata",
-		"base-directory": "F:/gallery-archive/gallery-dl-temp",
+		"base-directory": "./gallery-dl-temp",
 		"directory": [],
-		"actions": {
-			"error:403": "exit 1"
-		},
 		"filename": "{category}-{subcategory}-{_id}-{_date}-{_page_number}.{extension}",
 		"postprocessors": [
 			{
