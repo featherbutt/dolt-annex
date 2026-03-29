@@ -21,7 +21,7 @@ from fs.base import FS as FileSystem
 import fs.memoryfs
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
@@ -151,10 +151,9 @@ class ArchiveFS(FileStore):
         await self.files_queue.put((file_key, data_source, callback))
         return Result(callback)
 
-    @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
-        secondary_value = (await self.secondary.get_file_bytes(file_key)).decode('utf-8')
+    async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:
+        secondary_value = secondary_value_bytes.decode('utf-8')
         archive_file_name, offset_str, size_str = secondary_value.split(':')
         offset = int(offset_str)
         size = int(size_str)
@@ -166,11 +165,19 @@ class ArchiveFS(FileStore):
 
         archive_fd = archive_file_path.open_sync('rb')
         file_in_file = tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
-        yield ExistingFileHandle(await async_open(file_in_file), FileInfo(size=size))
+        async with async_open(file_in_file) as fd:
+            yield ExistingFileHandle(fd, FileInfo(size=size))
+    
+    @override
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
+        file_bytes = await self.secondary.get_file_bytes(file_key)
+        async with self.decode_secondary_value(file_key, file_bytes) as fd:
+            yield fd
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
-        async with self.get_file_object(file_key) as file_obj:
+        async with self.with_file_object(file_key) as file_obj:
             return file_obj.file_info
 
     @override
