@@ -77,7 +77,6 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
-
     async with Dataset.connect(config, db_batch_size=batch_size, dataset_schema=dataset_schema) as dataset:
         # gallery-dl is synchronous, so we need to run it in a separate thread, and use the
         # thread-safe queue.Queue to communicate tasks back to the async loop.

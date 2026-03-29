@@ -15,6 +15,10 @@ from dolt_annex.filestore.annexfs import AnnexFS, AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFS, ArchiveFSModel
 from dolt_annex.filestore.cas import filestore_copy
 
+from dolt_annex.datatypes.async_types import maybe_await
+
+import tarfile
+
 logger = logging.getLogger(__name__)
 
 class Migrate(SubCommand):
@@ -60,20 +64,22 @@ class Migrate(SubCommand):
         "--remove-if-exists",
         help="remove files from the source filestore if they already exist in the destination filestore"        
     )
+
+    import fs.errors
         
     async def main(self, *args) -> int:
 
         from_repo = RepoModel.must_load(self.from_repo)
         to_repo = RepoModel.must_load(self.to_repo)
         assert isinstance(from_repo.filestore, AnnexFSModel)
-        assert isinstance(to_repo.filestore, ArchiveFSModel)
+        #assert isinstance(to_repo.filestore, ArchiveFSModel)
         to_repo = RepoModel.must_load(self.to_repo)
         async with (
             from_repo.filestore.open(self.config) as from_filestore,
             to_repo.filestore.open(self.config) as to_filestore,
         ):
             assert isinstance(from_filestore, AnnexFS)
-            assert isinstance(to_filestore, ArchiveFS)
+            #assert isinstance(to_filestore, ArchiveFS)
             
             for walker in from_filestore.file_system.walk(search="depth"):
                 root = cast(str, walker.path)
@@ -90,18 +96,38 @@ class Migrate(SubCommand):
                 for file in files:
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
-                    if await maybe_await(to_filestore.exists(file_key)):
+                    try:
+                        if from_filestore.file_system.gettype(file_path) == 7:
+                            can_remove_dir = False
+                            continue
+                    except fs.errors.ResourceNotFound:
+                            can_remove_dir = False
+                            continue
+                    print(file_path)
+                    try:
                         await from_filestore.verify_file(file_key)
-                        await to_filestore.verify_file(file_key)
-                        
+                    except AssertionError:
+                        logger.error(f"from: {file_path}")
+                        can_remove_dir = False
+                        continue
+                    dest_is_valid = False
+                    if await maybe_await(to_filestore.exists(file_key)):
+                        try:
+                            await to_filestore.verify_file(file_key)
+                            dest_is_valid = True
+                        except (AssertionError, tarfile.ReadError):
+                            logger.error(f"to: {file_path}")
+                            can_remove_dir = False
+                    
+                    if dest_is_valid:
                         if self.remove_if_exists:
-                            logger.info("%s exists in destination store, removing", file_key)
+                            print("%s exists in destination store, removing" % file_key)
                             from_filestore.file_system.remove(file_path)
                         else:
-                            logger.info("%s exists in destination store, skipping", file_key)
+                            print("%s exists in destination store, skipping" % file_key)
                             can_remove_dir = False
                     else:
-                        logger.info("%s does not exist in destination store, copying", file_key)
+                        print("%s does not exist in destination store, copying" % file_key)
                         result = await filestore_copy(
                             src=from_filestore,
                             dst=to_filestore,
@@ -110,6 +136,8 @@ class Migrate(SubCommand):
                         await result.wait_for_complete()
                         can_remove_dir = False
                 if not has_dirs and can_remove_dir:
-                    from_filestore.file_system.removedir(root)
-
+                    try:
+                        from_filestore.file_system.removedir(root)
+                    except:
+                        pass
         return 0

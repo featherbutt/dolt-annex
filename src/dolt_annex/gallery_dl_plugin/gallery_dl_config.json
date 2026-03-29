@@ -5,7 +5,7 @@
 		"archive-format": "{_skip}",
         "archive-event": [],
 		"path-metadata": "_path_metadata",
-		"base-directory": "./gallery-dl-temp",
+		"base-directory": "/mnt/monstore/gallery-archive/gallery-dl-temp",
 		"directory": [],
 		"filename": "{category}-{subcategory}-{_id}-{_date}-{_page_number}.{extension}",
 		"postprocessors": [

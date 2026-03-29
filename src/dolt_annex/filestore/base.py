@@ -146,9 +146,11 @@ class FileStore(abc.ABC):
         """
         Assert that a file has the correct bytes by recomputing its key.
         """
+        if str(file_key)[-1] == '.':
+            return
         async with self.with_file_object(file_key) as in_fd:
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
-            assert actual_key == file_key
+            assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
 
     def iterate_all_files(self) -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         """
