@@ -58,7 +58,9 @@ class SftpFileStore(FileStore):
         
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
-        yield await self.sftp.open(remote_file_path, 'rb')
+        
+        async with await self.sftp.open(remote_file_path, 'rb') as file_obj:
+            yield file_obj
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
