@@ -134,13 +134,20 @@ async def file_digest(fileobj: ReadableStream, digest: FileKeyGenerator, /, *, _
         digest.update(fileobj.getbuffer()) # type: ignore
         return
 
-    buf = bytearray(_bufsize)
-    view = memoryview(buf)
-    while True:
-        size = await fileobj.readinto(buf)
-        if size == 0:
-            break
-        digest.update(view[:size])
+    if hasattr(fileobj, "readinto"):
+        buf = bytearray(_bufsize)
+        view = memoryview(buf)
+        while True:
+            size = await fileobj.readinto(buf)
+            if size == 0:
+                break
+            digest.update(view[:size])
+    else:
+        while True:
+            buf = await fileobj.read(_bufsize)
+            if not buf:
+                break
+            digest.update(buf)
 
     return
 
