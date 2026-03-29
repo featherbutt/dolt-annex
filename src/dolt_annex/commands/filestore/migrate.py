@@ -2,14 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import logging
-import os
-import sys
 from typing import Iterable, cast
 
 import fs.info
 from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFS, AnnexFSModel
@@ -80,11 +79,18 @@ class Migrate(SubCommand):
                 root = cast(str, walker.path)
                 files = cast(Iterable[fs.info.Info], walker.files)
                 dirs = cast(Iterable[fs.info.Info], walker.dirs)
+
+                has_dirs = False
+                for _ in dirs:
+                    has_dirs = True
+                    break
+
                 can_remove_dir = True
+                
                 for file in files:
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
-                    if to_filestore.exists(file_key):
+                    if await maybe_await(to_filestore.exists(file_key)):
                         await from_filestore.verify_file(file_key)
                         await to_filestore.verify_file(file_key)
                         
@@ -103,7 +109,7 @@ class Migrate(SubCommand):
                         )
                         await result.wait_for_complete()
                         can_remove_dir = False
-                if can_remove_dir:
+                if not has_dirs and can_remove_dir:
                     from_filestore.file_system.removedir(root)
 
         return 0
