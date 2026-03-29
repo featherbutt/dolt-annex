@@ -46,6 +46,7 @@ class ArchiveFS(FileStore):
     files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
     workers: asyncio.TaskGroup
     max_archive_size: int
+    append: bool
 
     writable_archives_dir: Path
     finalized_archives_dir: Path
@@ -59,6 +60,7 @@ class ArchiveFS(FileStore):
             workers: asyncio.TaskGroup,
             num_workers: int,
             max_archive_size: int,
+            append: bool
     ):
         self.file_system = file_system
         self.secondary = secondary
@@ -75,6 +77,9 @@ class ArchiveFS(FileStore):
 
         self.lock_manager = new_lock_manager(self.locks_dir)
         self.files_queue = asyncio.Queue()
+
+        self.append = append
+
         for _ in range(num_workers):
             workers.create_task(self._worker_loop())
 
@@ -91,17 +96,18 @@ class ArchiveFS(FileStore):
     @contextmanager
     def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, BinaryIO, Path], None, None]:
         # Attempt to acquire a lock on a "hot" archive file.
-        for archive_file in self.writable_archives_dir.children():
-            try:
-                with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
-                    yield archive_tar, archive_fd, archive_file
-                    return
-            except FailedToAcquireLock:
-                continue
+        if self.append:
+            for archive_file in self.writable_archives_dir.children():
+                try:
+                    with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
+                        yield archive_tar, archive_fd, archive_file
+                        return
+                except FailedToAcquireLock:
+                    continue
         
         # If we cannot acquire a lock on any existing writable archive files, create a new one.
         while True:
-            new_archive_file_name = f"{uuid.uuid7()}.tar"
+            new_archive_file_name = f"{uuid.uuid4()}.tar"
             new_archive_file_path = self.writable_archives_dir / new_archive_file_name
             try:
                 with self.open_archive_file_for_write(new_archive_file_path) as (archive_tar, archive_fd):
@@ -147,8 +153,12 @@ class ArchiveFS(FileStore):
         if await maybe_await(self.secondary.exists(file_key)):
             # The file already exists, so we don't need to do anything.
             # Open the stream in order to close it.
-            async with data_source:
-                return Result.done()
+            try:
+                await self.verify_file(file_key)
+                async with data_source:
+                    return Result.done()
+            except (AssertionError, tarfile.ReadError):
+                pass
         callback = asyncio.Future[None]()
         await self.files_queue.put((file_key, data_source, callback))
         return Result(callback)
@@ -225,6 +235,8 @@ class ArchiveFSModel(FileStoreModel):
     # If an archive file would exceed this size, a new archive file will be created.
     max_archive_size: int = 8 * (1 << 30)  # 8 GiB
 
+    append: bool = False
+
     @override
     @asynccontextmanager
     async def open(self, config: Config) -> AsyncGenerator[ArchiveFS]:
@@ -243,7 +255,8 @@ class ArchiveFSModel(FileStoreModel):
                 secondary=secondary_filestore,
                 workers=workers,
                 num_workers=self.num_workers,
-                max_archive_size=self.max_archive_size
+                max_archive_size=self.max_archive_size,
+                append=self.append
             )
             try:
                 yield archive
