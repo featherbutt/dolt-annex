@@ -139,7 +139,7 @@ class SftpFileStore(FileStore):
             subsystem="sftp",
             config=resolve_path(config.ssh.ssh_config),
             client_keys=client_keys,
-            user=connection.user,
+            username=connection.user,
             **extra_opts
         ) as conn:
             async with conn.start_sftp_client() as sftp:
