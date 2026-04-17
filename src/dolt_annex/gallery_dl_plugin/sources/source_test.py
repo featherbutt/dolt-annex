@@ -4,7 +4,6 @@
 import contextlib
 import contextvars
 from dataclasses import dataclass, field
-from datetime import datetime
 import importlib
 import sys
 import pathlib
@@ -60,7 +59,8 @@ class MetadataTest:
 @dataclass
 class TableRow:
     file_key: FileKey
-    last_updated: datetime
+    part: int
+    metadata_file_key: Optional[FileKey] = None
 
 @dataclass
 class ImportTest:
@@ -119,7 +119,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=204505,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s413096--6e7e59d329d0aa2e3c33e48c7718e1557f46e943591a05a9521c7b52bb090020.jpg"),
-                    last_updated=datetime(2007, 11, 29, 14, 38, 40)
+                    part=1
                 )],
             )
         ],
@@ -137,11 +137,15 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
         ],
         import_tests=[
             ImportTest(
-                post_url=SourceUrl("post", "https://inkbunny.net/s/2859344"),
-                id=2859344,
+                post_url=SourceUrl("post", "https://inkbunny.net/s/3822970"),
+                id=3822970,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s523155--43676b493605afd86558acc69b6b38e9a8d351c01b666bbf917541c53dc0deaf.jpg"),
-                    last_updated=datetime(2022, 11, 16, 1, 26, 49),
+                    part=1,
+                ),
+                TableRow(
+                    file_key=Sha256E(key=b"SHA256E-s1166228--397140a1e36cd2392e40f4896fc99e7e31c923057168ae78661c7257ea42c869.gif"),
+                    part=2,
                 )],
             )
         ],
@@ -163,7 +167,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=625661,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s71612--67f7f28a088200063e4bd41773595ae02d692c4ea9934ea46aa1cb79972b524a.webp"),
-                    last_updated=datetime(2026, 1, 25, 20, 6, 43)
+                    part=1,
                 )],
             )
         ],
@@ -184,7 +188,8 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=14,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
-                    last_updated=datetime(2026, 2, 21, 1, 10, 34)
+                    part=1,
+                    metadata_file_key=Sha256E(key=b"SHA256E-s5802--3e73fa65dce1312c5f657108a78301ab4bedb14715e7173a54bf3b1050b611b7.json"),
                 )],
             )
         ],
@@ -263,9 +268,11 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
                 actual_file_key: str
                 actual_source: str
                 actual_id: int
-                actual_updated: datetime
-                actual_file_key, actual_source, actual_id, actual_updated, _ = actual_row
+                actual_metadata_key: str
+                actual_part: int
+                actual_file_key, actual_source, actual_id, actual_metadata_key, actual_part = actual_row
                 assert FileKey.must_parse(actual_file_key.encode('utf-8')) == expected_row.file_key
                 assert actual_source  == site.source_name
                 assert actual_id == test.id
-                assert actual_updated == expected_row.last_updated
+                assert FileKey.must_parse(actual_metadata_key.encode('utf-8')) == expected_row.metadata_file_key
+                assert actual_part == expected_row.part
