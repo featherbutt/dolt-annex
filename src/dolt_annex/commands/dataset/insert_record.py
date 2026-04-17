@@ -3,13 +3,14 @@ from typing_extensions import cast
 from plumbum import cli # type: ignore
 
 from dolt_annex.datatypes.async_types import maybe_await
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.repo import Repo
+from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type
-from dolt_annex.table import Dataset
+from dolt_annex.table import DatabaseConnection, Dataset
 
 class InsertRecord(cli.Application):
     """Insert a single record into the annex and database. Primarily used for testing."""
@@ -72,8 +73,13 @@ class InsertRecord(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         file_key_type = get_file_key_type(self.file_key_type)
-        BATCH_SIZE = 1000 # Arbitrary batch size for this command
-        async with Dataset.connect(base_config, BATCH_SIZE, dataset_schema) as dataset:
+        
+        async with (
+            Repo.open(base_config, self.repo) as repo,
+            as_acm(DatabaseConnection.connect(base_config)) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+            dataset.with_repo(repo.uuid) as repo_dataset,
+        ):
             file_bytes = self.file_bytes.encode('utf-8')
             if self.extension == "":
                 extension = None
@@ -82,11 +88,9 @@ class InsertRecord(cli.Application):
             key = file_key_type.from_bytes(file_bytes, extension)
 
             key_columns = cast(TableRow, self.key_columns.split(','))
-            table = dataset.get_table(self.table_name)
+            table = repo_dataset.get_table(self.table_name)
 
-            async with Repo.open(base_config, self.repo) as repo:
-                dataset.dolt.initialize_dataset_source(dataset_schema, repo.uuid)
-                await table.insert_file_source(key_columns, key, repo.uuid)
-                await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
+            await table.insert_file_source(key_columns, key)
+            await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
             print(f"Inserted row ({', '.join(key_columns)}, {key}) into table '{self.table_name}' in dataset '{self.dataset}'")
         return 0

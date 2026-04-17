@@ -15,12 +15,13 @@ import queue
 import sys
 from pathlib import Path
 
+from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.table import Dataset
+from dolt_annex.table import DatabaseConnection, Dataset, RepoDataset
 
 config_path = Path(__file__).parent / "gallery_dl_config.json"
 skip_db_path = Path(__file__).parent / "skip.sqlite3"
@@ -30,7 +31,7 @@ gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 @dataclass
 class GalleryDLContext:
     repo: Repo
-    dataset: Dataset
+    repo_dataset: RepoDataset
     tasks: queue.Queue[Awaitable]
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
@@ -78,11 +79,15 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
 
-    async with Dataset.connect(config, db_batch_size=batch_size, dataset_schema=dataset_schema) as dataset:
+    async with (
+        as_acm(DatabaseConnection.connect(config)) as conn,
+        as_acm(conn.open_dataset(dataset_schema)) as dataset,
+        dataset.with_repo(repo.uuid) as repo_dataset,
+    ):
         # gallery-dl is synchronous, so we need to run it in a separate thread, and use the
         # thread-safe queue.Queue to communicate tasks back to the async loop.
         tasks = queue.Queue[Awaitable]()
-        gallery_dl_context = GalleryDLContext(repo=repo, dataset=dataset, tasks=tasks)
+        gallery_dl_context = GalleryDLContext(repo=repo, repo_dataset=repo_dataset, tasks=tasks)
         def gallery_dl_main():
             with (
                 contextlib.ExitStack() as stack,

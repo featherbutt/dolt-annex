@@ -9,6 +9,7 @@ import sys
 import pathlib
 from typing_extensions import Optional
 
+from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 import pytest
 
@@ -21,7 +22,7 @@ from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
 from dolt_annex.gallery_dl_plugin.sources.nhentai import NHentai
 from dolt_annex.test_util import EnvironmentForTest
-from dolt_annex.table import Dataset
+from dolt_annex.table import DatabaseConnection, Dataset
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 # For each source, provide a sample URL for each supported subcategory.
@@ -259,9 +260,13 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
         assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
 
-        async with Dataset.connect(setup.config, db_batch_size=BATCH_SIZE, dataset_schema=dataset_schema) as dataset:
-            submission_rows = list(dataset.get_table("submissions").get_rows(setup.local_repo.uuid))
-            metadata_rows = list(dataset.get_table("metadata").get_rows(setup.local_repo.uuid))
+        async with (
+            as_acm(DatabaseConnection.connect(setup.config)) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+            dataset.with_repo(setup.local_repo.uuid) as local_dataset,
+        ):
+            submission_rows = list(local_dataset.get_table("submissions").get_rows())
+            metadata_rows = list(local_dataset.get_table("metadata").get_rows())
             assert len(submission_rows) == len(test.rows)
             assert len(metadata_rows) == 1
             for expected_row, actual_row in zip(test.rows, submission_rows):

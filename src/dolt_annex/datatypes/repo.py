@@ -29,6 +29,12 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     key_format: FileKeyType
     alternate_key_formats: list[FileKeyType] = []
 
+    @classmethod
+    def open(cls, config: Config, name: Optional[str]) -> Self:
+        if name is None:
+            name = config.local_repo_name
+        return cls.must_load(name)
+
 @dataclass
 class Repo:
     """

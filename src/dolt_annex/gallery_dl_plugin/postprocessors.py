@@ -9,7 +9,6 @@ import hashlib
 import json
 import pathlib
 import sys
-from uuid import UUID
 from typing_extensions import Any, Optional
 
 import fs.osfs
@@ -20,7 +19,7 @@ from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore import FileStore
-from dolt_annex.table import Dataset, FileTable
+from dolt_annex.table import Dataset, FileTable, RepoDataset
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
@@ -38,7 +37,7 @@ def gallery_dl_post(metadata: dict):
     source.format_post_metadata(metadata)
 
     context = _gallery_dl_context.get()
-    dataset: Dataset = context.dataset
+    repo_dataset: RepoDataset = context.repo_dataset
     repo = context.repo
     tasks = context.tasks
 
@@ -59,9 +58,9 @@ def gallery_dl_post(metadata: dict):
 
     table_row = TableRow(( source.source_name, metadata["_id"], file_key))
 
-    table: FileTable = dataset.get_table("metadata")
+    table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
-    tasks.put(import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json"))
+    tasks.put(import_bytes(repo.filestore, table, table_row, metadata_bytes, "json"))
     context.post_metadata_files_processed += 1
     
 
@@ -79,13 +78,14 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     # First, check whether we already have the file in the annex.
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
     context = _gallery_dl_context.get()
-    dataset = context.dataset
+    repo_dataset = context.repo_dataset
     repo = context.repo
-    file_table = dataset.get_table("submissions")
+
+    submissions_table = repo_dataset.get_table("submissions")
     page_number = source.page_number(metadata)
     metadata["_page_number"] = page_number
     key = TableRow(( source.source_name, metadata["_id"], metadata["_metadata_file_key"], page_number))
-    if file_table.has_row(repo.uuid, key):
+    if submissions_table.has_row(key):
         # We already have this file, skip it.
         metadata["_skip"] = 1
 
@@ -100,38 +100,39 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     """Import the submission file and its metadata into the dolt-annex dataset."""
 
     context = _gallery_dl_context.get()
-    dataset: Dataset = context.dataset
+    repo_dataset = context.repo_dataset
     repo = context.repo
     tasks = context.tasks
 
-    submissions_table = dataset.get_table("submissions")
-    metadata_table = dataset.get_table("metadata")
+    submissions_table = repo_dataset.get_table("submissions")
+    metadata_table = repo_dataset.get_table("metadata")
 
     temp_path = pathlib.Path(metadata["_path_metadata"].realpath)
     file_system = fs.osfs.OSFS(temp_path.parent.as_posix())
     temp_path = Path(file_system, temp_path.name)
 
     submission_table_key = TableRow(( source.source_name, metadata["_id"], metadata["_metadata_file_key"], source.page_number(metadata)))
-    tasks.put(import_file(repo.uuid, repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
+    tasks.put(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        tasks.put(import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        tasks.put(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
         context.submission_metadata_files_processed += 1
 
-async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
+async def import_file(filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     if not sha256:
         sha256 = from_path.hexdigest("sha256")
     size = from_path.stat().size
+    assert size is not None
 
     file_key = Sha256E.make(size, sha256, extension)
 
     result = await maybe_await(filestore.put_file(from_path, file_key))
     result = result.and_then(lambda: from_path.delete(allow_missing=True))
     await result.wait_for_complete()
-    await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
+    await maybe_await(file_table.insert_file_source(table_key, file_key))
 
-async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):
+async def import_bytes(local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     if not sha256:
         sha256 = hashlib.sha256(file_bytes).hexdigest()
@@ -143,4 +144,4 @@ async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table:
 
     await result.wait_for_complete()
         
-    await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
+    await maybe_await(file_table.insert_file_source(table_key, file_key))

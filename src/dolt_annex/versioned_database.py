@@ -11,4 +11,12 @@ There are multiple copies of each dataset, one for each remote.
 
 One of the current obstacles is that we need branches in order to merge.
 
+An abstract "versioned database" provides a way to diff and merge different versions of a table without directly using Dolt.
+It requires the following methods:
+
+- 
+- diff(dataset, table, repo1, repo2)
+
+
+
 """

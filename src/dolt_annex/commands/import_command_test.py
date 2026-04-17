@@ -47,10 +47,9 @@ async def test_import(temp_dir, setup):
             "--table-name", "metadata",
             "--columns", "source",
             "--columns", "id",
-            "--columns", "updated",
-            "--columns", "annex_key"
+            "--columns", "file_key"
         ],
-        expected_output_equals=f'test.com/posts, 1, 0000-00-00 00:00:00, {expected_file_key}\n'
+        expected_output_equals=f'test.com/posts, 1, {expected_file_key}\n'
     )
     
     await run(

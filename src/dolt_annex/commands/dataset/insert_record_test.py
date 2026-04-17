@@ -3,10 +3,11 @@
 
 import pytest
 
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import maybe_await
-from dolt_annex.table import Dataset
+from dolt_annex.table import DatabaseConnection, Dataset
 from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio
@@ -25,6 +26,10 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
         content = await file_obj.read()
         assert content == b"new file content"
 
-    async with Dataset.connect(setup.config, 100, test_dataset_schema) as dataset:
-        assert dataset.get_table("test_table").get_row(setup.local_repo.uuid, TableRow(("test_key",))) == bytes(key).decode('utf-8')
+    async with (
+        as_acm(DatabaseConnection.connect(setup.config)) as conn,
+        as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
+        dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
+    ):
+        assert repo_dataset.get_table("test_table").get_row(TableRow(("test_key",))) == bytes(key).decode('utf-8')
 

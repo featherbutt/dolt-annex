@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 import logging
 import os
@@ -11,7 +11,6 @@ from uuid import UUID
 from typing_extensions import Any, Awaitable, Optional, Callable, Dict, List, Tuple, Iterable
 
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 
 from .dolt import DoltSqlServer
@@ -40,11 +39,10 @@ class TableFilter:
     
 class FileTable:
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
+    repo_dataset: RepoDataset
     urls: Dict[str, List[str]]
     sources: Dict[FileKey, List[str]]
-    added_rows: Dict[UUID, List[Tuple[FileKey, TableRow]]]
-    dolt: DoltSqlServer
-    auto_push: bool
+    added_rows: List[Tuple[FileKey, TableRow]]
     batch_size: int
     count: int
     time: float
@@ -52,20 +50,29 @@ class FileTable:
     write_sources_table: bool = False
     write_git_annex: bool = False
     schema: FileTableSchema
-    dataset_name: str
     branch_start_point: str
 
-    def __init__(self, dolt: DoltSqlServer, schema: FileTableSchema, dataset_name: str, branch_start_point: str, auto_push: bool, batch_size: int):
+    def __init__(self, repo_dataset: RepoDataset, schema: FileTableSchema, branch_start_point: str):
+        self.repo_dataset = repo_dataset
         self.schema = schema
-        self.dataset_name = dataset_name
-        self.dolt = dolt
         self.flush_hooks = []
-        self.added_rows = {}
-        self.batch_size = batch_size
+        self.added_rows = []
+        self.batch_size = 1000
         self.count = 0
         self.time = time.time()
-        self.auto_push = auto_push
         self.branch_start_point = branch_start_point
+
+    @property
+    def uuid(self) -> UUID:
+        return self.repo_dataset.repo
+
+    @property
+    def dataset(self) -> Dataset:
+        return self.repo_dataset.dataset
+    
+    @property
+    def dolt(self) -> DoltSqlServer:
+        return self.dataset.conn.dolt
 
     async def increment_count(self):
         self.count += 1
@@ -73,10 +80,8 @@ class FileTable:
             await self.flush()
             self.count = 0
 
-    async def insert_file_source(self, table_row: TableRow, key: FileKey, source: UUID):
-        if source not in self.added_rows:
-            self.added_rows[source] = []
-        self.added_rows[source].append((key, table_row))
+    async def insert_file_source(self, table_row: TableRow, key: FileKey):
+        self.added_rows.append((key, table_row))
 
         await self.increment_count()
 
@@ -94,13 +99,13 @@ class FileTable:
         # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
         # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
 
-        for source, rows in self.added_rows.items():
-            branch = f"{source}-{self.dataset_name}"
-            with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-                if self.schema.file_column in self.schema.key_columns:
-                    self.dolt.executemany(self.schema.insert_sql(), [row[1] for row in rows])
-                else:
-                    self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
+        branch = f"{self.uuid}-{self.dataset.name}"
+        rows = self.added_rows
+        with self.dolt.maybe_create_branch(branch, self.branch_start_point):
+            if self.schema.file_column in self.schema.key_columns:
+                self.dolt.executemany(self.schema.insert_sql(), [row[1] for row in rows])
+            else:
+                self.dolt.executemany(self.schema.insert_sql(), [(row[0], *row[1]) for row in rows])
 
         for hook in self.flush_hooks:
             await hook()
@@ -119,24 +124,24 @@ class FileTable:
     async def __aexit__(self, exc_type, exc_value, traceback):
         await self.flush()
 
-    def has_row(self, uuid: UUID, key: TableRow) -> bool:
-        query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
+    def has_row(self, key: TableRow) -> bool:
+        query_sql = f"SELECT 1 FROM `{self.dolt.db_name}/{self.uuid}-{self.dataset.name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
         results = self.dolt.query(query_sql, tuple(key))
         for _ in results:
             return True
         return False
 
-    def get_row(self, uuid: UUID, key: TableRow) -> Optional[bytes]:
-        query_sql = f"SELECT {self.schema.file_column} FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
+    def get_row(self, key: TableRow) -> Optional[bytes]:
+        query_sql = f"SELECT {self.schema.file_column} FROM `{self.dolt.db_name}/{self.uuid}-{self.dataset.name}`.{self.schema.name} WHERE " + " AND ".join([f"{col} = %s" for col, _ in zip(self.schema.key_columns, key)]) + " LIMIT 1"
         results = self.dolt.query(query_sql, tuple(key))
         for result in results:
             return result[0]
         return None
     
-    def get_rows(self, uuid: UUID, *, columns: List[str] = [], filters: List[TableFilter] = []) -> Iterable[Tuple]:
+    def get_rows(self, *, columns: List[str] = [], filters: List[TableFilter] = []) -> Iterable[Tuple]:
         if not columns:
             columns = [self.schema.file_column] + self.schema.key_columns
-        query_sql = f"SELECT {', '.join(columns)} FROM `{self.dolt.db_name}/{uuid}-{self.dataset_name}`.{self.schema.name}"
+        query_sql = f"SELECT {', '.join(columns)} FROM `{self.dolt.db_name}/{self.uuid}-{self.dataset.name}`.{self.schema.name}"
         if filters:
             query_sql += " WHERE " + " AND ".join([f"{f.column_name} = %s" for f in filters])
             params = tuple(f.column_value for f in filters)
@@ -145,50 +150,16 @@ class FileTable:
         results = self.dolt.query(query_sql, params)
         yield from results
     
-class Dataset:
-    """A version controlled branch that contains one or more file tables."""
-    name: str
-    schema: DatasetSchema
-    tables: Dict[str, FileTable]
+@dataclass
+class DatabaseConnection:
+    """
+    A connection to a database that contains datasets.
+    """
     dolt: DoltSqlServer
-    auto_push: bool
-
-    MAX_EXTENSION_LENGTH = 4
-
-    def __init__(self, base_config: Config, dolt: DoltSqlServer, schema: DatasetSchema, auto_push: bool, batch_size: int):
-        self.name = schema.name
-        self.schema = schema
-        self.dolt = dolt
-        self.auto_push = auto_push
-        self.tables = {table.name: FileTable(dolt, table, self.name, schema.empty_table_ref, auto_push, batch_size) for table in schema.tables}
-        dolt.maybe_create_branch(f"{base_config.get_default_repo().uuid}-{self.name}", schema.empty_table_ref)
-
-    def get_table(self, table_name: str) -> FileTable:
-        return self.tables[table_name]
-    
-    def get_tables(self) -> Iterable[FileTable]:
-        return self.tables.values()
-    
-    def pull_from(self, remote: Repo):
-        self.dolt.pull_branch(f"{remote.uuid}-{self.name}", remote)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        for table in self.tables.values():
-            await table.__aexit__(exc_type, exc_value, traceback)
-        if self.auto_push:
-            pass
-            # self.dolt.push_branch()
-
-    async def flush(self):
-        for table in self.tables.values():
-            await table.flush()
 
     @staticmethod
-    @asynccontextmanager
-    async def connect(base_config: Config, db_batch_size, dataset_schema: DatasetSchema):
+    @contextmanager
+    def connect(base_config: Config):
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
@@ -212,5 +183,100 @@ class Dataset:
         with (
             DoltSqlServer(dolt_config.dolt_dir, connection.database, db_config, dolt_config.spawn_dolt_server) as dolt_server,
         ):
-            async with Dataset(base_config, dolt_server, dataset_schema, False, db_batch_size) as dataset:
-                yield dataset
+            conn = DatabaseConnection(dolt_server)
+            yield conn
+
+    @contextmanager
+    def open_dataset(self, dataset_schema: DatasetSchema):
+        dataset = Dataset(self, dataset_schema)
+        yield dataset
+
+def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> str:
+    """
+    Generates a SQL query to identify the files that exist on one remote but not another.
+    Note that generating a SQL query this way is not safe from SQL injection, but SQL injection
+    isn't part of the threat model, since any query that the application can run,
+    the user can already run themselves.
+    """
+    return f"""
+        SELECT
+            to_{file_key_table.file_column}, `diff_type`, {",".join("to_" + col for col in file_key_table.key_columns)}
+        FROM dolt_commit_diff_{file_key_table.name}
+        WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s)
+        {''.join(f" AND to_{f.column_name} = %s" for f in filters)}
+        """
+
+class Dataset:
+    """
+    A dataset that contains one or more file tables.
+    """
+    conn: DatabaseConnection
+    name: str
+    schema: DatasetSchema
+
+    def __init__(self, conn: DatabaseConnection, schema: DatasetSchema):
+        self.conn = conn
+        self.name = schema.name
+        self.schema = schema
+        
+    @asynccontextmanager
+    async def with_repo(self, repo: UUID):
+        repo_dataset = RepoDataset(self, repo)
+        try:
+            yield repo_dataset
+        finally:
+            await repo_dataset.flush()
+        
+    def diff_keys(self, in_ref: UUID, not_in_ref: UUID, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow]]:
+        refs = [in_ref, not_in_ref]
+        refs.sort()
+        union_branch_name = f"union-{refs[0]}-{refs[1]}-{self.name}"
+        
+        in_ref_branch = f"{in_ref}-{self.name}"
+        not_in_ref_branch = f"{not_in_ref}-{self.name}"
+
+        dolt = self.conn.dolt
+
+        dolt.initialize_dataset_source(self.schema, in_ref)
+        dolt.initialize_dataset_source(self.schema, not_in_ref)
+
+        # Create the union branch if it doesn't exist
+        # What if in_ref_branch hasn't been created yet? We need an approach that abstracts this away.
+        # Don't pass branch names around as strings, pass them as first class objects.
+        with self.conn.dolt.maybe_create_branch(union_branch_name, in_ref_branch):
+            dolt.merge(in_ref_branch)
+            dolt.merge(not_in_ref_branch)
+            query = diff_query(file_key_table, filters)
+            if limit is not None:
+                query += " LIMIT %s"
+                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
+            else:
+                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
+            # TODO: Wrap this in a helper function
+            for (annex_key, diff_type, *key_parts) in query_results:
+                yield (diff_type, FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(tuple(key_parts)))
+
+class RepoDataset:
+    """
+    The dataset as it exists on a specific repo. Every row in this dataset corresponds to a file on that repo.
+    """
+    dataset: Dataset
+    repo: UUID
+    tables: Dict[str, FileTable]
+
+    def __init__(self, dataset: Dataset, repo: UUID):
+        self.dataset = dataset
+        self.repo = repo
+        self.tables = {table.name: FileTable(self, table, dataset.schema.empty_table_ref) for table in dataset.schema.tables}
+        dataset.conn.dolt.initialize_dataset_source(self.dataset.schema, repo)
+
+    def get_table(self, table_name: str) -> FileTable:
+        return self.tables[table_name]
+    
+    def get_tables(self) -> Iterable[FileTable]:
+        return self.tables.values()
+    
+    async def flush(self):
+        for table in self.tables.values():
+            await table.flush()
+

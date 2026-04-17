@@ -9,10 +9,8 @@ from plumbum import cli
 from dolt_annex.application import Application
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.table import Dataset, TableFilter
+from dolt_annex.table import DatabaseConnection, TableFilter
 from dolt_annex.datatypes.repo import RepoModel
-from dolt_annex.sync import diff_keys
-
 class Diff(cli.Application):
     """Print records that differ between two versions of a dataset."""
 
@@ -70,17 +68,16 @@ class Diff(cli.Application):
         base_config: Config = self.parent.config
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
-        BATCH_SIZE = 1000 # Arbitrary batch size for this command, unused
-        async with (
-            Dataset.connect(base_config, BATCH_SIZE, dataset_schema) as dataset
+        with (
+            DatabaseConnection.connect(base_config) as conn,
+            conn.open_dataset(dataset_schema) as dataset,
         ):
             local_repo_model = RepoModel.must_load(self.from_repo)
             remote_repo_model = RepoModel.must_load(self.to_repo)
-            dataset.dolt.initialize_dataset_source(dataset_schema, local_repo_model.uuid)
-            dataset.dolt.initialize_dataset_source(dataset_schema, remote_repo_model.uuid)
-            dolt = dataset.dolt
+            conn.dolt.initialize_dataset_source(dataset_schema, local_repo_model.uuid)
+            conn.dolt.initialize_dataset_source(dataset_schema, remote_repo_model.uuid)
             table_schema = dataset_schema.get_table(self.table_name)
-            keys_and_submissions = list(diff_keys(dolt, str(local_repo_model.uuid), str(remote_repo_model.uuid), dataset.name, table_schema, self.filters, self.limit))
+            keys_and_submissions = list(dataset.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, table_schema, self.filters, self.limit))
             for diff_type, key, submission in keys_and_submissions:
                     print(",".join([diff_type, str(key), str(submission)]))
         return 0
