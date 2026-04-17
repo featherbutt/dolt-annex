@@ -54,12 +54,12 @@ def make_default_schema(dataset_name: str) -> DatasetSchema:
             FileTableSchema(
                 name="submissions",
                 key_columns=["source", "id", "metadata_file_key", "part"],
-                file_column="annex_key",
+                file_column="submission_file_key",
             ),
             FileTableSchema(
                 name="metadata",
-                key_columns=["source", "id", "updated"],
-                file_column="annex_key",
+                key_columns=["source", "id", "file_key"],
+                file_column="file_key",
             ),
         ],
         empty_table_ref="gallery-dl",
