@@ -34,14 +34,14 @@ class Server(cli.Application):
     authorized_keys = cli.SwitchAttr(
         "--authorized-keys",
         cli.ExistingFile,
-        help="The path to an authorized public key",
+        help="The path to an authorized keys file, which specifies the public keys that are allowed to connect to the server",
         mandatory = True,
     )
 
     server_keyfile = cli.SwitchAttr(
         "--server-key",
         cli.ExistingFile,
-        help="The path to the server key file",
+        help="The path to the server key file, used to authenticate the server to clients",
         mandatory = True,
     )
 
