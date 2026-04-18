@@ -40,8 +40,8 @@ test_dataset_schema = DatasetSchema(
     tables= [
         FileTableSchema(
             name="test_table",
-            file_column="annex_key",
-            key_columns=["path"]
+            file_column="file_key",
+            key_columns=["path", "file_key"],
         )
     ],
     empty_table_ref= "test_dataset"

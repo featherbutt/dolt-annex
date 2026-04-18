@@ -33,7 +33,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", dataset_name,
                 "--table-name", table_name,
-                "--key-columns", record1.table_key,
+                "--value", f"{table_key_column}={record1.table_key}",
                 "--file-bytes", record1.file_bytes,
                 "--repo", remote_name],
         expected_output_contains="Inserted row"
@@ -42,7 +42,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", dataset_name,
                 "--table-name", table_name,
-                "--key-columns", record2.table_key,
+                "--value", f"{table_key_column}={record2.table_key}",
                 "--file-bytes", record2.file_bytes,
                 "--repo", remote_name],
         expected_output_contains="Inserted row"
@@ -74,7 +74,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record3.table_key,
+            "--value", f"{table_key_column}={record3.table_key}",
             "--file-bytes", record3.file_bytes,
             "--repo", remote_name
         ],
@@ -100,7 +100,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
             "--columns", file_column,
             "--columns", table_key_column
         ],
-        expected_output_equals=''.join(f"{expected_files_keys[i].decode('utf-8')}, {record.table_key}\n" for i, record in enumerate(records)),
+        expected_output_equals='\n'.join(str({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
     )
     
     for record, expected_file_key in zip(records, expected_files_keys):
@@ -120,7 +120,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
-                "--key-columns", "test_key1",
+                "--value", "path=test_key1",
                 "--file-bytes", "file_content_1",
                 "--repo", "test_remote"],
         expected_output_contains="Inserted row"
@@ -129,7 +129,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
-                "--key-columns", "test_key2",
+                "--value", "path=test_key2",
                 "--file-bytes", "file_content_2",
                 "--repo", "test_remote"],
         expected_output_contains="Inserted row"
@@ -150,7 +150,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     # Assert that the record was added to the local database
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output_contains="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt, test_key1"
+        expected_output_contains="{'path': 'test_key1', 'file_key': 'SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt'}"
     )
 
 @pytest.mark.asyncio
@@ -166,7 +166,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
         args=["dolt-annex", "dataset", "insert-record",
                 "--dataset", "test",
                 "--table-name", "test_table",
-                "--key-columns", "test_key1",
+                "--value", "path=test_key1",
                 "--file-bytes", "file_content_1",
                 "--repo", "test_remote",
                 "--extension", "",
@@ -190,7 +190,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     # Assert that the local db now has a record
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output_contains="SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884, test_key1"
+        expected_output_contains="{'path': 'test_key1', 'file_key': 'SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884'}"
     )
 
     # Assert that the file in the local filestore was not modified

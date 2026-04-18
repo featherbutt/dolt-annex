@@ -3,11 +3,11 @@
 
 import pytest
 
+from dolt_annex.database import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
-from dolt_annex.datatypes.common import TableRow
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import maybe_await
-from dolt_annex.table import DatabaseConnection, Dataset
+from dolt_annex.table import DatabaseConnection
 from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio
@@ -17,7 +17,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
 
     key = Sha256E.from_bytes(b"new file content", "txt")
     await run(
-        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--key-columns", "test_key", "--file-bytes", "new file content"],
+        args=["dolt-annex", "dataset", "insert-record", "--dataset", "test", "--table-name", "test_table", "--value", "path=test_key", "--file-bytes", "new file content"],
         expected_output_contains="Inserted row"
     )
 
@@ -27,9 +27,11 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
         assert content == b"new file content"
 
     async with (
-        as_acm(DatabaseConnection.connect(setup.config)) as conn,
+        as_acm(DatabaseConnection.open(setup.config)) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
     ):
-        assert repo_dataset.get_table("test_table").get_row(TableRow(("test_key",))) == bytes(key).decode('utf-8')
+        result_row = repo_dataset.get_table("test_table").get_row(filters=[TableFilter("path", "test_key")])
+        assert result_row is not None
+        assert result_row["file_key"] == bytes(key).decode('utf-8')
 

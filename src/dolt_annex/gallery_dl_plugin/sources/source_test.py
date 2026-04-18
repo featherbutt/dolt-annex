@@ -140,14 +140,18 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
             ImportTest(
                 post_url=SourceUrl("post", "https://inkbunny.net/s/3822970"),
                 id=3822970,
-                rows=[TableRow(
-                    file_key=Sha256E(key=b"SHA256E-s523155--43676b493605afd86558acc69b6b38e9a8d351c01b666bbf917541c53dc0deaf.jpg"),
-                    part=1,
-                ),
-                TableRow(
-                    file_key=Sha256E(key=b"SHA256E-s1166228--397140a1e36cd2392e40f4896fc99e7e31c923057168ae78661c7257ea42c869.gif"),
-                    part=2,
-                )],
+                rows=[
+                    TableRow(
+                        metadata_file_key=Sha256E(key=b'SHA256E-s3134--ee7c15fd6bf76021534df217af8eddbd5f517a4f8297d4f31a50d891efdb907a.json'),
+                        file_key=Sha256E(key=b"SHA256E-s1166228--397140a1e36cd2392e40f4896fc99e7e31c923057168ae78661c7257ea42c869.gif"),
+                        part=1,
+                    ),
+                    TableRow(
+                        metadata_file_key=Sha256E(key=b'SHA256E-s3134--ee7c15fd6bf76021534df217af8eddbd5f517a4f8297d4f31a50d891efdb907a.json'),
+                        file_key=Sha256E(key=b"SHA256E-s1234946--fdebc1b6085f51d2f15b9254e8be12344423e98cbf08c9957682d361067d475b.gif"),
+                        part=2,
+                    )
+                ],
             )
         ],
     ),
@@ -261,7 +265,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
 
         async with (
-            as_acm(DatabaseConnection.connect(setup.config)) as conn,
+            as_acm(DatabaseConnection.open(setup.config)) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(setup.local_repo.uuid) as local_dataset,
         ):
@@ -270,12 +274,11 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
             assert len(submission_rows) == len(test.rows)
             assert len(metadata_rows) == 1
             for expected_row, actual_row in zip(test.rows, submission_rows):
-                actual_file_key: str
-                actual_source: str
-                actual_id: int
-                actual_metadata_key: str
-                actual_part: int
-                actual_file_key, actual_source, actual_id, actual_metadata_key, actual_part = actual_row
+                actual_file_key: str = actual_row["submission_file_key"]
+                actual_source: str = actual_row["source"]
+                actual_id: int = actual_row["id"]
+                actual_metadata_key: str = actual_row["metadata_file_key"]
+                actual_part: int = actual_row["part"]
                 assert FileKey.must_parse(actual_file_key.encode('utf-8')) == expected_row.file_key
                 assert actual_source  == site.source_name
                 assert actual_id == test.id

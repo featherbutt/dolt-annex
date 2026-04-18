@@ -67,16 +67,15 @@ async def test_detect_corruption(
     to_repo = setup.remote_repo
     FILTERS = [] # Allow for any setup delays
     async with (
-        as_acm(DatabaseConnection.connect(setup.config)) as conn,
+        as_acm(DatabaseConnection.open(setup.config)) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(from_repo.uuid) as from_repo_dataset,
         dataset.with_repo(to_repo.uuid) as to_repo_dataset,
     ):
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
-        await from_table.insert_file_source(
-            TableRow(("0",)),
-            file_key,
+        await from_table.insert(
+            TableRow({"path": "0", "file_key": file_key}),
         )
 
         await from_table.flush()
@@ -100,7 +99,7 @@ async def test_async_move(
     to_repo = setup.remote_repo
     FILTERS = [] # Allow for any setup delays
     async with (
-        as_acm(DatabaseConnection.connect(test_config)) as conn,
+        as_acm(DatabaseConnection.open(test_config)) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(from_repo.uuid) as from_repo_dataset,
         dataset.with_repo(to_repo.uuid) as to_repo_dataset,
@@ -109,10 +108,8 @@ async def test_async_move(
         from_table = from_repo_dataset.get_table("test_table")
         for i, file_key in enumerate(added_file_keys):
             path = f"{i}"
-            await from_table.insert_file_source(
-                TableRow((path,)),
-                file_key,
-            )
+            await from_table.insert(TableRow({"path": path,"file_key": file_key}))
+            
 
         await from_table.flush()
         await move_dataset(
@@ -127,7 +124,9 @@ async def test_async_move(
             assert await to_repo.filestore.get_file_bytes(file_key) == await from_repo.filestore.get_file_bytes(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
-        for file_key, path in to_table.get_rows():
+        for row in to_table.get_rows():
+            path = row["path"]
+            file_key = row["file_key"]
             assert bytes(added_file_keys[int(path)]) == bytes(file_key, encoding='utf-8')
         # If the destination filestore is ArchiveFS, ensure that files are in multiple archives
         if isinstance(to_repo.filestore, ArchiveFS):

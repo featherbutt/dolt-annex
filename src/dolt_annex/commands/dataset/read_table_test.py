@@ -24,7 +24,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", table_key,
+            "--value", f"{table_key_column}={table_key}",
             "--file-bytes", file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -36,7 +36,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "--dataset", dataset_name,
             "--table-name", table_name
         ],
-        expected_output_equals=f"{file_key}, {table_key}\n"
+        expected_output_equals=f"{{'{table_key_column}': '{table_key}', '{file_column}': '{file_key}'}}\n"
     )
 
     await run(
@@ -47,7 +47,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "--columns", file_column,
             "--columns", table_key_column
         ],
-        expected_output_equals=f"{file_key}, {table_key}\n"
+        expected_output_equals=f"{{'{file_column}': '{file_key}', '{table_key_column}': '{table_key}'}}\n"
     )
 
     await run(
@@ -58,7 +58,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "--columns", table_key_column,
             "--columns", file_column
         ],
-        expected_output_equals=f"{table_key}, {file_key}\n"
+        expected_output_equals=f"{{'{table_key_column}': '{table_key}', '{file_column}': '{file_key}'}}\n"
     )
 
     await run(
@@ -68,7 +68,7 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "--table-name", table_name,
             "--columns", table_key_column
         ],
-        expected_output_equals=f"{table_key}\n"
+        expected_output_equals=f"{{'{table_key_column}': '{table_key}'}}\n"
     )
 
     await run(
@@ -78,5 +78,5 @@ async def test_read_table(tmp_path, setup: EnvironmentForTest):
             "--table-name", table_name,
             "--columns", file_column
         ],
-        expected_output_equals=f"{file_key}\n"
+        expected_output_equals=f"{{'{file_column}': '{file_key}'}}\n"
     )

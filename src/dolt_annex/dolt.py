@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import threading
 import time
+from typing import List
 from uuid import UUID
 
 from typing_extensions import Any, Dict, Tuple
@@ -109,7 +110,7 @@ class DoltSqlServer:
         finally:
             connection.close()
 
-    def executemany(self, sql: str, values):
+    def executemany(self, sql: str, values: List[List[Any]]):
         cursor = self.connection.cursor()
         cursor.executemany(sql, values)
         cursor.execute("COMMIT;")
@@ -223,12 +224,6 @@ class DoltSqlServer:
             cursor.execute("call DOLT_MERGE('--abort');")
             raise DoltException(f"Failed to merge {branch} into {self.active_branch}: unresolvable conflicts detected")
         
-    def initialize_dataset_source(self, dataset_schema: DatasetSchema, repo_uuid: UUID):
-        """
-        Ensures that the Dolt repo contains the necessary branches for this dataset.
-        """
-        self.maybe_create_branch(f"{repo_uuid}-{dataset_schema.name}", dataset_schema.empty_table_ref)
-
 class DoltException(Exception):
     """Exception raised for errors when executing Dolt commands."""
 

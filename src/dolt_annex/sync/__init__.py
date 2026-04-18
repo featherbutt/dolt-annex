@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import logging
 from typing_extensions import Iterable, Optional, Tuple, List
 
+from dolt_annex.database import TableFilter
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
@@ -16,7 +17,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
 from dolt_annex.filestore.cas import filestore_copy
-from dolt_annex.table import Dataset, FileTable, TableFilter
+from dolt_annex.table import Dataset, FileTable
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class SyncOperation:
             logger.debug("file %s already exists in destination filestore", key)
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
-            await self.to_table.insert_file_source(table_row, key)
+            await self.to_table.insert(table_row)
             return Result.done()
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
@@ -103,7 +104,7 @@ class SyncOperation:
         # We must wait for the copy to complete before updating the dataset.
         async def update_table_on_complete() -> None:
             await result.wait_for_complete()
-            await self.to_table.insert_file_source(table_row, key)
+            await self.to_table.insert(table_row)
         return Result(asyncio.create_task(update_table_on_complete()))
 
     @classmethod

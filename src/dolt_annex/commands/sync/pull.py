@@ -7,10 +7,11 @@ from typing_extensions import List
 
 from plumbum import cli
 
+from dolt_annex.database import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.sync import move_dataset
-from dolt_annex.table import DatabaseConnection, TableFilter
+from dolt_annex.table import DatabaseConnection
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import Repo
 
@@ -93,7 +94,7 @@ class Pull(cli.Application):
             Repo.open(base_config, remote_name) as remote_repo,
         ):
             with (
-                DatabaseConnection.connect(self.parent.config) as conn,
+                DatabaseConnection.open(self.parent.config) as conn,
                 conn.open_dataset(dataset_schema) as dataset,
             ):
                 pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, None, self.ignore_missing)

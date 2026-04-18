@@ -2,12 +2,13 @@ from typing_extensions import List
 
 from plumbum import cli # type: ignore
 
+from dolt_annex.database import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
-from dolt_annex.table import DatabaseConnection, TableFilter
+from dolt_annex.table import DatabaseConnection
 
 class ReadTable(cli.Application):
     """Read rows from a dataset table for a specific remote. Primarily used for testing."""
@@ -69,12 +70,12 @@ class ReadTable(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
-            as_acm(DatabaseConnection.connect(base_config)) as conn,
+            as_acm(DatabaseConnection.open(base_config)) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):
             table = repo_dataset.get_table(self.table_name)
             for row in table.get_rows(columns=self.columns, filters=self.filters):
-                print(", ".join(str(cell) for cell in row))
+                print(row)
 
         return 0

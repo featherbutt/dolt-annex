@@ -74,7 +74,7 @@ def test_example_config():
         tables = [
             FileTableSchema(
                 name="files",
-                file_column="annex_key",
+                file_column="file_key",
                 key_columns=["path"],
             ),
         ],

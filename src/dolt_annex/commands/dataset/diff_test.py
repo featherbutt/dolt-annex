@@ -29,7 +29,7 @@ async def test_diff(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record1.table_key,
+            "--value", f"path={record1.table_key}",
             "--file-bytes", record1.file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -39,7 +39,7 @@ async def test_diff(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record2.table_key,
+            "--value", f"path={record2.table_key}",
             "--file-bytes", record2.file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -54,7 +54,7 @@ async def test_diff(tmp_path, setup: EnvironmentForTest):
             "--to", remote_name,
         ],
         expected_output_equals="""\
-added,SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt,('test_key1',)
-added,SHA256E-s14--92d7f552b54125f4a8076811c310c671a21b1538842f36afbda91ba7534f21d2.txt,('test_key2',)
+added,SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt,{'path': 'test_key1', 'file_key': 'SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt'}
+added,SHA256E-s14--92d7f552b54125f4a8076811c310c671a21b1538842f36afbda91ba7534f21d2.txt,{'path': 'test_key2', 'file_key': 'SHA256E-s14--92d7f552b54125f4a8076811c310c671a21b1538842f36afbda91ba7534f21d2.txt'}
 """
     )

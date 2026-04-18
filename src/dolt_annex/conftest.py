@@ -80,7 +80,7 @@ def dolt(temp_dir: pathlib.Path):
 @pytest.fixture
 def init_dolt(dolt):
     dolt("checkout", "-b", "test_dataset")
-    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, annex_key varchar(100));")
+    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, file_key varchar(100));")
     dolt("add", ".")
     dolt("commit", "-m", "Initial commit")
     yield dolt

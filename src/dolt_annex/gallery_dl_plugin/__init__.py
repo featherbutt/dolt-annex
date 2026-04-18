@@ -54,7 +54,7 @@ def make_default_schema(dataset_name: str) -> DatasetSchema:
         tables=[
             FileTableSchema(
                 name="submissions",
-                key_columns=["source", "id", "metadata_file_key", "part"],
+                key_columns=["source", "id", "metadata_file_key", "part", "submission_file_key"],
                 file_column="submission_file_key",
             ),
             FileTableSchema(
@@ -80,7 +80,7 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
     gallery_dl_stderr = io.StringIO()
 
     async with (
-        as_acm(DatabaseConnection.connect(config)) as conn,
+        as_acm(DatabaseConnection.open(config)) as conn,
         as_acm(conn.open_dataset(dataset_schema)) as dataset,
         dataset.with_repo(repo.uuid) as repo_dataset,
     ):

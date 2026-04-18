@@ -124,7 +124,7 @@ class Import(cli.Application):
 
         async with (
             Repo.open(base_config, self.repo) as repo,
-            as_acm(DatabaseConnection.connect(base_config)) as conn,
+            as_acm(DatabaseConnection.open(base_config)) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):
@@ -183,7 +183,7 @@ async def do_import(repo_dataset: RepoDataset, file_store: FileStore, import_con
             if key_columns:
                 table_name = importer.table_name(path)
                 table = repo_dataset.get_table(table_name)
-                await table.insert_file_source(key_columns, key)
+                await table.insert(key_columns, key)
                 key_paths[table_name][path] = key
             if not key_columns:
                 raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")

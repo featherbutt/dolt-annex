@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, AsyncGenerator, ClassVar, Optional, Type
 from uuid import UUID
 import pathlib
 
@@ -40,11 +40,15 @@ class Repo:
     """
     A file respository whose filestore is open. May be local or remote.
     """
+    type Id = UUID
+    
     name: str
-    uuid: UUID
+    uuid: Id
     filestore: FileStore
     key_format: FileKeyType
     alternate_key_formats: list[FileKeyType] = field(default_factory=list)
+
+
 
     @classmethod
     @asynccontextmanager

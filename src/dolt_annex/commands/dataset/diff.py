@@ -7,9 +7,10 @@ from typing_extensions import List
 from plumbum import cli
 
 from dolt_annex.application import Application
+from dolt_annex.database import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.table import DatabaseConnection, TableFilter
+from dolt_annex.table import DatabaseConnection
 from dolt_annex.datatypes.repo import RepoModel
 class Diff(cli.Application):
     """Print records that differ between two versions of a dataset."""
@@ -69,13 +70,11 @@ class Diff(cli.Application):
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
         with (
-            DatabaseConnection.connect(base_config) as conn,
+            DatabaseConnection.open(base_config) as conn,
             conn.open_dataset(dataset_schema) as dataset,
         ):
             local_repo_model = RepoModel.must_load(self.from_repo)
             remote_repo_model = RepoModel.must_load(self.to_repo)
-            conn.dolt.initialize_dataset_source(dataset_schema, local_repo_model.uuid)
-            conn.dolt.initialize_dataset_source(dataset_schema, remote_repo_model.uuid)
             table_schema = dataset_schema.get_table(self.table_name)
             keys_and_submissions = list(dataset.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, table_schema, self.filters, self.limit))
             for diff_type, key, submission in keys_and_submissions:

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
+from typing import Optional
 from typing_extensions import List
 
 from .loader import Loadable
@@ -15,18 +16,11 @@ class FileTableSchema(Loadable, extension="schema", config_dir=pathlib.Path(".")
     file_column: str
     key_columns: List[str]
 
-    def insert_sql(self) -> str:
-        """
-        Returns the SQL statement to insert a row into the table.
-        """
+    def all_columns(self):
         if self.file_column in self.key_columns:
-            cols = ", ".join(self.key_columns)
-            placeholders = ", ".join(["%s"] * (len(self.key_columns)))
-        else:
-            cols = ", ".join([self.file_column] + self.key_columns)
-            placeholders = ", ".join(["%s"] * (1 + len(self.key_columns)))
-        return f"REPLACE INTO {self.name} ({cols}) VALUES ({placeholders})"
-    
+            return self.key_columns
+        return self.key_columns + [self.file_column]
+
 class DatasetSchema(Loadable, extension="dataset", config_dir=pathlib.Path(".")):
     """
     The schema describing one or more tables that are version controlled together.
