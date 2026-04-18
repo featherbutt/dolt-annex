@@ -12,16 +12,16 @@ from typing import Generator, Self
 from uuid import UUID
 from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable
 
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.datatypes import FileKey, TableRow
 from dolt_annex.datatypes.async_types import AsyncContextManager
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.datatypes.table import DatasetSchema
-import dolt_annex.database as database
+from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
+import dolt_annex.replicated_db.interface as interface
 
-from .dolt import DoltSqlServer
-from .datatypes import FileKey, TableRow
-from .datatypes.table import FileTableSchema
+from dolt_annex.dolt_connection import DoltSqlServer
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # - Move the annex files in a batch.
 
 @dataclass
-class DatabaseConnection(database.ReplicatedDatabase):
+class DatabaseConnection(interface.ReplicatedDatabase):
     """
     A connection to a database that contains datasets.
     """
@@ -94,7 +94,7 @@ def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> s
         {''.join(f" AND to_{f.column_name} = %s" for f in filters)}
         """
 
-class Dataset(database.ReplicatedDataset):
+class Dataset(interface.ReplicatedDataset):
     """
     A dataset that contains one or more file tables.
     """
@@ -159,7 +159,7 @@ class Dataset(database.ReplicatedDataset):
     def with_table(self, table_name: str) -> AsyncContextManager:
         raise NotImplementedError
 
-class RepoDataset(database.DatasetReplica):
+class RepoDataset(interface.DatasetReplica):
     """
     The dataset as it exists on a specific repo. Every row in this dataset corresponds to a file on that repo.
     """
@@ -183,7 +183,7 @@ class RepoDataset(database.DatasetReplica):
         for table in self.tables.values():
             await table.flush()
 
-class FileTable(database.TableReplica):
+class FileTable(interface.TableReplica):
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     repo_dataset: RepoDataset
     urls: Dict[str, List[str]]

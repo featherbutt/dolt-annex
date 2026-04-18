@@ -2,13 +2,13 @@ from typing_extensions import List
 
 from plumbum import cli # type: ignore
 
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
-from dolt_annex.table import DatabaseConnection
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 
 class ReadTable(cli.Application):
     """Read rows from a dataset table for a specific remote. Primarily used for testing."""

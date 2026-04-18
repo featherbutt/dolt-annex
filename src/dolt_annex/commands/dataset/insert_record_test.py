@@ -3,11 +3,11 @@
 
 import pytest
 
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.dolt import DatabaseConnection
+from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import maybe_await
-from dolt_annex.table import DatabaseConnection
 from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio

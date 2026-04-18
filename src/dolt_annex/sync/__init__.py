@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 import logging
 from typing_extensions import Iterable, Optional, Tuple, List
 
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.dolt import Dataset, FileTable
+from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
@@ -17,7 +18,6 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
 from dolt_annex.filestore.cas import filestore_copy
-from dolt_annex.table import Dataset, FileTable
 
 logger = logging.getLogger(__name__)
 

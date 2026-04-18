@@ -23,7 +23,7 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.importers.base import get_importer
-from dolt_annex.table import DatabaseConnection, RepoDataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 from dolt_annex.datatypes.file_io import Path
 
 logger = logging.getLogger(__name__)

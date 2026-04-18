@@ -21,7 +21,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressab
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
-from dolt_annex.table import DatabaseConnection, Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 

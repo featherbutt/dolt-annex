@@ -10,14 +10,12 @@ from pathlib import Path
 import threading
 import time
 from typing import List
-from uuid import UUID
 
 from typing_extensions import Any, Dict, Tuple
 
 from plumbum import local # type: ignore
 import pymysql
 
-from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.datatypes.repo import Repo
 
 logger = logging.getLogger(__name__)

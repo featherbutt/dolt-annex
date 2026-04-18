@@ -22,7 +22,7 @@ from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
 from dolt_annex.gallery_dl_plugin.sources.nhentai import NHentai
 from dolt_annex.test_util import EnvironmentForTest
-from dolt_annex.table import DatabaseConnection, Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 # For each source, provide a sample URL for each supported subcategory.

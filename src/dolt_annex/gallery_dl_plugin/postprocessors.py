@@ -12,7 +12,8 @@ import sys
 from typing_extensions import Any, Optional
 
 import fs.osfs
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 from gallery_dl.util import json_default
 
 from dolt_annex.datatypes import TableRow
@@ -20,7 +21,7 @@ from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore import FileStore
-from dolt_annex.table import Dataset, FileTable, RepoDataset
+
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source

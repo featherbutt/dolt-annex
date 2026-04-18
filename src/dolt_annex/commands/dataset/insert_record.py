@@ -11,7 +11,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type
-from dolt_annex.table import DatabaseConnection
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 
 class InsertRecord(cli.Application):
     """Insert a single record into the annex and database. Primarily used for testing."""

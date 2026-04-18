@@ -7,11 +7,11 @@ from typing_extensions import List
 
 from plumbum import cli
 
-from dolt_annex.database import TableFilter
+from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.sync import move_dataset
-from dolt_annex.table import DatabaseConnection
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import Repo
 
