@@ -25,11 +25,6 @@ class GalleryDLSource:
 
         cls.source_name = source_name
 
-    def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        """The table key used for submissions from this source."""
-        metadata["_page_number"] = self.page_number(metadata)
-        return TableRow(( self.source_name, metadata["_id"], metadata["_metadata_file_key"], metadata["_page_number"]))
-
     @abstractmethod
     def supported_subcategories(self) -> list[str]:
         """
@@ -57,15 +52,14 @@ class GalleryDLSource:
     def format_file_metadata(self, metadata: dict[str, Any]):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
+        metadata["_id"] = self.id(metadata)
+        metadata["_date"] = self.updated_date(metadata)
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
         metadata["_date"] = self.updated_date(metadata)
-
-    def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        return [TableRow(( self.source_name, metadata["_id"], metadata["_metadata_file_key"]))]
 
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""

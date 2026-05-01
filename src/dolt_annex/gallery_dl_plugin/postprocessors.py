@@ -9,9 +9,11 @@ import hashlib
 import json
 import pathlib
 import sys
+from typing import Dict
 from typing_extensions import Any, Optional
 
 import fs.osfs
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 from gallery_dl.util import json_default
@@ -40,10 +42,14 @@ def gallery_dl_post(metadata: dict):
 
     context = _gallery_dl_context.get()
     repo_dataset: RepoDataset = context.repo_dataset
-    repo = context.repo
     tasks = context.tasks
 
     # remove subcategory
+    task = insert_metadata(metadata, source, repo_dataset, context.repo)
+    tasks.put(task)
+    context.post_metadata_files_processed += 1
+
+def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
     metadata_bytes = json.dumps(    
@@ -62,9 +68,7 @@ def gallery_dl_post(metadata: dict):
 
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
-    tasks.put(import_bytes(repo.filestore, table, table_row, metadata_bytes, "json"))
-    context.post_metadata_files_processed += 1
-    
+    return import_bytes(repo.filestore, table, table_row, metadata_bytes, "json")
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
