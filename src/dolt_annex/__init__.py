@@ -25,10 +25,10 @@ Application.subcommand("dataset", DatasetSubcommand)
 Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
 
-def main():
+def main(entrypoint=Application):
     """Entry point for dolt-annex package"""
     async def run():
-        _, continuation = Application.run(exit=False)
+        _, continuation = entrypoint.run(exit=False)
         await maybe_await(continuation)
     asyncio.run(run())
 

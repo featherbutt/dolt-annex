@@ -3,6 +3,7 @@
 
 import logging
 from pathlib import Path
+from typing import List, Tuple
 from typing_extensions import Literal
 
 from plumbum import cli # type: ignore
@@ -28,7 +29,7 @@ default_config_file_locations = [
     Path("config.json"),
 ]
 
-class Application(CommandGroup):
+class BaseApplication(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
     VERSION = "0.7.0"
@@ -53,6 +54,7 @@ class Application(CommandGroup):
 
     log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
+class Application(BaseApplication):
     def main(self, *args) -> Literal[0, 1]:
         # Set each config parameter in order of preference:
         # 1. Command line argument
@@ -91,7 +93,22 @@ class Application(CommandGroup):
         if args:
             print(f"Unknown command: dolt-annex {args[0]}")
             return 1
+        
         if self.nested_command is None:
             self.help()
-            return 0
+
         return 0
+
+class ParseArgsEntrypoint(BaseApplication):
+    """
+    An alternate application entrypoint that only parses command line arguments.
+    Returns the remainign positional arguments instead of an error code.
+    """
+    def main(self, *args):
+        return args
+
+def parse_args(args = None) -> Tuple[BaseApplication, List[str]]:
+    if args is None:
+        return ParseArgsEntrypoint.run(exit=False)
+    else:
+        return ParseArgsEntrypoint.run(args, exit=False)
