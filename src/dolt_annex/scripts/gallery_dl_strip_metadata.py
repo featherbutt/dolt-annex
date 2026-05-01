@@ -13,7 +13,7 @@ import logging
 from typing_extensions import Literal
 from plumbum import cli
 
-from dolt_annex.application import Application, parse_args
+from dolt_annex.application import parse_args
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
@@ -27,10 +27,6 @@ logger = logging.getLogger(__name__)
 application, tailargs = parse_args()
 
 class StripMetadataCommand(cli.Application):
-    """Downlad files using gallery-dl and import them into dolt-annex"""
-
-    parent: Application
-
     batch_size = cli.SwitchAttr(
         "--batch_size",
         int,
@@ -79,4 +75,4 @@ class StripMetadataCommand(cli.Application):
                     # TODO: Replace instead of insert
         return 0
 
-StripMetadataCommand.run(tailargs)
+Command = StripMetadataCommand
