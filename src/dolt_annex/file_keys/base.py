@@ -66,7 +66,9 @@ class FileKey:
         return None
     
     @classmethod
-    def must_parse(cls, key: bytes) -> Self:
+    def must_parse(cls, key: bytes | str) -> Self:
+        if isinstance(key, str):
+            key = bytes(key, encoding='utf-8')
         file_key = cls.try_parse(key)
         if file_key is None:
             raise ValueError(f"Could not parse file key: {key!r}")
