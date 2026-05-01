@@ -215,8 +215,8 @@ class ArchiveFS(FileStore):
         return await self.secondary.create_alias(old_key, new_key)
     
     @override
-    async def iterate_all_files(self) -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
-        async for key, value in self.secondary.iterate_all_files():
+    async def iterate_all_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        async for key, value in self.secondary.iterate_all_files(prefix):
             async with value as value_opened:
                 value_bytes = await value_opened.read()
                 fd = self.decode_secondary_value(key, value_bytes)
