@@ -27,6 +27,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.filestore.sftp import SftpFileStore
+from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.filestore.unionfs import UnionFSModel
 from dolt_annex.server.ssh import server_context as async_server_context
 
@@ -111,6 +112,7 @@ def local_filestore_types():
     yield UnionFSModel(children=[MemoryFSModel()])
     yield ArchiveFSModel(num_workers=1, root=pathlib.Path("archive_root"), secondary=MemoryFSModel())
     yield ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
+    yield SQLiteModel(root=pathlib.Path("sqlite_root"))
 
 
 
@@ -158,6 +160,15 @@ async def test_file_stores(cas: ContentAddressableStorage):
             read_bytes = await f.read()
             assert read_bytes == b"test"
         await cas.file_store.verify_file(key)
+
+    # If iterate_all_files is implemented, test it
+    try:
+        all_files = [file async for file in cas.file_store.iterate_all_files()]
+        assert len(all_files) == 3
+        sha_files = [file async for file in cas.file_store.iterate_all_files(prefix=b"SHA")]
+        assert len(sha_files) == 2
+    except NotImplementedError:
+        pass
 
     # Check that a file with the incorrect key does not verify
     # SftpFileStore has additional checks and won't let us put an incorrect file in the first place,
