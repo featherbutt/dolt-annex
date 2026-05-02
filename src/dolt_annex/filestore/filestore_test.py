@@ -163,9 +163,9 @@ async def test_file_stores(cas: ContentAddressableStorage):
 
     # If iterate_all_files is implemented, test it
     try:
-        all_files = [file async for file in cas.file_store.iterate_all_files()]
+        all_files = [file async for file in cas.file_store.get_files()]
         assert len(all_files) == 3
-        sha_files = [file async for file in cas.file_store.iterate_all_files(prefix=b"SHA")]
+        sha_files = [file async for file in cas.file_store.get_files(prefix=b"SHA")]
         assert len(sha_files) == 2
     except NotImplementedError:
         pass

@@ -153,7 +153,7 @@ class FileStore(abc.ABC):
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
             assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
 
-    def iterate_all_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         """
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.
@@ -164,7 +164,7 @@ class FileStore(abc.ABC):
         """
         Verify that all files in the filestore have the correct bytes by recomputing their keys.
         """
-        async for file_key, in_fd in self.iterate_all_files():
+        async for file_key, in_fd in self.get_files():
             async with in_fd as in_fd_opened:
                 actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
                 assert actual_key == file_key

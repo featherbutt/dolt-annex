@@ -111,7 +111,7 @@ class SQLite(FileStore):
         self.db.commit()
         return Result.done()
 
-    async def iterate_all_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         if prefix:
             prefix_str = str(prefix, encoding='utf-8')
             prefix_str = (prefix_str

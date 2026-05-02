@@ -72,7 +72,7 @@ class LevelDB(FileStore):
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         return await super().create_alias(old_key, new_key)
 
-    async def iterate_all_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         for key, value in self.db.iterator(start=prefix):
             if not key.startswith(prefix):
                 break
