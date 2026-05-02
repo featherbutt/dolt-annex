@@ -42,11 +42,10 @@ def gallery_dl_post(metadata: dict):
 
     context = _gallery_dl_context.get()
     repo_dataset: RepoDataset = context.repo_dataset
-    tasks = context.tasks
+
 
     # remove subcategory
-    task = insert_metadata(metadata, source, repo_dataset, context.repo)
-    tasks.put(task)
+    context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
     context.post_metadata_files_processed += 1
 
 def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
@@ -68,7 +67,9 @@ def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_data
 
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
-    return import_bytes(repo.filestore, table, table_row, metadata_bytes, "json")
+    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
+
+    return import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -112,7 +113,6 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     context = _gallery_dl_context.get()
     repo_dataset = context.repo_dataset
     repo = context.repo
-    tasks = context.tasks
 
     submissions_table = repo_dataset.get_table("submissions")
     metadata_table = repo_dataset.get_table("metadata")
@@ -127,13 +127,14 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "metadata_file_key": metadata["_metadata_file_key"],
         "part": source.page_number(metadata)
     })
-    tasks.put(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
+    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
+    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        tasks.put(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.run(import_file(cas, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
         context.submission_metadata_files_processed += 1
 
-async def import_file(filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     if not sha256:
         sha256 = from_path.hexdigest("sha256")
@@ -143,21 +144,14 @@ async def import_file(filestore: FileStore, file_table: FileTable, table_key: Ta
     file_key = Sha256E.make(size, sha256, extension)
     table_key["submission_file_key"] = str(file_key)
 
-    result = await maybe_await(filestore.put_file(from_path, file_key))
-    result = result.and_then(lambda: from_path.delete(allow_missing=True))
-    await result.wait_for_complete()
+    await cas.put_file(from_path, file_key)
     await maybe_await(file_table.insert(table_key))
 
-async def import_bytes(local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):
+async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    if not sha256:
-        sha256 = hashlib.sha256(file_bytes).hexdigest()
-    size = len(file_bytes)
+    file_key = file_key_type.from_bytes(file_bytes, extension=extension)
 
-    file_key = Sha256E.make(size, sha256, extension)
-
-    result = await maybe_await(local_filestore.put_file_bytes(file_bytes, file_key))
-
+    result = await cas.put_file_bytes(file_bytes, file_key)
     await result.wait_for_complete()
         
     await maybe_await(file_table.insert(table_key))

@@ -32,11 +32,14 @@ gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 class GalleryDLContext:
     repo: Repo
     repo_dataset: RepoDataset
-    tasks: queue.Queue[Awaitable]
+    event_loop: asyncio.AbstractEventLoop
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
     abort_flag: bool = False
+
+    def run(self, coro):
+        return asyncio.run_coroutine_threadsafe(coro, self.event_loop).result()
 
 _gallery_dl_context = contextvars.ContextVar[GalleryDLContext]("gallery_dl_context")
 
@@ -86,8 +89,12 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
     ):
         # gallery-dl is synchronous, so we need to run it in a separate thread, and use the
         # thread-safe queue.Queue to communicate tasks back to the async loop.
-        tasks = queue.Queue[Awaitable]()
-        gallery_dl_context = GalleryDLContext(repo=repo, repo_dataset=repo_dataset, tasks=tasks)
+        loop = asyncio.get_running_loop()
+        gallery_dl_context = GalleryDLContext(
+            repo=repo,
+            repo_dataset=repo_dataset,
+            event_loop=loop
+        )
         def gallery_dl_main():
             with (
                 contextlib.ExitStack() as stack,
@@ -97,25 +104,11 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                     stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
                     stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
 
-                try:
-                    # Clear gallery_dl's internal state to avoid interference between runs.
-                    gallery_dl.config.clear()
-                    gallery_dl.main()
-                finally:
-                    tasks.shutdown()
+                # Clear gallery_dl's internal state to avoid interference between runs.
+                gallery_dl.config.clear()
+                gallery_dl.main()
 
-        loop = asyncio.get_running_loop()
         gallery_dl_thread = loop.run_in_executor(None, gallery_dl_main)
-
-        try:
-            while True:
-                task = await loop.run_in_executor(None, tasks.get)
-                await task
-                tasks.task_done()
-        except queue.ShutDown:
-            pass
-        finally:
-            gallery_dl_context.abort_flag = True
 
         await gallery_dl_thread
 
