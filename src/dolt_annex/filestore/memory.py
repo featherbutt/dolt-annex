@@ -7,14 +7,16 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
+from typing import Tuple
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.file_io import AsyncBytesIO
+from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
+from dolt_annex.file_keys.base import FileKeyPrefix
 
 from .base import FileInfo, FileStore, FileStoreModel
 
@@ -58,6 +60,12 @@ class MemoryFS(FileStore):
         if bytes(file_key) not in self.files:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         yield AsyncBytesIO(self.files[bytes(file_key)])
+
+    @override
+    async def get_files(self, prefix: FileKeyPrefix = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        for file_key, value in self.files.items():
+            if file_key.startswith(prefix):
+                yield FileKey.must_parse(file_key), async_bytes_io(value)
         
     @override
     def stat(self, file_key: FileKey) -> FileInfo:
