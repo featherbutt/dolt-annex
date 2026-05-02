@@ -158,7 +158,7 @@ class FileStore(abc.ABC):
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement iterate_all_files.")
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
     async def verify_all_files(self) -> None:
         """
