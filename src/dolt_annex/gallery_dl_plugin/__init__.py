@@ -12,6 +12,7 @@ import contextvars
 from dataclasses import dataclass
 import io
 import queue
+import shutil
 import sys
 from pathlib import Path
 
@@ -81,6 +82,10 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
+
+    if not Path("skip.sqlite3").exists():
+        shutil.copy(skip_db_path, "skip.sqlite3")
+            
 
     async with (
         as_acm(DatabaseConnection.open(config)) as conn,

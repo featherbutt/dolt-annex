@@ -114,7 +114,8 @@ def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> 
         name="__local__",
         uuid=local_uuid,
         filestore=local_filestore.file_store,
-        key_format=Sha256E
+        key_format=Sha256E,
+        alternate_key_formats=[MD5e],
     )
 
 @pytest.fixture
@@ -123,7 +124,8 @@ def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) 
         name="test_remote",
         uuid=remote_uuid,
         filestore=remote_filestore.file_store,
-        key_format=Sha256E
+        key_format=Sha256E,
+        alternate_key_formats=[MD5e],
     )
 
 @pytest_asyncio.fixture 

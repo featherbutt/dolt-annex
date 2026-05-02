@@ -22,7 +22,7 @@ from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
 from dolt_annex.gallery_dl_plugin.sources.nhentai import NHentai
 from dolt_annex.test_util import EnvironmentForTest
-from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 # For each source, provide a sample URL for each supported subcategory.
@@ -194,7 +194,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s5802--3e73fa65dce1312c5f657108a78301ab4bedb14715e7173a54bf3b1050b611b7.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s8342--b6edae0039b63a404669986725416061033ba83619f89724f312635d6a7abfe6.json"),
                 )],
             )
         ],
@@ -284,3 +284,27 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
                 assert actual_id == test.id
                 assert FileKey.must_parse(actual_metadata_key.encode('utf-8')) == expected_row.metadata_file_key
                 assert actual_part == expected_row.part
+
+@pytest.mark.asyncio
+async def test_hash_in_metadata(setup: EnvironmentForTest):
+    """
+    The second url is for a site that includes both an md5 hash and a file size
+    in the metdata, and matches an image from the first url.
+    
+    During test setup, we set MD5e as an alternate key type, so we generate a MD5e key
+    when downloading the first url. While downloading the second url, we construct
+    the key before downloading the image, see that it already exists, and skip the download.
+    """
+    BATCH_SIZE = 1000
+    dataset_schema = make_default_schema("gallery-dl")
+    # download https://inkbunny.net/s/3783696
+    # download https://e621.net/posts/6086319 and confirm it gets skipped
+    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://inkbunny.net/s/3783696")
+
+    assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
+    assert output.submission_files_processed == 2, f"Expected to process 1 submission file, but processed {output.submission_files_processed}"
+
+    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://e621.net/posts/6086319")
+
+    assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
+    assert output.submission_files_processed == 0, f"Expected to process 0 submission files, but processed {output.submission_files_processed}"

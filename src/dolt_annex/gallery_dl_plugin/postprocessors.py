@@ -14,6 +14,8 @@ from typing_extensions import Any, Optional
 
 import fs.osfs
 from dolt_annex.datatypes.repo import Repo
+from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 from gallery_dl.util import json_default
@@ -22,7 +24,6 @@ from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.filestore import FileStore
 
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
@@ -86,6 +87,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
     context = _gallery_dl_context.get()
     repo_dataset = context.repo_dataset
+    repo = context.repo
 
     submissions_table = repo_dataset.get_table("submissions")
     page_number = source.page_number(metadata)
@@ -99,6 +101,26 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     if submissions_table.has_row(filters):
         # We already have this file, skip it.
         metadata["_skip"] = 1
+
+    # Alternatively, if the source provides a hash in the metadata, we can check to see
+    # Whether a file with that hash already exists in the filestore. If it does, we
+    # make a task to insert a record into the table, and then skip.
+
+    async def get_files_coro():
+        for key_prefix in source.keys_from_metadata(metadata):
+            async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
+                await submissions_table.insert(TableRow({
+                    "source": source.source_name,
+                    "id": metadata["_id"],
+                    "metadata_file_key": metadata["_metadata_file_key"],
+                    "part": page_number,
+                    "submission_file_key": key
+                }))
+                metadata["_skip"] = 1
+                return
+
+    context.run(get_files_coro())
+    return
 
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""

@@ -6,6 +6,7 @@ from typing import ClassVar
 from typing_extensions import Any, Iterable
 
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 
 type SequencePathSelector = 'tuple[str | UnionPathSelector, ...]'
 type UnionPathSelector = 'list[str | SequencePathSelector]'
@@ -53,13 +54,11 @@ class GalleryDLSource:
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
-        metadata["_date"] = self.updated_date(metadata)
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
-        metadata["_date"] = self.updated_date(metadata)
 
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
@@ -69,10 +68,6 @@ class GalleryDLSource:
         """A unique identifier for the post."""
         return str(metadata["id"])
 
-    def updated_date(self, metadata: dict[str, Any]) -> Any:
-        """The date the post was last updated, or the original date if there are no updates."""
-        return metadata["date"]
-
     def page_number(self, metadata: dict[str, Any]) -> int:
         """
         The page number of the image within the post, if applicable.
@@ -80,6 +75,9 @@ class GalleryDLSource:
         Used to distinguish between multiple files from the same post.
         """
         return metadata.get("num", 1)
+    
+    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+        return []
 
 def mutate_remove_fields(d: dict | list, field_to_remove: PathSelector):
     """

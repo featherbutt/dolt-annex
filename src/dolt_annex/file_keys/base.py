@@ -12,6 +12,8 @@ from typing_extensions import Literal, Optional, Protocol, Self
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.file_io import Path
 
+type FileKeyPrefix = bytes
+
 @dataclass
 class FileKey:
     """

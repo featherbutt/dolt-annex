@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from typing import Iterable
+
 from typing_extensions import Any, override
+
+from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
+from dolt_annex.file_keys.size_hash_extension import MD5e
 
 from .base import GalleryDLSource
 
@@ -24,5 +29,10 @@ class E621(GalleryDLSource, source_name = "e621.net"):
         ]
 
     @override
-    def updated_date(self, metadata: dict[str, Any]) -> Any:
-        return metadata.get("updated_at") or metadata["created_at"]
+    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+        file_info = metadata["file"]
+        md5 = file_info["md5"]
+        size = file_info["size"]
+        ext = file_info["ext"]
+        yield MD5e.make(size, md5, ext)
+

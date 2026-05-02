@@ -57,9 +57,6 @@ class GalleryDL(cli.Application):
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save()
             
-        if not Path("skip.sqlite3").exists():
-            shutil.copy(skip_db_path, "skip.sqlite3")
-            
         async with Repo.open(self.parent.config, self.repo) as repo:
             output = await run_gallery_dl(self.parent.config, repo, self.batch_size, dataset_schema, self.capture_output, *args)
         print(json.dumps(dataclasses.asdict(output), indent=2))
