@@ -56,7 +56,7 @@ class ReadableStream(Closable, Protocol):
     def read(self, size: int = -1, /) -> Awaitable[bytes]:
         ...
 
-    def readinto(self, b: Buffer, /) -> Awaitable[int]:
+    def readinto(self, b: Buffer, /) -> Awaitable[int | None]:
         ...
 
 class WritableStream(Closable, Protocol):

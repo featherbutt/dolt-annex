@@ -55,11 +55,7 @@ class Insert(SubCommand):
             extension = self.extension
         key = file_key_type.from_bytes(file_bytes, extension)
 
-        if self.repo:
-            repo_context = Repo.open(base_config, self.repo)
-        else:
-            repo_context = base_config.open_default_repo()
-        async with repo_context as repo:
+        async with Repo.open(base_config, self.repo) as repo:
             await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
         print(f"Inserted file with key {key} into filestore of repo '{repo.name}'")
 

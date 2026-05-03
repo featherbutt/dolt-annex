@@ -4,12 +4,13 @@
 from enum import Enum
 import getpass
 from pathlib import Path
+from typing import Any, Dict
 from typing_extensions import NewType, Optional
 
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.file_keys.base import FileKey
 
-TableRow = NewType('TableRow', tuple)  # A row in a FileKeyTable
+TableRow = NewType('TableRow', Dict[str, Any])  # A row in a FileKeyTable
 
 class YesNoMaybe(Enum):
     """

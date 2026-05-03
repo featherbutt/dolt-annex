@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from asyncio import Future
+from asyncio import Future, sleep
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from typing_extensions import Self
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, MaybeAwaitable, maybe_await
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ContextManager, MaybeAwaitable, maybe_await
 
 class Result[T]:
     """
@@ -87,3 +87,9 @@ class AwaitOrEnterWrapper[T: Closable](AwaitOrEnter[T]):
         if self._val is not None:
             await self._val.close()
             self._val = None
+
+@asynccontextmanager
+async def as_acm[T](sync_cm: ContextManager[T]):
+    with sync_cm as result:
+        await sleep(0)
+        yield result

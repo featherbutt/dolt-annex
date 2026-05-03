@@ -12,15 +12,6 @@ class Itaku(GalleryDLSource, source_name = "itaku.ee"):
     @override
     def supported_subcategories(self) -> list[str]:
         return ["post", "posts", "image", "images"]
-    
-    @override
-    def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        return TableRow((
-            "itaku.ee/images",
-            metadata["id"],
-            self.updated_date(metadata),
-            1,
-        ))
 
     @override
     def updated_date(self, metadata: dict[str, Any]) -> Any:

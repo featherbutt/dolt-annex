@@ -6,6 +6,11 @@ from typing import ClassVar
 from typing_extensions import Any, Iterable
 
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
+
+type SequencePathSelector = 'tuple[str | UnionPathSelector, ...]'
+type UnionPathSelector = 'list[str | SequencePathSelector]'
+type PathSelector = str | SequencePathSelector | UnionPathSelector
 
 def is_private_field(field: str) -> bool:
     """Whether a field is considered private and should be excluded from imported metadata."""
@@ -20,11 +25,6 @@ class GalleryDLSource:
         super().__init_subclass__(**kwargs)
 
         cls.source_name = source_name
-
-    def table_key(self, metadata: dict[str, Any]) -> TableRow:
-        """The table key used for submissions from this source."""
-        metadata["_page_number"] = self.page_number(metadata)
-        return TableRow(( self.source_name, metadata["_id"], metadata["_date"], metadata["_page_number"]))
 
     @abstractmethod
     def supported_subcategories(self) -> list[str]:
@@ -41,7 +41,7 @@ class GalleryDLSource:
         return is_private_field(field) or field == "subcategory" or field in self.fields_to_remove()
 
     @abstractmethod
-    def fields_to_remove(self) -> list[str | list[str]]:
+    def fields_to_remove(self) -> PathSelector:
         """
         A list of fields that will be removed from the imported metadata.
         
@@ -53,16 +53,12 @@ class GalleryDLSource:
     def format_file_metadata(self, metadata: dict[str, Any]):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
+        metadata["_id"] = self.id(metadata)
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
-        metadata["_date"] = self.updated_date(metadata)
-
-    @abstractmethod
-    def post_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
-        return [TableRow(( self.source_name, metadata["_id"], metadata["_date"]))]
 
     def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
@@ -72,10 +68,6 @@ class GalleryDLSource:
         """A unique identifier for the post."""
         return str(metadata["id"])
 
-    def updated_date(self, metadata: dict[str, Any]) -> Any:
-        """The date the post was last updated, or the original date if there are no updates."""
-        return metadata["date"]
-
     def page_number(self, metadata: dict[str, Any]) -> int:
         """
         The page number of the image within the post, if applicable.
@@ -83,32 +75,67 @@ class GalleryDLSource:
         Used to distinguish between multiple files from the same post.
         """
         return metadata.get("num", 1)
+    
+    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+        return []
+    
+    def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
+        """
+        Whether or not we can safely assume that two metadata dicts have the same submission data.
 
+        Typically this requires that the metadata contains one of:
+        - A "last updated" timestamp that only changes when the submission data changes.
+        - A url that only changes when the submission data changes.
 
+        We only call this if the dicts have already been compared unequal.
 
+        Note that if the metadata contains a hash, |keys_from_metadata| works better.
+        """
+        return False
 
-def mutate_remove_field(d: dict | list, field_to_remove: str | list[str]):
+def mutate_remove_fields(d: dict | list, field_to_remove: PathSelector):
+    """
+    Modifies a JSON object to remove all fields matching the provided selector.
+    """
     if isinstance(d, list):
+        # If the input object is a list, simply apply the selector to each of its elements.
         for item in d:
-            mutate_remove_field(item, field_to_remove)
+            mutate_remove_fields(item, field_to_remove)
         return
     
+    # Here, |d| must be a dict.
     if isinstance(field_to_remove, str):
         if field_to_remove in d:
             del d[field_to_remove]
         return
     
+    # |field_to_remove| is either a UnionPathSelector or a SequencePathSelector
+    # In either case, if it only has a single child selector, recurse on that child.
     if len(field_to_remove) == 1:
-        if field_to_remove[0] in d:
-            del d[field_to_remove[0]]
+        return mutate_remove_fields(d, next(iter(field_to_remove)))
+        
+    if isinstance(field_to_remove, list):
+        # The selector is a UnionPathSelector: recursively apply each selector.
+        for field in field_to_remove:
+            mutate_remove_fields(d, field)
         return
 
-    field, *rest = field_to_remove
+    # Else the selector is a SequencePathSelector
+    # Don't use destructuring syntax here because it would make rest a list.
+    field, rest = field_to_remove[0], field_to_remove[1:]
+        
+    if isinstance(field, str):
+        if field in d:
+            mutate_remove_fields(d[field], rest)
+        return
 
-    if field in d:
-        mutate_remove_field(d[field], rest)
-
-def mutate_remove_fields(d: dict, fields_to_remove: list[str | list[str]]):
-    """Remove fields from a dictionary in place."""
-    for field in fields_to_remove:
-        mutate_remove_field(d, field)
+    # field is a UnionPathSelector
+    for possible_field in field:
+        if isinstance(possible_field, str):
+            if possible_field in d:
+                mutate_remove_fields(d[possible_field], rest)
+            return
+        # possible_field is a SequencePathSelector
+        child_rest = (*possible_field[1:], *rest)
+        possible_field = possible_field[0]
+        mutate_remove_fields(d[possible_field], child_rest)

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from asyncio import Future
 from collections.abc import Iterable
 import contextvars
 from dataclasses import dataclass
@@ -72,9 +73,12 @@ def async_open(fd: MaybeAwaitable[BinaryIO]) -> AwaitOrEnter[AsyncFileIO]:
     return AiofilesContextManager(async_file_io())
 
 def async_bytes_io(data: bytes) -> AwaitOrEnter[AsyncBytesIO]:
-    async def async_bytes_io_inner() -> AsyncBytesIO:
-        return AsyncBytesIO(data)
-    return AiofilesContextManager(async_bytes_io_inner())
+    # We use a Future instead of a coroutine here because if the ContextManager is never entered,
+    # the wrapped awaitable will never be awaited. We want to avoid creating coroutines that
+    # might not be awaited.
+    f = Future[AsyncBytesIO]()
+    f.set_result(AsyncBytesIO(data))
+    return AiofilesContextManager(f)
 
 class AsyncBytesIO(AsyncFileIO):
     """
@@ -119,6 +123,9 @@ class Path:
 
     def exists(self) -> bool:
         return self.fs.exists(self.path.as_posix())
+    
+    def is_dir(self) -> bool:
+        return self.fs.isdir(self.path.as_posix())
 
     def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
         # Avoid opening the file synchronously; wait for the async context instead.

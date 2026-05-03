@@ -12,6 +12,8 @@ from typing_extensions import Literal, Optional, Protocol, Self
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.file_io import Path
 
+type FileKeyPrefix = bytes
+
 @dataclass
 class FileKey:
     """
@@ -43,6 +45,8 @@ class FileKey:
     @classmethod
     async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file on disk."""
+        if extension is None:
+            extension = file_path.suffix[1:]
         async with file_path.open() as fd:
             return await cls.from_fo(fd, extension=extension)
 
@@ -66,7 +70,9 @@ class FileKey:
         return None
     
     @classmethod
-    def must_parse(cls, key: bytes) -> Self:
+    def must_parse(cls, key: bytes | str) -> Self:
+        if isinstance(key, str):
+            key = bytes(key, encoding='utf-8')
         file_key = cls.try_parse(key)
         if file_key is None:
             raise ValueError(f"Could not parse file key: {key!r}")

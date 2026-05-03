@@ -25,15 +25,6 @@
 				"event": "file"
 			},
 			{
-				"name": "metadata",
-				"sort": true,
-				"base-directory": true,
-				"exclude": [
-					"subcategory"
-				],
-				"filename": "{category}-{subcategory}-{_id}-{_date}-{_page_number}.{extension}.json"
-			},
-			{
 				"name": "python",
 				"event": "after",
 				"function": "dolt_annex:gallery_dl_after"

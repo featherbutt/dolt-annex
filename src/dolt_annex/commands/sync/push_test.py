@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+import json
 
 import pytest
 
@@ -31,7 +32,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record1.table_key,
+            "--value", f"{table_key_column}={record1.table_key}",
             "--file-bytes", record1.file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -41,7 +42,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record2.table_key,
+            "--value", f"{table_key_column}={record2.table_key}",
             "--file-bytes", record2.file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -73,7 +74,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
             "dolt-annex", "dataset", "insert-record",
             "--dataset", dataset_name,
             "--table-name", table_name,
-            "--key-columns", record3.table_key,
+            "--value", f"{table_key_column}={record3.table_key}",
             "--file-bytes", record3.file_bytes
         ],
         expected_output_contains="Inserted row"
@@ -99,7 +100,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
             "--columns", table_key_column,
             "--repo", remote_name
         ],
-        expected_output_equals=''.join(f"{expected_files_keys[i].decode('utf-8')}, {record.table_key}\n" for i, record in enumerate(records)),
+        expected_output_equals='\n'.join(json.dumps({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
     )
     
     for record, expected_file_key in zip(records, expected_files_keys):

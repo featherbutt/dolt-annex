@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.async_utils import Result
@@ -141,6 +141,33 @@ class FileStore(abc.ABC):
         avoid transferring data over the network and duplicating storage.
         """
         return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
+    
+    async def verify_file(self, file_key: FileKey) -> None:
+        """
+        Assert that a file has the correct bytes by recomputing its key.
+        """
+        # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
+        if str(file_key)[-1] == '.':
+            return
+        async with self.with_file_object(file_key) as in_fd:
+            actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
+            assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
+
+    def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        """
+        Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
+        and it not required to be implemented by all filestores.
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
+    
+    async def verify_all_files(self) -> None:
+        """
+        Verify that all files in the filestore have the correct bytes by recomputing their keys.
+        """
+        async for file_key, in_fd in self.get_files():
+            async with in_fd as in_fd_opened:
+                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
+                assert actual_key == file_key
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:

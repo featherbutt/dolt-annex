@@ -8,7 +8,7 @@ from dolt_annex.datatypes.file_io import Path
 class Importer(AbstractBaseClass):
 
     @abstractmethod
-    def key_columns(self, path: Path) -> Optional[TableRow]:
+    async def key_columns(self, path: Path) -> Optional[TableRow]:
         ...
 
     @abstractmethod
@@ -44,8 +44,10 @@ class DirectoryImporter(Importer):
         self._table_name = table_name
 
     @override
-    def key_columns(self, path: Path) -> Optional[TableRow]:
-        return TableRow((self.prefix + '/' + path.as_posix(),))
+    async def key_columns(self, path: Path) -> Optional[TableRow]:
+        return TableRow({
+            'path': self.prefix + '/' + path.as_posix()
+        })
     
     @override
     def table_name(self, path: Path) -> str:
@@ -55,7 +57,7 @@ class MD5Importer(Importer):
     def __init__(self, table_name: str):
         self._table_name = table_name
 
-    def key_columns(self, path: Path):
+    async def key_columns(self, path: Path):
         return (path.stem.split('.')[0],)
 
     def url(self, path: Path) -> List[str]:

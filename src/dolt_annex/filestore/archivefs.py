@@ -21,7 +21,7 @@ from fs.base import FS as FileSystem
 import fs.memoryfs
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
@@ -46,6 +46,7 @@ class ArchiveFS(FileStore):
     files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
     workers: asyncio.TaskGroup
     max_archive_size: int
+    append: bool
 
     writable_archives_dir: Path
     finalized_archives_dir: Path
@@ -59,6 +60,7 @@ class ArchiveFS(FileStore):
             workers: asyncio.TaskGroup,
             num_workers: int,
             max_archive_size: int,
+            append: bool
     ):
         self.file_system = file_system
         self.secondary = secondary
@@ -75,6 +77,9 @@ class ArchiveFS(FileStore):
 
         self.lock_manager = new_lock_manager(self.locks_dir)
         self.files_queue = asyncio.Queue()
+
+        self.append = append
+
         for _ in range(num_workers):
             workers.create_task(self._worker_loop())
 
@@ -85,21 +90,24 @@ class ArchiveFS(FileStore):
             archive_fd_sync = archive_file_path.open_sync('r+b')
             archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')
             yield archive_tar, archive_fd_sync
+            archive_tar.close()
+            archive_fd_sync.close()
 
     @contextmanager
     def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, BinaryIO, Path], None, None]:
         # Attempt to acquire a lock on a "hot" archive file.
-        for archive_file in self.writable_archives_dir.children():
-            try:
-                with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
-                    yield archive_tar, archive_fd, archive_file
-                    return
-            except FailedToAcquireLock:
-                continue
+        if self.append:
+            for archive_file in self.writable_archives_dir.children():
+                try:
+                    with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
+                        yield archive_tar, archive_fd, archive_file
+                        return
+                except FailedToAcquireLock:
+                    continue
         
         # If we cannot acquire a lock on any existing writable archive files, create a new one.
         while True:
-            new_archive_file_name = f"{uuid.uuid7()}.tar"
+            new_archive_file_name = f"{uuid.uuid4()}.tar"
             new_archive_file_path = self.writable_archives_dir / new_archive_file_name
             try:
                 with self.open_archive_file_for_write(new_archive_file_path) as (archive_tar, archive_fd):
@@ -145,16 +153,19 @@ class ArchiveFS(FileStore):
         if await maybe_await(self.secondary.exists(file_key)):
             # The file already exists, so we don't need to do anything.
             # Open the stream in order to close it.
-            async with data_source:
-                return Result.done()
+            try:
+                await self.verify_file(file_key)
+                async with data_source:
+                    return Result.done()
+            except (AssertionError, tarfile.ReadError):
+                pass
         callback = asyncio.Future[None]()
         await self.files_queue.put((file_key, data_source, callback))
         return Result(callback)
 
-    @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
-        secondary_value = (await self.secondary.get_file_bytes(file_key)).decode('utf-8')
+    async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:
+        secondary_value = secondary_value_bytes.decode('utf-8')
         archive_file_name, offset_str, size_str = secondary_value.split(':')
         offset = int(offset_str)
         size = int(size_str)
@@ -166,11 +177,29 @@ class ArchiveFS(FileStore):
 
         archive_fd = archive_file_path.open_sync('rb')
         file_in_file = tarfile._FileInFile(archive_fd, offset, size, str(file_key), blockinfo=None)
-        yield ExistingFileHandle(await async_open(file_in_file), FileInfo(size=size))
+        fd = await async_open(file_in_file)
+        yield ExistingFileHandle(fd, FileInfo(size=size))
+        await fd.close()
+        archive_fd.close()
+    
+    @override
+    @await_or_enter
+    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
+        file_bytes = await self.secondary.get_file_bytes(file_key)
+        async with self.decode_secondary_value(file_key, file_bytes) as fd:
+            yield fd
+
+    @override
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        async for key, value in self.secondary.get_files(prefix):
+            async with value as value_opened:
+                value_bytes = await value_opened.read()
+                fd = self.decode_secondary_value(key, value_bytes)
+                yield key, fd
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
-        async with self.get_file_object(file_key) as file_obj:
+        async with self.with_file_object(file_key) as file_obj:
             return file_obj.file_info
 
     @override
@@ -193,6 +222,8 @@ class ArchiveFS(FileStore):
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         return await self.secondary.create_alias(old_key, new_key)
 
+
+
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
     secondary: FileStoreModel
@@ -203,7 +234,9 @@ class ArchiveFSModel(FileStoreModel):
 
     # The maximum size of each archive file, in bytes.
     # If an archive file would exceed this size, a new archive file will be created.
-    max_archive_size: int = 4 * (2 << 30)  # 4 GiB
+    max_archive_size: int = 8 * (1 << 30)  # 8 GiB
+
+    append: bool = False
 
     @override
     @asynccontextmanager
@@ -223,7 +256,8 @@ class ArchiveFSModel(FileStoreModel):
                 secondary=secondary_filestore,
                 workers=workers,
                 num_workers=self.num_workers,
-                max_archive_size=self.max_archive_size
+                max_archive_size=self.max_archive_size,
+                append=self.append
             )
             try:
                 yield archive

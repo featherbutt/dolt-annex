@@ -1,7 +1,9 @@
-from plumbum import cli # type: ignore
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.commands.filestore import export
+from dolt_annex.commands.filestore import export, verify
+from dolt_annex.commands.filestore import migrate
 
 from . import insert, whereis, copy
 
@@ -16,3 +18,6 @@ FilestoreSubcommand.subcommand("insert-file", insert.Insert)
 FilestoreSubcommand.subcommand("whereis", whereis.WhereIs)
 FilestoreSubcommand.subcommand("copy", copy.Copy)
 FilestoreSubcommand.subcommand("export-file", export.Export)
+FilestoreSubcommand.subcommand("migrate", migrate.Migrate)
+FilestoreSubcommand.subcommand("verify", verify.Verify)
+

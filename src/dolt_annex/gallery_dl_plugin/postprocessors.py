@@ -9,18 +9,22 @@ import hashlib
 import json
 import pathlib
 import sys
-from uuid import UUID
+from typing import Dict
 from typing_extensions import Any, Optional
 
 import fs.osfs
+from dolt_annex.datatypes.repo import Repo
+from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 from gallery_dl.util import json_default
 
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.filestore import FileStore
-from dolt_annex.table import Dataset, FileTable
+
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
@@ -38,25 +42,35 @@ def gallery_dl_post(metadata: dict):
     source.format_post_metadata(metadata)
 
     context = _gallery_dl_context.get()
-    dataset: Dataset = context.dataset
-    repo = context.repo
-    tasks = context.tasks
+    repo_dataset: RepoDataset = context.repo_dataset
+
 
     # remove subcategory
+    context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
+    context.post_metadata_files_processed += 1
+
+def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
-    for table_row in source.post_metadata(metadata):
-        
-        metadata_bytes = json.dumps(    
-            public_metadata,
-            ensure_ascii=False,
-            sort_keys=True,
-            indent=4,
-            default=json_default).encode('utf-8') + b'\n'
-        table: FileTable = dataset.get_table("metadata")
-        tasks.put(import_bytes(repo.uuid, repo.filestore, table, table_row, metadata_bytes, "json"))
-        context.post_metadata_files_processed += 1
-    
+    metadata_bytes = json.dumps(    
+        public_metadata,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=4,
+        default=json_default).encode('utf-8') + b'\n'
+    size = len(metadata_bytes)
+    sha256 = hashlib.sha256(metadata_bytes).hexdigest()
+
+    file_key = Sha256E.make(size, sha256, "json")
+    metadata["_metadata_file_key"] = file_key
+
+    table_row = TableRow({"source": source.source_name, "id": metadata["_id"], "file_key": file_key})
+
+    table = repo_dataset.get_table("metadata")
+    # return matadata file key on insertion
+    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
+
+    return import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -72,13 +86,72 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     # First, check whether we already have the file in the annex.
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
     context = _gallery_dl_context.get()
-    dataset = context.dataset
+    repo_dataset = context.repo_dataset
     repo = context.repo
-    file_table = dataset.get_table("submissions")
-    key = source.table_key(metadata)
-    if file_table.has_row(repo.uuid, key):
+
+    submissions_table = repo_dataset.get_table("submissions")
+    metadata_table = repo_dataset.get_table("metadata")
+    page_number = source.page_number(metadata)
+    metadata["_page_number"] = page_number
+    filters = [
+        TableFilter("source", source.source_name),
+        TableFilter("id", metadata["_id"]),
+        TableFilter("metadata_file_key", metadata["_metadata_file_key"]),
+        TableFilter("part", page_number),
+    ]
+    if submissions_table.has_row(filters):
         # We already have this file, skip it.
         metadata["_skip"] = 1
+        return
+
+    # Alternatively, if the source provides a hash in the metadata, we can check to see
+    # Whether a file with that hash already exists in the filestore. If it does, we
+    # make a task to insert a record into the table, and then skip.
+
+    async def get_files_coro():
+        has_keys_in_metadata = False
+        for key_prefix in source.keys_from_metadata(metadata):
+            has_keys_in_metadata = True
+            async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
+                await submissions_table.insert(TableRow({
+                    "source": source.source_name,
+                    "id": metadata["_id"],
+                    "metadata_file_key": metadata["_metadata_file_key"],
+                    "part": page_number,
+                    "submission_file_key": key
+                }))
+                metadata["_skip"] = 1
+                return
+        
+        if not has_keys_in_metadata:
+            # If the source doesn't contain file hashes, it might contain other information
+            # That can tell us if the submission is unchanged from a previous version.
+            for row in metadata_table.get_rows(filters=[
+                TableFilter("source", source.source_name),
+                TableFilter("id", metadata["_id"])
+            ]):
+                metadata_file_key = FileKey.must_parse(row["file_key"])
+                async with repo.filestore.get_file_object(metadata_file_key) as metadata_file:
+                    existing_metadata = json.load(metadata_file)
+                    if source.assume_same_file(metadata, existing_metadata, page_number):
+                        submission_file_key = submissions_table.get_row(filters=[
+                            TableFilter("source", source.source_name),
+                            TableFilter("id", metadata["_id"]),
+                            TableFilter("metadata_file_key", metadata_file_key),
+                            TableFilter("part", page_number),
+                        ])
+                        await submissions_table.insert(TableRow({
+                            "source": source.source_name,
+                            "id": metadata["_id"],
+                            "metadata_file_key": metadata["_metadata_file_key"],
+                            "part": page_number,
+                            "submission_file_key": submission_file_key,
+                        }))
+                        metadata["_skip"] = 1
+                        return
+
+    context.run(get_files_coro())
+    return
 
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""
@@ -91,47 +164,42 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     """Import the submission file and its metadata into the dolt-annex dataset."""
 
     context = _gallery_dl_context.get()
-    dataset: Dataset = context.dataset
+    repo_dataset = context.repo_dataset
     repo = context.repo
-    tasks = context.tasks
 
-    submissions_table = dataset.get_table("submissions")
-    metadata_table = dataset.get_table("metadata")
+    submissions_table = repo_dataset.get_table("submissions")
+    metadata_table = repo_dataset.get_table("metadata")
 
     temp_path = pathlib.Path(metadata["_path_metadata"].realpath)
     file_system = fs.osfs.OSFS(temp_path.parent.as_posix())
     temp_path = Path(file_system, temp_path.name)
 
-    submission_table_key = source.table_key(metadata)
-    tasks.put(import_file(repo.uuid, repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
+    submission_table_key = TableRow({
+        "source": source.source_name,
+        "id": metadata["_id"],
+        "metadata_file_key": metadata["_metadata_file_key"],
+        "part": source.page_number(metadata)
+    })
+    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
+    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        tasks.put(import_file(repo.uuid, repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.run(import_file(cas, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
         context.submission_metadata_files_processed += 1
 
-async def import_file(local_uuid: UUID, filestore: FileStore, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    if not sha256:
-        sha256 = from_path.hexdigest("sha256")
-    size = from_path.stat().size
+    file_key = await cas.file_key_format.from_file(from_path)
+    table_key["submission_file_key"] = str(file_key)
 
-    file_key = Sha256E.make(size, sha256, extension)
+    await cas.put_file(from_path, file_key)
+    await maybe_await(file_table.insert(table_key))
 
-    result = await maybe_await(filestore.put_file(from_path, file_key))
-    result = result.and_then(lambda: from_path.delete(allow_missing=True))
-    await result.wait_for_complete()
-    await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
-
-async def import_bytes(local_uuid: UUID, local_filestore: FileStore, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, sha256: Optional[str] = None):
+async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    if not sha256:
-        sha256 = hashlib.sha256(file_bytes).hexdigest()
-    size = len(file_bytes)
+    file_key = file_key_type.from_bytes(file_bytes, extension=extension)
 
-    file_key = Sha256E.make(size, sha256, extension)
-
-    result = await maybe_await(local_filestore.put_file_bytes(file_bytes, file_key))
-
+    result = await cas.put_file_bytes(file_bytes, file_key)
     await result.wait_for_complete()
         
-    await maybe_await(file_table.insert_file_source(table_key, file_key, local_uuid))
+    await maybe_await(file_table.insert(table_key))

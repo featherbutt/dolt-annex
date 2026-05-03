@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-from dolt_annex.commands import gallery_dl_command, init, server_command, import_command
+from dolt_annex.commands import gallery_dl_command, init, server_command, import_command, script
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
@@ -24,10 +24,13 @@ Application.subcommand("gallery-dl", gallery_dl_command.GalleryDL)
 Application.subcommand("dataset", DatasetSubcommand)
 Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
+Application.subcommand("script", script.Script)
 
-def main():
+def main(entrypoint=Application):
     """Entry point for dolt-annex package"""
     async def run():
-        _, continuation = Application.run(exit=False)
+        _, continuation = entrypoint.run(exit=False)
         await maybe_await(continuation)
     asyncio.run(run())
+
+__all__ = ["gallery_dl_post", "gallery_dl_prepare", "gallery_dl_after", "gallery_dl_post_test"]

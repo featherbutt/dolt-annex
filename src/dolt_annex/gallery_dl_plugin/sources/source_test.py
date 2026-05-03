@@ -4,12 +4,12 @@
 import contextlib
 import contextvars
 from dataclasses import dataclass, field
-from datetime import datetime
 import importlib
 import sys
 import pathlib
 from typing_extensions import Optional
 
+from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 import pytest
 
@@ -22,7 +22,7 @@ from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
 from dolt_annex.gallery_dl_plugin.sources.nhentai import NHentai
 from dolt_annex.test_util import EnvironmentForTest
-from dolt_annex.table import Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 # For each source, provide a sample URL for each supported subcategory.
@@ -60,7 +60,8 @@ class MetadataTest:
 @dataclass
 class TableRow:
     file_key: FileKey
-    last_updated: datetime
+    part: int
+    metadata_file_key: Optional[FileKey] = None
 
 @dataclass
 class ImportTest:
@@ -119,7 +120,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=204505,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s413096--6e7e59d329d0aa2e3c33e48c7718e1557f46e943591a05a9521c7b52bb090020.jpg"),
-                    last_updated=datetime(2007, 11, 29, 14, 38, 40)
+                    part=1
                 )],
             )
         ],
@@ -137,12 +138,20 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
         ],
         import_tests=[
             ImportTest(
-                post_url=SourceUrl("post", "https://inkbunny.net/s/2859344"),
-                id=2859344,
-                rows=[TableRow(
-                    file_key=Sha256E(key=b"SHA256E-s523155--43676b493605afd86558acc69b6b38e9a8d351c01b666bbf917541c53dc0deaf.jpg"),
-                    last_updated=datetime(2022, 11, 16, 1, 26, 49),
-                )],
+                post_url=SourceUrl("post", "https://inkbunny.net/s/3822970"),
+                id=3822970,
+                rows=[
+                    TableRow(
+                        metadata_file_key=Sha256E(key=b'SHA256E-s3134--ee7c15fd6bf76021534df217af8eddbd5f517a4f8297d4f31a50d891efdb907a.json'),
+                        file_key=Sha256E(key=b"SHA256E-s1166228--397140a1e36cd2392e40f4896fc99e7e31c923057168ae78661c7257ea42c869.gif"),
+                        part=1,
+                    ),
+                    TableRow(
+                        metadata_file_key=Sha256E(key=b'SHA256E-s3134--ee7c15fd6bf76021534df217af8eddbd5f517a4f8297d4f31a50d891efdb907a.json'),
+                        file_key=Sha256E(key=b"SHA256E-s1234946--fdebc1b6085f51d2f15b9254e8be12344423e98cbf08c9957682d361067d475b.gif"),
+                        part=2,
+                    )
+                ],
             )
         ],
     ),
@@ -163,7 +172,8 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=625661,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s71612--67f7f28a088200063e4bd41773595ae02d692c4ea9934ea46aa1cb79972b524a.webp"),
-                    last_updated=datetime(2026, 1, 25, 20, 6, 43)
+                    part=1,
+                    metadata_file_key=Sha256E(key=b"SHA256E-s451--b1265b12f01612e68674061c2e8e8a48464b96f4f23609b4011d64e940d5151c.json")
                 )],
             )
         ],
@@ -184,7 +194,8 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 id=14,
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
-                    last_updated=datetime(2026, 2, 21, 1, 10, 34)
+                    part=1,
+                    metadata_file_key=Sha256E(key=b"SHA256E-s5802--e54466e742d64eafd4a34413eba4000155e34c800335faeb0ed011a033d9c207.json"),
                 )],
             )
         ],
@@ -196,7 +207,6 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     Pixiv,
-    Furaffinity,
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
@@ -254,18 +264,55 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
         assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
 
-        async with Dataset.connect(setup.config, db_batch_size=BATCH_SIZE, dataset_schema=dataset_schema) as dataset:
-            submission_rows = list(dataset.get_table("submissions").get_rows(setup.local_repo.uuid))
-            metadata_rows = list(dataset.get_table("metadata").get_rows(setup.local_repo.uuid))
+        async with (
+            as_acm(DatabaseConnection.open(setup.config)) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+            dataset.with_repo(setup.local_repo.uuid) as local_dataset,
+        ):
+            submission_rows = list(local_dataset.get_table("submissions").get_rows())
+            metadata_rows = list(local_dataset.get_table("metadata").get_rows())
+            
             assert len(submission_rows) == len(test.rows)
             assert len(metadata_rows) == 1
             for expected_row, actual_row in zip(test.rows, submission_rows):
-                actual_file_key: str
-                actual_source: str
-                actual_id: int
-                actual_updated: datetime
-                actual_file_key, actual_source, actual_id, actual_updated, _ = actual_row
-                assert FileKey.must_parse(actual_file_key.encode('utf-8')) == expected_row.file_key
+                actual_file_key = FileKey.must_parse(actual_row["submission_file_key"])
+                actual_source: str = actual_row["source"]
+                actual_id: int = actual_row["id"]
+                actual_metadata_key = FileKey.must_parse(actual_row["metadata_file_key"])
+                actual_part: int = actual_row["part"]
+                assert actual_file_key == expected_row.file_key
                 assert actual_source  == site.source_name
                 assert actual_id == test.id
-                assert actual_updated == expected_row.last_updated
+                if actual_metadata_key != expected_row.metadata_file_key:
+                    actual_metadata_bytes = await setup.local_repo.filestore.get_file_bytes(actual_metadata_key)
+                    pytest.fail(
+f"""metadata has unexpected file key.
+
+file key: {actual_metadata_key}
+
+metadata: {str(actual_metadata_bytes, encoding='utf-8')}""")
+                assert actual_part == expected_row.part
+
+@pytest.mark.asyncio
+async def test_hash_in_metadata(setup: EnvironmentForTest):
+    """
+    The second url is for a site that includes both an md5 hash and a file size
+    in the metdata, and matches an image from the first url.
+    
+    During test setup, we set MD5e as an alternate key type, so we generate a MD5e key
+    when downloading the first url. While downloading the second url, we construct
+    the key before downloading the image, see that it already exists, and skip the download.
+    """
+    BATCH_SIZE = 1000
+    dataset_schema = make_default_schema("gallery-dl")
+    # download https://inkbunny.net/s/3783696
+    # download https://e621.net/posts/6086319 and confirm it gets skipped
+    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://inkbunny.net/s/3783696")
+
+    assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
+    assert output.submission_files_processed == 2, f"Expected to process 1 submission file, but processed {output.submission_files_processed}"
+
+    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://e621.net/posts/6086319")
+
+    assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
+    assert output.submission_files_processed == 0, f"Expected to process 0 submission files, but processed {output.submission_files_processed}"

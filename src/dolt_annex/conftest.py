@@ -8,7 +8,6 @@ This module contains pytest fixtures for setting up tests.
 import pathlib
 import shutil
 import contextlib
-from tempfile import TemporaryDirectory
 from typing import AsyncGenerator, Iterable
 from uuid import UUID
 
@@ -81,7 +80,7 @@ def dolt(temp_dir: pathlib.Path):
 @pytest.fixture
 def init_dolt(dolt):
     dolt("checkout", "-b", "test_dataset")
-    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, annex_key varchar(100));")
+    dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, file_key varchar(100));")
     dolt("add", ".")
     dolt("commit", "-m", "Initial commit")
     yield dolt
@@ -115,7 +114,8 @@ def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> 
         name="__local__",
         uuid=local_uuid,
         filestore=local_filestore.file_store,
-        key_format=Sha256E
+        key_format=Sha256E,
+        alternate_key_formats=[MD5e],
     )
 
 @pytest.fixture
@@ -124,7 +124,8 @@ def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) 
         name="test_remote",
         uuid=remote_uuid,
         filestore=remote_filestore.file_store,
-        key_format=Sha256E
+        key_format=Sha256E,
+        alternate_key_formats=[MD5e],
     )
 
 @pytest_asyncio.fixture 

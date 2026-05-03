@@ -132,7 +132,7 @@ class SFTPServer(asyncssh.SFTPServer):
         return await NewFileHandle.create(self.temp_file_system, self.cas, key)
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
-        return await maybe_await(self.cas.file_store.get_file_object(key))
+        return await self.cas.file_store.get_file_object(key)
     
     # The default implementations of read and write assume that file_obj.seek is synchronous.
     # However, the file objects may have async seek methods.

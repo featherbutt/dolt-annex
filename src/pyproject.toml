@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dolt_annex"
-version = "0.7.0"
+version = "0.8.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
@@ -16,7 +16,7 @@ plumbum = "^1.9.0"
 pymysql = "^1.1.2"
 types-pymysql = "^1.1.0.20250916"
 requests = "^2.32.5"
-gallery-dl = {git = "https://github.com/featherbutt/gallery-dl"}
+gallery-dl = {git = "https://github.com/featherbutt/gallery-dl", rev = "3b9cee7ec6a704b570b004b31518e107be98f3ba" }
 tzdata = "^2025.2"
 pydantic = "^2.12.3"
 asyncssh = "^2.21.1"
@@ -27,6 +27,7 @@ pyjson5 = "^2.0.0"
 plyvel = {version = "^1.5.1", optional = true}
 aiofiles = "^25.1.0"
 filelock = "^3.20.3"
+ruff = "^0.15.4"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'

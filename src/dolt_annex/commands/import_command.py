@@ -3,7 +3,6 @@ import logging
 import os
 import pathlib
 from typing import List
-from uuid import UUID
 
 from typing_extensions import Dict, Iterable, Optional
 
@@ -15,20 +14,24 @@ from plumbum import cli # type: ignore
 
 from dolt_annex import importers
 from dolt_annex.commands import CommandGroup
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.importers.base import get_importer
-from dolt_annex.table import Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 from dolt_annex.datatypes.file_io import Path
 
 logger = logging.getLogger(__name__)
 
 class AnnexImportError(Exception):
     pass
+
+MAX_EXTENSION_LENGTH = 4
 
 @dataclass
 class ImportConfig:
@@ -41,9 +44,18 @@ class ImportConfig:
     symlink: bool
 
 class Import(cli.Application):
-    """Import a file or directory into the annex and database"""
+    """
+    Import a file or directory into the filestore and dataset.
+    
+    This command is leftover from an older version of dolt-annex and you likely don't
+    need to use it.
+    """
 
     parent: CommandGroup
+
+    force = cli.Flag(
+        "--force",
+    )
 
     batch_size = cli.SwitchAttr(
         "--batch_size",
@@ -94,10 +106,19 @@ class Import(cli.Application):
         help="The type of file key to use",
         default = "SHA256E",
     )
+
+    repo = cli.SwitchAttr(
+        "--repo",
+        str,
+        help="If set, use the specified repo instead of the default repo",
+    )
         
     async def main(self, *files_or_directories: str):
         base_config: Config = self.parent.config
 
+        if not self.force:
+            raise ValueError("import is leftover from an older version of dolt-annex and you likely don't"
+                             "need to use it. Use the --force flag to override this.")
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
@@ -114,17 +135,19 @@ class Import(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
-            base_config.open_default_repo() as repo,
-            Dataset.connect(base_config, import_config.batch_size, dataset_schema) as dataset,
+            Repo.open(base_config, self.repo) as repo,
+            as_acm(DatabaseConnection.open(base_config)) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+            dataset.with_repo(repo.uuid) as repo_dataset,
         ):
             importer = get_importer(*self.importer.split())
-            await do_import(repo.filestore, repo.uuid, import_config, dataset, importer, files_or_directories)
+            await do_import(repo_dataset, repo.filestore, import_config, importer, files_or_directories)
 
         return 0
 
-async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConfig, dataset: Dataset, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(repo_dataset: RepoDataset, file_store: FileStore, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
-    for table_name, table in dataset.tables.items():
+    for table_name, table in repo_dataset.tables.items():
         key_paths[table_name] = {}
         table.add_flush_hook(move_files, file_store, import_config,key_paths[table_name])
 
@@ -154,7 +177,7 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
     async def import_file(path: Path):
         """Import a file into the annex"""
         extension = path.suffix[1:]
-        if len(extension) > dataset.MAX_EXTENSION_LENGTH+1:
+        if len(extension) > MAX_EXTENSION_LENGTH+1:
             return
         
         if path.is_symlink():
@@ -168,11 +191,11 @@ async def do_import(file_store: FileStore, uuid: UUID, import_config: ImportConf
         key = await import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
-            key_columns = importer.key_columns(path)
+            key_columns = await importer.key_columns(path)
             if key_columns:
                 table_name = importer.table_name(path)
-                table = dataset.get_table(table_name)
-                await table.insert_file_source(key_columns, key, uuid)
+                table = repo_dataset.get_table(table_name)
+                await table.insert(key_columns)
                 key_paths[table_name][path] = key
             if not key_columns:
                 raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")

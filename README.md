@@ -35,17 +35,14 @@ Before running dolt-annex for the first time, read through [CONCEPTS.md](CONCEPT
 The curent set of useful subcommands are:
 
 - `init` - creates a basic environment with sensible defaults in the current directory. This isn't necessary if you're going to set up your environment yourself, but looking at its implementation (in `commands/init.py`) is helpful for seeing what needs to be done to configure your repo.
-- `import` - import a local directory into to your annex.
-- `push` - upload files from your annex to a remote.
-- `pull` - download files from a remote to your annex.
-- `gallery-dl` - uses [gallery-dl](https://github.com/mikf/gallery-dl) to download files from a site supported by gallery-dl, and imports them into your annex.
+- `create` - Define a new repo or dataset schema.
+- `push` - upload files from your repo to a remote repo.
+- `pull` - download files from a remote repo to your repo.
+- `gallery-dl` - uses [gallery-dl](https://github.com/mikf/gallery-dl) to download files from a site supported by gallery-dl, and imports them into your repo.
+- `insert-record` - Add a new file to a dataset.
 - `server` - create a sandboxed SFTP server, allowing dolt-annex to act as a remote.
 
-## `dolt-annex import` 
-
-Format: `dolt-annex import [--move|--copy|--symlink] --importer $IMPORTER --dataset $DATASET" --file-key-type $FILE_KEY_TYPE $DIRECTORY`
-
-Example command: `dolt-annex import --move --importer "DirectoryImporter prefix.com/files/" --dataset mydataset --file-key-type SHA256E ~/Downloads/prefix.com/files`
+There is not currently an easy way to create new datasets or share dataset schemas, and no easy way to add files to a repo other calling `dolt-annex insert-record` for each file, or using `dolt-annex gallery-dl`. It's possible to write scripts that bulk import files by directly accessing both the Dolt database and the underlying filestore. The roadmap is to both add additional CLI tools for data imports, and make dolt-annex usable as a library.
 
 ## `dolt-annex pull` and `dolt-annex push`
 

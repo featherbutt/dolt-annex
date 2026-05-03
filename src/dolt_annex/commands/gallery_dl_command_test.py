@@ -19,6 +19,6 @@ async def test_gallery_dl(tmp_path, setup):
     )
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions"],
-        expected_output_contains="SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png, furaffinity.net, 63142315"
+        expected_output_contains='{"source": "furaffinity.net", "id": 63142315, "metadata_file_key": "SHA256E-s873--6006f690f1cd8b7348ab2fb1c134d204e874ce146dd7b8be0ae0a608c0f2ee73.json", "part": 1, "submission_file_key": "SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png"}'
     )
-        
+

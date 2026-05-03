@@ -43,7 +43,7 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        result = await maybe_await(self.file_store.put_file(file_path, file_key))
+        result = await maybe_await(self.put_file_object(file_path.open(), file_key))
         await result.wait_for_complete()
         return file_key
 
@@ -55,7 +55,7 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        result = await maybe_await(self.file_store.put_file_object(file_path.open(), file_key=file_key))
+        result = await maybe_await(self.put_file_object(file_path.open(), file_key=file_key))
         await result.wait_for_complete()
         return file_key
 
