@@ -44,9 +44,18 @@ class ImportConfig:
     symlink: bool
 
 class Import(cli.Application):
-    """Import a file or directory into the annex and database"""
+    """
+    Import a file or directory into the filestore and dataset.
+    
+    This command is leftover from an older version of dolt-annex and you likely don't
+    need to use it.
+    """
 
     parent: CommandGroup
+
+    force = cli.Flag(
+        "--force",
+    )
 
     batch_size = cli.SwitchAttr(
         "--batch_size",
@@ -107,6 +116,9 @@ class Import(cli.Application):
     async def main(self, *files_or_directories: str):
         base_config: Config = self.parent.config
 
+        if not self.force:
+            raise ValueError("import is leftover from an older version of dolt-annex and you likely don't"
+                             "need to use it. Use the --force flag to override this.")
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
@@ -179,11 +191,11 @@ async def do_import(repo_dataset: RepoDataset, file_store: FileStore, import_con
         key = await import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
-            key_columns = importer.key_columns(path)
+            key_columns = await importer.key_columns(path)
             if key_columns:
                 table_name = importer.table_name(path)
                 table = repo_dataset.get_table(table_name)
-                await table.insert(key_columns, key)
+                await table.insert(key_columns)
                 key_paths[table_name][path] = key
             if not key_columns:
                 raise AnnexImportError("Importer did not produce a set of key columns, it is not safe to import")

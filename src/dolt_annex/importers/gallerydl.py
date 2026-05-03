@@ -5,6 +5,7 @@ from typing_extensions import Optional, override
 
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.file_io import Path
+from dolt_annex.file_keys.size_hash_extension import Sha256E
 from .base import Importer
 
 # Remove subcategory and sort keys when importing post
@@ -22,16 +23,22 @@ class GalleryDL(Importer):
         self.source = source
 
     @override
-    def key_columns(self, path: Path) -> Optional[TableRow]:
+    async def key_columns(self, path: Path) -> Optional[TableRow]:
         source = self.source_name(path)
         updated: str | int
         id, updated = path.stem.split('_', 1)
-        if updated == "None":
-            updated = 0
+        file_key = await Sha256E.from_file(path)
+        table_row = TableRow({
+            "source": source,
+            "id": id
+        })
         if self.table_name(path) == "submissions":
-            part = 1
-            return TableRow((source, int(id), updated, part))
-        return TableRow((source, int(id), updated))
+            table_row["part"] = 1
+            table_row["metadata_file_key"] = bytes(file_key)
+            return table_row
+        else:
+            table_row["file_key"] = bytes(file_key)
+            return table_row
 
     @override
     def table_name(self, path: Path) -> str:

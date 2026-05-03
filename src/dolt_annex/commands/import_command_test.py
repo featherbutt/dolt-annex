@@ -13,12 +13,12 @@ async def test_import(temp_dir, setup):
     """
 
     # A file path matching the pattern expected by dolt_annex.importers.gallerydl.GalleryDL
-    file_path = temp_dir / "import_dir" / "posts" / "0" / "0" / "1_None.jpg"
+    file_path = temp_dir / "import_dir" / "posts" / "0" / "0" / "1_None.json"
     file_path.parent.mkdir(parents=True, exist_ok=True)
     with file_path.open('wb') as f:
         f.write(b"test image data")
 
-    expected_file_key = str(Sha256E.from_bytes(b"test image data", extension="jpg"))
+    expected_file_key = str(Sha256E.from_bytes(b"test image data", extension="json"))
 
     await run(
         args=["dolt-annex", "init"],
@@ -31,7 +31,7 @@ async def test_import(temp_dir, setup):
     )
     await run(
         args=[
-            "dolt-annex", "import",
+            "dolt-annex", "import", "--force",
             "--importer", "gallerydl.GalleryDL test.com",
             "--move",
             "--dataset",  "gallery-dl",
@@ -49,7 +49,7 @@ async def test_import(temp_dir, setup):
             "--columns", "id",
             "--columns", "file_key"
         ],
-        expected_output_equals=f'test.com/posts, 1, {expected_file_key}\n'
+        expected_output_equals=f"{{'source': 'test.com/posts', 'id': 1, 'file_key': '{expected_file_key}'}}\n"
     )
     
     await run(
