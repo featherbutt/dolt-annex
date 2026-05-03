@@ -90,6 +90,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     repo = context.repo
 
     submissions_table = repo_dataset.get_table("submissions")
+    metadata_table = repo_dataset.get_table("metadata")
     page_number = source.page_number(metadata)
     metadata["_page_number"] = page_number
     filters = [
@@ -101,13 +102,16 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     if submissions_table.has_row(filters):
         # We already have this file, skip it.
         metadata["_skip"] = 1
+        return
 
     # Alternatively, if the source provides a hash in the metadata, we can check to see
     # Whether a file with that hash already exists in the filestore. If it does, we
     # make a task to insert a record into the table, and then skip.
 
     async def get_files_coro():
+        has_keys_in_metadata = False
         for key_prefix in source.keys_from_metadata(metadata):
+            has_keys_in_metadata = True
             async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
                 await submissions_table.insert(TableRow({
                     "source": source.source_name,
@@ -118,6 +122,33 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                 }))
                 metadata["_skip"] = 1
                 return
+        
+        if not has_keys_in_metadata:
+            # If the source doesn't contain file hashes, it might contain other information
+            # That can tell us if the submission is unchanged from a previous version.
+            for row in metadata_table.get_rows(filters=[
+                TableFilter("source", source.source_name),
+                TableFilter("id", metadata["_id"])
+            ]):
+                metadata_file_key = FileKey.must_parse(row["file_key"])
+                async with repo.filestore.get_file_object(metadata_file_key) as metadata_file:
+                    existing_metadata = json.load(metadata_file)
+                    if source.assume_same_file(metadata, existing_metadata, page_number):
+                        submission_file_key = submissions_table.get_row(filters=[
+                            TableFilter("source", source.source_name),
+                            TableFilter("id", metadata["_id"]),
+                            TableFilter("metadata_file_key", metadata_file_key),
+                            TableFilter("part", page_number),
+                        ])
+                        await submissions_table.insert(TableRow({
+                            "source": source.source_name,
+                            "id": metadata["_id"],
+                            "metadata_file_key": metadata["_metadata_file_key"],
+                            "part": page_number,
+                            "submission_file_key": submission_file_key,
+                        }))
+                        metadata["_skip"] = 1
+                        return
 
     context.run(get_files_coro())
     return

@@ -8,7 +8,7 @@ from typing_extensions import Any, override
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 from dolt_annex.file_keys.size_hash_extension import MD5e
 
-from .base import GalleryDLSource
+from .base import GalleryDLSource, mutate_remove_fields
 
 class E621(GalleryDLSource, source_name = "e621.net"):
     """Support for e621.net"""
@@ -36,3 +36,17 @@ class E621(GalleryDLSource, source_name = "e621.net"):
         ext = file_info["ext"]
         yield MD5e.make(size, md5, ext)
 
+    def format_post_metadata(self, metadata: dict[str, Any]):
+        """
+        gallery-dl changed how tags are formatted. We continue to represent tags using the previous
+        formatting for consistency.
+        """
+        mutate_remove_fields(metadata, self.fields_to_remove())
+        metadata["_id"] = self.id(metadata)
+        old_tags = metadata["tags"]
+        if isinstance(old_tags, list):
+            tag_types = ["artist", "character", "contributor", "copyright", "general", "invalid", "lore", "meta", "species"]
+            tags = { tag_type: metadata.pop(f"tags_{tag_type}", []) for tag_type in tag_types }
+            metadata["tags"] = tags
+            
+    format_file_metadata = format_post_metadata

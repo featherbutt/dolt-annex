@@ -78,6 +78,20 @@ class GalleryDLSource:
     
     def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
         return []
+    
+    def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
+        """
+        Whether or not we can safely assume that two metadata dicts have the same submission data.
+
+        Typically this requires that the metadata contains one of:
+        - A "last updated" timestamp that only changes when the submission data changes.
+        - A url that only changes when the submission data changes.
+
+        We only call this if the dicts have already been compared unequal.
+
+        Note that if the metadata contains a hash, |keys_from_metadata| works better.
+        """
+        return False
 
 def mutate_remove_fields(d: dict | list, field_to_remove: PathSelector):
     """
