@@ -271,18 +271,26 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
         ):
             submission_rows = list(local_dataset.get_table("submissions").get_rows())
             metadata_rows = list(local_dataset.get_table("metadata").get_rows())
+            
             assert len(submission_rows) == len(test.rows)
             assert len(metadata_rows) == 1
             for expected_row, actual_row in zip(test.rows, submission_rows):
-                actual_file_key: str = actual_row["submission_file_key"]
+                actual_file_key = FileKey.must_parse(actual_row["submission_file_key"])
                 actual_source: str = actual_row["source"]
                 actual_id: int = actual_row["id"]
-                actual_metadata_key: str = actual_row["metadata_file_key"]
+                actual_metadata_key = FileKey.must_parse(actual_row["metadata_file_key"])
                 actual_part: int = actual_row["part"]
-                assert FileKey.must_parse(actual_file_key.encode('utf-8')) == expected_row.file_key
+                assert actual_file_key == expected_row.file_key
                 assert actual_source  == site.source_name
                 assert actual_id == test.id
-                assert FileKey.must_parse(actual_metadata_key.encode('utf-8')) == expected_row.metadata_file_key
+                if actual_metadata_key != expected_row.metadata_file_key:
+                    actual_metadata_bytes = await setup.local_repo.filestore.get_file_bytes(actual_metadata_key)
+                    pytest.fail(
+f"""metadata has unexpected file key.
+
+file key: {actual_metadata_key}
+
+metadata: {str(actual_metadata_bytes, encoding='utf-8')}""")
                 assert actual_part == expected_row.part
 
 @pytest.mark.asyncio
