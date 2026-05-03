@@ -45,6 +45,8 @@ class FileKey:
     @classmethod
     async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file on disk."""
+        if extension is None:
+            extension = file_path.suffix[1:]
         async with file_path.open() as fd:
             return await cls.from_fo(fd, extension=extension)
 

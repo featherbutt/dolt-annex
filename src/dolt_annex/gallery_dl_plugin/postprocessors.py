@@ -150,20 +150,15 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "part": source.page_number(metadata)
     })
     cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
-    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"], metadata["sha256"]))
+    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
         context.run(import_file(cas, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
         context.submission_metadata_files_processed += 1
 
-async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str, sha256: Optional[str] = None):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    if not sha256:
-        sha256 = from_path.hexdigest("sha256")
-    size = from_path.stat().size
-    assert size is not None
-
-    file_key = Sha256E.make(size, sha256, extension)
+    file_key = await cas.file_key_format.from_file(from_path)
     table_key["submission_file_key"] = str(file_key)
 
     await cas.put_file(from_path, file_key)

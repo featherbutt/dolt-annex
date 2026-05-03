@@ -56,12 +56,6 @@ class SizeHashExtensionFileKey(FileKey, is_abstract=True):
         return parts[1].decode("utf-8")
 
     @classmethod
-    async def from_file(cls, file_path: Path, extension: Optional[str] = None) -> Self:
-        """Generate a FileKey from a file on disk."""
-        async with file_path.open() as fd:
-            return await cls.from_fo(fd, extension=extension)
-
-    @classmethod
     async def from_fo(cls, file_obj: ReadableFileObject, extension: Optional[str] = None) -> Self:
         """Generate a FileKey from a file-like object."""
         generator = cls.generator(extension=extension)
