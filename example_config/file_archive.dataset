@@ -10,7 +10,7 @@
         {
             "name": "files",
             // The name of the column that stores the file keys.
-            "file_column": "annex_key",
+            "file_column": "file_key",
             // The name of the columns that store the table's primary index.
             "key_columns": ["path"],
         },
