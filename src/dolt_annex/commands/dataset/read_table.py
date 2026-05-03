@@ -1,3 +1,6 @@
+import json
+import sys
+
 from typing_extensions import List
 
 from plumbum import cli # type: ignore
@@ -76,6 +79,7 @@ class ReadTable(cli.Application):
         ):
             table = repo_dataset.get_table(self.table_name)
             for row in table.get_rows(columns=self.columns, filters=self.filters):
-                print(row)
+                json.dump(row, sys.stdout)
+                sys.stdout.write('\n')
 
         return 0
