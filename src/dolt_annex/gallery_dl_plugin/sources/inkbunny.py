@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
+import re
 from typing_extensions import Any, override
 
-from .base import GalleryDLSource, UnionPathSelector
+from .base import GalleryDLSource, UnionPathSelector, mutate_remove_fields
+
+CDN_URL = re.compile("https://(..)\\.ib\\.metapix\\.net/(\\S*)")
 
 class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
     """Support for inkbunny.net"""
@@ -77,3 +79,19 @@ class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
     def id(self, metadata: dict[str, Any]) -> str:
         """A unique identifier for the post."""
         return metadata["submission_id"]
+    
+    @override
+    def format_post_metadata(self, metadata: dict[str, Any]):
+        """
+        A bug in a previous version of gallery-dl would accidentally include an erroneous "Keywords" tag.
+        """
+        mutate_remove_fields(metadata, self.fields_to_remove())
+        metadata["_id"] = self.id(metadata)
+        for key, value in metadata.items():
+            if not isinstance(value, str):
+                continue
+            match = CDN_URL.fullmatch(value)
+            if match:
+                metadata[key] = f"https://tx.ib.metapix.net/{match.group(2)}"
+
+    format_file_metadata = format_post_metadata
