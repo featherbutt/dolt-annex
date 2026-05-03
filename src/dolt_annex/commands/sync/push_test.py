@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+import json
 
 import pytest
 
@@ -99,7 +100,7 @@ async def test_push_local(tmp_path, setup: EnvironmentForTest):
             "--columns", table_key_column,
             "--repo", remote_name
         ],
-        expected_output_equals='\n'.join(str({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
+        expected_output_equals='\n'.join(json.dumps({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
     )
     
     for record, expected_file_key in zip(records, expected_files_keys):

@@ -49,7 +49,7 @@ async def test_import(temp_dir, setup):
             "--columns", "id",
             "--columns", "file_key"
         ],
-        expected_output_equals=f"{{'source': 'test.com/posts', 'id': 1, 'file_key': '{expected_file_key}'}}\n"
+        expected_output_equals=f'{{"source": "test.com/posts", "id": 1, "file_key": "{expected_file_key}"}}\n'
     )
     
     await run(

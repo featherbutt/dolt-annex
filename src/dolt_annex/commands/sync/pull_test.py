@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass
+import json
 from typing_extensions import cast
 
 import pytest
@@ -100,7 +101,7 @@ async def test_pull_local(tmp_path, setup: EnvironmentForTest):
             "--columns", file_column,
             "--columns", table_key_column
         ],
-        expected_output_equals='\n'.join(str({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
+        expected_output_equals='\n'.join(json.dumps({file_column: expected_files_keys[i].decode('utf-8'), table_key_column: record.table_key}) for i, record in enumerate(records))+'\n',
     )
     
     for record, expected_file_key in zip(records, expected_files_keys):
@@ -150,7 +151,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     # Assert that the record was added to the local database
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output_contains="{'path': 'test_key1', 'file_key': 'SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt'}"
+        expected_output_contains='{"path": "test_key1", "file_key": "SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt"}'
     )
 
 @pytest.mark.asyncio
@@ -190,7 +191,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     # Assert that the local db now has a record
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "test", "--table-name", "test_table"],
-        expected_output_contains="{'path': 'test_key1', 'file_key': 'SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884'}"
+        expected_output_contains='{"path": "test_key1", "file_key": "SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"}'
     )
 
     # Assert that the file in the local filestore was not modified
