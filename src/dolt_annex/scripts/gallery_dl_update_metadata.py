@@ -13,20 +13,19 @@ import logging
 from typing_extensions import Literal
 from plumbum import cli
 
-from dolt_annex.application import parse_args
 from dolt_annex.datatypes.async_utils import as_acm
+from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.gallery_dl_plugin.postprocessors import insert_metadata
+from dolt_annex.gallery_dl_plugin.postprocessors import insert_metadata, serialize_metadata
 from dolt_annex.gallery_dl_plugin.sources import remove_metadata, category_to_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection
+from dolt_annex.replicated_db.interface import TableFilter
 
 logger = logging.getLogger(__name__)
 
-application, tailargs = parse_args()
-
-class StripMetadataCommand(cli.Application):
+class UpdateMetadata(cli.Application):
     batch_size = cli.SwitchAttr(
         "--batch_size",
         int,
@@ -37,7 +36,7 @@ class StripMetadataCommand(cli.Application):
     dataset = cli.SwitchAttr(
         "--dataset",
         str,
-        help="The name of the dataset being imported into",
+        help="The name of the dataset to update",
         default="gallery-dl",
     )
 
@@ -48,9 +47,6 @@ class StripMetadataCommand(cli.Application):
     )
 
     async def main(self, *args) -> Literal[0,1]:
-        # This command is not finished yet.
-        return 1
-    
         dataset_name = self.dataset
 
         dataset_schema = DatasetSchema.must_load(dataset_name)
@@ -62,17 +58,34 @@ class StripMetadataCommand(cli.Application):
             dataset.with_repo(repo.uuid) as dataset_repo,
         ):
             metadata_table = dataset_repo.get_table("metadata")
-            for row in metadata_table.get_rows():
-                metadata_file_key = row["file_key"]
-                assert isinstance(metadata_file_key, str)
-                metadata_bytes = await repo.filestore.get_file_bytes(FileKey.must_parse(metadata_file_key))
+            submissions_table = dataset_repo.get_table("submissions")
+            for old_metadata_row in metadata_table.get_rows():
+                old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
+                metadata_bytes = await repo.filestore.get_file_bytes(old_metadata_file_key)
                 metadata = json.loads(metadata_bytes)
                 new_metadata = remove_metadata(metadata)
                 category = new_metadata["category"]
                 source = category_to_source[category]
-                if new_metadata != metadata:
+                new_metadata_file_key, _ = serialize_metadata(new_metadata, source)
+                if new_metadata_file_key != old_metadata_file_key:
                     await insert_metadata(new_metadata, source, dataset_repo, repo)
-                    # TODO: Replace instead of insert
+                    for old_submission_row in submissions_table.get_rows(filters=[
+                        TableFilter("source", old_metadata_row["source"]),
+                        TableFilter("id", old_metadata_row["id"]),
+                        TableFilter("metadata_file_key", str(old_metadata_file_key))
+                    ]):
+                        await submissions_table.insert(TableRow({
+                            "source": old_submission_row["source"],
+                            "id": old_submission_row["id"],
+                            "metadata_file_key": new_metadata_file_key,
+                            "part": old_submission_row["part"],
+                            "submission_file_key": old_submission_row["submission_file_key"],
+                        }))
+                        await submissions_table.remove(old_submission_row)
+                    await metadata_table.remove(old_metadata_row)
+
+                    logger.info(f"moving {old_metadata_row} to {new_metadata_file_key}")
+
         return 0
 
-Command = StripMetadataCommand
+Command = UpdateMetadata

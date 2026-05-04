@@ -188,7 +188,13 @@ class FileTable(interface.TableReplica):
     repo_dataset: RepoDataset
     urls: Dict[str, List[str]]
     sources: Dict[FileKey, List[str]]
+    # TODO: Instead of a list of pending inserts and removes, maintain a mapping of
+    # key-value pairs. This allows us to correctly evaluate get_rows for non-flushed tables,
+    # and ensures correct behavior when inserts and removes use the same key. However,
+    # it requires knowledge of which columns are keys and which are values.
+    # We'll need that knowledge when we want to diff secondary indexes anyway.
     added_rows: List[TableRow]
+    removed_rows: List[TableRow]
     batch_size: int
     count: int
     time: float
@@ -203,6 +209,7 @@ class FileTable(interface.TableReplica):
         self.schema = schema
         self.flush_hooks = []
         self.added_rows = []
+        self.removed_rows = []
         self.batch_size = 1000
         self.count = 0
         self.time = time.time()
@@ -228,7 +235,10 @@ class FileTable(interface.TableReplica):
 
     async def insert(self, table_row: TableRow):
         self.added_rows.append(table_row)
+        await self.increment_count()
 
+    async def remove(self, table_row: TableRow):
+        self.removed_rows.append(table_row)
         await self.increment_count()
 
     def add_flush_hook[**P](self, hook: Callable[P, Awaitable[None]], *args: P.args, **kwargs: P.kwargs) -> None:
@@ -237,19 +247,14 @@ class FileTable(interface.TableReplica):
 
     async def flush(self):
         """Flush the cache to the Dolt database and execute callbacks (typically for importing files into filestores)."""
-        # Flushing the cache must be done in the following order:
-        # 1. Update the git-annex branch to contain the new ownership records and registered urls.
-        # 2. Update the Dolt database to match the git-annex branch.
-        # 3. Move the annex files to the annex directory. This step is a no-op when running the downloader,
-        #    because downloaded files were already written into the annex.
-        # This way, if the import process is interrupted, all incomplete files will still exist in the source directory.
-        # Likewise, if a download process is interrupted, the database will still indicate which files have been downloaded.
-
+        
         branch = f"{self.uuid}-{self.dataset.name}"
-        rows = [[row[key] for key in self.schema.all_columns()] for row in self.added_rows]
+        added_rows = [[row[key] for key in self.schema.all_columns()] for row in self.added_rows]
+        removed_rows = [[row[key] for key in self.schema.key_columns] for row in self.removed_rows]
         with self.dolt.maybe_create_branch(branch, self.branch_start_point):
             # pass in dict to insert, correctly make query here
-            self.dolt.executemany(self.insert_sql(), rows)
+            self.dolt.executemany(self.insert_sql(), added_rows)
+            self.dolt.executemany(self.remove_sql(), removed_rows)
 
         for hook in self.flush_hooks:
             await hook()
@@ -288,3 +293,9 @@ class FileTable(interface.TableReplica):
         cols = ", ".join(self.schema.all_columns())
         placeholders = ", ".join(["%s"] * (len(self.schema.all_columns())))
         return f"REPLACE INTO {self.schema.name} ({cols}) VALUES ({placeholders})"
+    
+    def remove_sql(self) -> str:
+        """
+        Returns the SQL statement to insert a row into the table.
+        """
+        return f"DELETE FROM {self.schema.name} WHERE " + " AND ".join([f"{f} = %s" for f in self.schema.key_columns])

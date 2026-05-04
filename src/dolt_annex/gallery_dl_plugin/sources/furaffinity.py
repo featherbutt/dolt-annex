@@ -32,7 +32,7 @@ class Furaffinity(GalleryDLSource, source_name = "furaffinity.net"):
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
         tags: list[str] = metadata["tags"]
-        if "Keywords" in tags:
-            tags.remove("Keywords")
-        
-            
+        if "flat" in tags:
+            tags.remove("flat")
+    
+    format_file_metadata = format_post_metadata
