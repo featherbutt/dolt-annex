@@ -10,7 +10,7 @@ submissions table to use the new file key as the submissions table key.
 
 import json
 import logging
-from typing_extensions import Literal
+from typing_extensions import Literal, List
 from plumbum import cli
 
 from dolt_annex.datatypes.async_utils import as_acm
@@ -46,6 +46,22 @@ class UpdateMetadata(cli.Application):
         help="If set, use the specified repo instead of the default repo",
     )
 
+    filters: List[TableFilter] = []
+
+    @cli.switch(
+        "--where",
+        str,
+        list = True,
+        help="A filter condition on the table rows to be read",
+    )
+    def where(self, filter_strings: List[str]):
+        for filter_string in filter_strings:
+            if '=' not in filter_string:
+                raise ValueError(f"Invalid filter string: {filter_string}")
+            column_name, column_value = filter_string.split('=', maxsplit=1)
+            self.filters.append(TableFilter(column_name, column_value))
+
+
     async def main(self, *args) -> Literal[0,1]:
         dataset_name = self.dataset
 
@@ -59,7 +75,7 @@ class UpdateMetadata(cli.Application):
         ):
             metadata_table = dataset_repo.get_table("metadata")
             submissions_table = dataset_repo.get_table("submissions")
-            for old_metadata_row in metadata_table.get_rows():
+            for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                 old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
                 metadata_bytes = await repo.filestore.get_file_bytes(old_metadata_file_key)
                 metadata = json.loads(metadata_bytes)
@@ -85,6 +101,8 @@ class UpdateMetadata(cli.Application):
                     await metadata_table.remove(old_metadata_row)
 
                     logger.info(f"moving {old_metadata_row} to {new_metadata_file_key}")
+                else:
+                    logger.info(f"no updates for {old_metadata_row}")
 
         return 0
 
