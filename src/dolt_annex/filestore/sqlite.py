@@ -38,6 +38,7 @@ from dolt_annex.file_keys import FileKey
 from .base import FileInfo, FileStore, FileStoreModel
 
 SQLAR_SCHEMA = """
+PRAGMA journal_mode=WAL;
 CREATE TABLE sqlar(
   name TEXT PRIMARY KEY,  -- name of the file
   mode INT,               -- access permissions
