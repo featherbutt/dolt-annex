@@ -252,15 +252,17 @@ class FileTable(interface.TableReplica):
         added_rows = [[row[key] for key in self.schema.all_columns()] for row in self.added_rows]
         removed_rows = [[row[key] for key in self.schema.key_columns] for row in self.removed_rows]
         with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-            # pass in dict to insert, correctly make query here
-            self.dolt.executemany(self.insert_sql(), added_rows)
-            self.dolt.executemany(self.remove_sql(), removed_rows)
+            if added_rows:
+                self.dolt.executemany(self.insert_sql(), added_rows)
+            if removed_rows:
+                self.dolt.execute(self.remove_sql(removed_rows), removed_rows)
 
         for hook in self.flush_hooks:
             await hook()
 
         num_keys = len(self.added_rows)
         self.added_rows.clear()
+        self.removed_rows.clear()
 
         new_now = time.time()
         elapsed_time = new_now - self.time
@@ -294,8 +296,9 @@ class FileTable(interface.TableReplica):
         placeholders = ", ".join(["%s"] * (len(self.schema.all_columns())))
         return f"REPLACE INTO {self.schema.name} ({cols}) VALUES ({placeholders})"
     
-    def remove_sql(self) -> str:
+    def remove_sql(self, values: Iterable[Iterable[Any]]) -> str:
         """
-        Returns the SQL statement to insert a row into the table.
+        Returns the SQL statement to delete rows into the table.
         """
-        return f"DELETE FROM {self.schema.name} WHERE " + " AND ".join([f"{f} = %s" for f in self.schema.key_columns])
+        sets = f"({','.join('%s' for _ in values)})"
+        return f"DELETE FROM {self.schema.name} WHERE ({','.join(self.schema.key_columns)}) IN {sets}"
