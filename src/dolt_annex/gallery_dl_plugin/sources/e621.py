@@ -44,9 +44,15 @@ class E621(GalleryDLSource, source_name = "e621.net"):
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
         old_tags = metadata["tags"]
-        if isinstance(old_tags, list):
+        if isinstance(old_tags, dict):
             tag_types = ["artist", "character", "contributor", "copyright", "general", "invalid", "lore", "meta", "species"]
-            tags = { tag_type: metadata.pop(f"tags_{tag_type}", []) for tag_type in tag_types }
-            metadata["tags"] = tags
+            all_tags = []
+            for tag_type in tag_types:
+                metadata[f"tags_{tag_type}"] = old_tags[tag_type]
+                all_tags.extend(old_tags[tag_type])
+            
+            #tags = { tag_type: metadata.pop(f"tags_{tag_type}", []) for tag_type in tag_types }
+            metadata["tags"] = all_tags
+        metadata["tags"].sort()
             
     format_file_metadata = format_post_metadata
