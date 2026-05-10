@@ -43,8 +43,8 @@ class SftpFileStore(FileStore):
         remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
         async with (
-            self.sftp.open(remote_file_path, 'wb') as out_fd,
             data_source as in_fd,
+            self.sftp.open(remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
         return Result.done()
