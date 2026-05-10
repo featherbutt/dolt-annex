@@ -6,7 +6,7 @@ from typing_extensions import Any, override
 
 from .base import GalleryDLSource, UnionPathSelector, mutate_remove_fields
 
-CDN_URL = re.compile("https://(\w+)\\.ib\\.metapix\\.net/(\\S*)")
+CDN_URL = re.compile("https://(\\w+)\\.ib\\.metapix\\.net/(\\S*)")
 
 class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
     """Support for inkbunny.net"""
