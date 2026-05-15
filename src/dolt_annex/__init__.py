@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
-from dolt_annex.commands import gallery_dl_command, init, server_command, import_command, script
+from dolt_annex.commands import gallery_dl_command, init, server_command, script
 from dolt_annex.commands.config import create
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
@@ -15,7 +15,6 @@ from .application import Application
 from .gallery_dl_plugin.postprocessors import gallery_dl_post, gallery_dl_prepare, gallery_dl_after
 from .gallery_dl_plugin.test_postprocessors import gallery_dl_post_test
 
-Application.subcommand("import", import_command.Import)
 Application.subcommand("init", init.Init)
 Application.subcommand("push", push.Push)
 Application.subcommand("pull", pull.Pull)

@@ -223,3 +223,5 @@ async def move_files(file_store: FileStore, import_config: ImportConfig, files: 
             pass
     
     files.clear()
+
+Command = Import
