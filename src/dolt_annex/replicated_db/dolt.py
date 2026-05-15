@@ -10,7 +10,7 @@ import random
 import time
 from typing import Generator, Self
 from uuid import UUID
-from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable
+from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable, Any
 
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes import FileKey, TableRow
@@ -88,7 +88,10 @@ def diff_query(file_key_table: FileTableSchema, filters: List[TableFilter]) -> s
     """
     return f"""
         SELECT
-            `diff_type`, `{"to_" + file_key_table.file_column}`, {",".join("to_" + col for col in file_key_table.all_columns())}
+            `diff_type`,
+            `{"to_" + file_key_table.file_column}`,
+            {",".join("to_" + col for col in file_key_table.all_columns())},
+            {",".join("from_" + col for col in file_key_table.all_columns())}
         FROM dolt_commit_diff_{file_key_table.name}
         WHERE from_commit = HASHOF(%s) AND to_commit = HASHOF(%s)
         {''.join(f" AND to_{f.column_name} = %s" for f in filters)}
@@ -118,7 +121,7 @@ class Dataset(interface.ReplicatedDataset):
         self.dolt.maybe_create_branch(f"{repo_uuid}-{dataset_schema.name}", dataset_schema.empty_table_ref)
 
         
-    def diff_keys(self, in_ref: UUID, not_in_ref: UUID, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow]]:
+    def diff_keys(self, in_ref: UUID, not_in_ref: UUID, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
         refs = [in_ref, not_in_ref]
         refs.sort()
         union_branch_name = f"union-{refs[0]}-{refs[1]}-{self.name}"
@@ -145,8 +148,11 @@ class Dataset(interface.ReplicatedDataset):
                 query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
             # TODO: Wrap this in a helper function
             for (diff_type, annex_key, *key_parts) in query_results:
-                table_row = {key: value for key, value in zip(file_key_table.all_columns(), key_parts)}
-                yield (diff_type, FileKey.must_parse(bytes(annex_key, encoding='utf-8')), TableRow(table_row))
+                to_key_parts = key_parts[:len(key_parts)//2]
+                from_key_parts = key_parts[len(key_parts)//2:]
+                to_table_row = {key: value for key, value in zip(file_key_table.all_columns(), to_key_parts)}
+                from_table_row = {key: value for key, value in zip(file_key_table.all_columns(), from_key_parts)}
+                yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
 
     @asynccontextmanager
     async def with_repo(self, repo: Repo.Id):
@@ -252,10 +258,13 @@ class FileTable(interface.TableReplica):
         added_rows = [[row[key] for key in self.schema.all_columns()] for row in self.added_rows]
         removed_rows = [[row[key] for key in self.schema.key_columns] for row in self.removed_rows]
         with self.dolt.maybe_create_branch(branch, self.branch_start_point):
-            if added_rows:
-                self.dolt.executemany(self.insert_sql(), added_rows)
+            # Execute the remove statement first in case we're replacing a row with the same primary key: insert should win.
+            # But don't commit the transaction until both have executed, otherwise we could lose data if the insert doesn't finish.
             if removed_rows:
-                self.dolt.execute(self.remove_sql(removed_rows), removed_rows)
+                self.dolt.execute(self.remove_sql(removed_rows), removed_rows, commit=False)
+            if added_rows:
+                self.dolt.executemany(self.insert_sql(), added_rows, commit=False)
+            self.dolt.commit_transaction()
 
         for hook in self.flush_hooks:
             await hook()

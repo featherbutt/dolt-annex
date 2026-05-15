@@ -108,18 +108,24 @@ class DoltSqlServer:
         finally:
             connection.close()
 
-    def executemany(self, sql: str, values: List[List[Any]]):
+    def executemany(self, sql: str, values: List[List[Any]], commit = True):
+        if not values:
+            return
         cursor = self.connection.cursor()
         cursor.executemany(sql, values)
-        cursor.execute("COMMIT;")
-        self.connection.commit()
+
+        if commit:
+            cursor.execute("COMMIT;")
+            self.connection.commit()
     
-    def execute(self, sql: str, values):
+    def execute(self, sql: str, values, commit = True):
         cursor = self.connection.cursor()
         cursor.execute(sql, values)
         cursor.fetchall()
-        cursor.execute("COMMIT;")
-        self.connection.commit()
+
+        if commit:
+            cursor.execute("COMMIT;")
+            self.connection.commit()
     
     def query(self, sql: str, values = ()):
         cursor = self.connection.cursor()
@@ -128,6 +134,11 @@ class DoltSqlServer:
         while res:
             yield from res
             res = cursor.fetchmany()
+        cursor.execute("COMMIT;")
+        self.connection.commit()
+
+    def commit_transaction(self):
+        cursor = self.connection.cursor()
         cursor.execute("COMMIT;")
         self.connection.commit()
 

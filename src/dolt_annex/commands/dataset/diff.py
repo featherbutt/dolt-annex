@@ -65,7 +65,7 @@ class Diff(cli.Application):
     filters: List[TableFilter] = []
 
     async def main(self, *args: list[str]) -> int:
-        """Entrypoint for pull command"""
+        """Entrypoint for diff command"""
         base_config: Config = self.parent.config
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
@@ -77,6 +77,7 @@ class Diff(cli.Application):
             remote_repo_model = RepoModel.must_load(self.to_repo)
             table_schema = dataset_schema.get_table(self.table_name)
             keys_and_submissions = list(dataset.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, table_schema, self.filters, self.limit))
-            for diff_type, key, submission in keys_and_submissions:
-                    print(",".join([diff_type, str(key), str(submission)]))
+            for diff_type, key, to_submission, from_submission in keys_and_submissions:
+                    # TODO: Display removed rows
+                    print(",".join([diff_type, str(key), str(to_submission)]))
         return 0

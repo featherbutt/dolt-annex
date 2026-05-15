@@ -14,6 +14,8 @@ One of the current obstacles is that we need branches in order to merge.
 An abstract "versioned database" provides a way to diff and merge different versions of a table without directly using Dolt.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Self, Tuple
