@@ -219,7 +219,7 @@ class DoltSqlServer:
     def merge(self, branch: str):
         """Merge the given branch into the current branch."""
         with self.set_branch(branch):
-            self.commit(amend=True)
+            self.commit(amend=False)
         cursor = self.connection.cursor()
         try:
             cursor.execute("call DOLT_MERGE(%s);", (branch,))
