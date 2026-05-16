@@ -69,8 +69,15 @@ class FileKey:
                 return subclass.try_parse(key)
         return None
     
+    @overload
     @classmethod
     def must_parse(cls, key: bytes | str) -> Self:
+        ...
+
+    @classmethod
+    def must_parse(cls, key: Optional[bytes | str]) -> Optional[Self]:
+        if key is None:
+            return None
         if isinstance(key, str):
             key = bytes(key, encoding='utf-8')
         file_key = cls.try_parse(key)

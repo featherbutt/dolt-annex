@@ -32,7 +32,7 @@ default_config_file_locations = [
 class BaseApplication(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
-    VERSION = "0.8.0"
+    VERSION = "0.8.1"
 
     config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
 

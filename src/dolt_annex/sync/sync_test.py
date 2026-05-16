@@ -65,7 +65,7 @@ async def test_detect_corruption(
 ):
     from_repo = setup.local_repo
     to_repo = setup.remote_repo
-    FILTERS = [] # Allow for any setup delays
+    FILTERS = []
     async with (
         as_acm(DatabaseConnection.open(setup.config)) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
@@ -97,7 +97,7 @@ async def test_async_move(
 ):
     from_repo = setup.local_repo
     to_repo = setup.remote_repo
-    FILTERS = [] # Allow for any setup delays
+    FILTERS = []
     async with (
         as_acm(DatabaseConnection.open(test_config)) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
@@ -120,8 +120,7 @@ async def test_async_move(
         )
         # Check that files have been moved
         for file_key in added_file_keys:
-            assert await maybe_await(to_repo.filestore.exists(file_key))
-            assert await to_repo.filestore.get_file_bytes(file_key) == await from_repo.filestore.get_file_bytes(file_key)
+            await to_repo.filestore.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         for row in to_table.get_rows():
@@ -137,3 +136,82 @@ async def test_async_move(
                 name, offset, size = file_location.split(b":")
                 archive_ids.add(name)
             # assert len(archive_ids) > 1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("local_filestore_model", [pytest.param(MemoryFSModel(), id=pytest.HIDDEN_PARAM)])
+@pytest.mark.parametrize("remote_filestore_model", [pytest.param(MemoryFSModel(), id="")])
+async def test_diff_types(
+    test_config: Config,
+    setup: EnvironmentForTest,
+):
+    from_repo = setup.local_repo
+    to_repo = setup.remote_repo
+    FILTERS = []
+    async with (
+        as_acm(DatabaseConnection.open(test_config)) as conn,
+        as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
+        dataset.with_repo(from_repo.uuid) as from_repo_dataset,
+        dataset.with_repo(to_repo.uuid) as to_repo_dataset,
+    ):
+        
+        file_bytes = random.randbytes(1024**2) # 1 MB
+        file_key_result = await setup.local_file_store.put_file_bytes(file_bytes)
+        file_key = await file_key_result.wait_for_complete()
+        table_row = TableRow({"path": "test_path","file_key": file_key})
+        # Add entries to from_repo database
+        from_table = from_repo_dataset.get_table("test_table")
+        await from_table.insert(table_row)
+
+        await from_table.flush()
+        await move_dataset(
+            dataset,
+            from_repo,
+            to_repo,
+            FILTERS,
+        )
+        # Check that files have been moved
+        await to_repo.filestore.verify_file(file_key)
+        # Check that db entries have been updated
+        to_table = from_repo_dataset.get_table("test_table")
+        rows = list(to_table.get_rows())
+        assert len(rows) == 1
+        assert rows[0]["path"] == "test_path"
+        assert rows[0]["file_key"] == str(file_key)
+        
+        # Modify the table row
+        await from_table.remove(table_row)
+        new_file_bytes = random.randbytes(1024**2) # 1 MB
+        file_key_result = await setup.local_file_store.put_file_bytes(new_file_bytes)
+        new_file_key = await file_key_result.wait_for_complete()
+        new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
+        await from_table.insert(new_table_row)
+
+        await from_table.flush()
+        await move_dataset(
+            dataset,
+            from_repo,
+            to_repo,
+            FILTERS,
+        )
+
+        # Check that files have been moved
+        await to_repo.filestore.verify_file(new_file_key)
+        # Check that db entries have been updated
+        rows = list(to_table.get_rows())
+        assert len(rows) == 1
+        assert rows[0]["path"] == "test_path"
+        assert rows[0]["file_key"] == str(new_file_key)
+
+        # Delete the table row
+        await from_table.remove(new_table_row)
+
+        await from_table.flush()
+        await move_dataset(
+            dataset,
+            from_repo,
+            to_repo,
+            FILTERS,
+        )
+
+        rows = list(to_table.get_rows())
+        assert len(rows) == 0

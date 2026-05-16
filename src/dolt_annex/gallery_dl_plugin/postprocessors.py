@@ -49,7 +49,7 @@ def gallery_dl_post(metadata: dict):
     context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
     context.post_metadata_files_processed += 1
 
-def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
+def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
     metadata_bytes = json.dumps(    
@@ -58,10 +58,11 @@ def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_data
         sort_keys=True,
         indent=4,
         default=json_default).encode('utf-8') + b'\n'
-    size = len(metadata_bytes)
-    sha256 = hashlib.sha256(metadata_bytes).hexdigest()
+    return Sha256E.from_bytes(metadata_bytes, "json"), metadata_bytes
 
-    file_key = Sha256E.make(size, sha256, "json")
+
+async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
+    file_key, metadata_bytes = serialize_metadata(metadata, source)
     metadata["_metadata_file_key"] = file_key
 
     table_row = TableRow({"source": source.source_name, "id": metadata["_id"], "file_key": file_key})
@@ -70,7 +71,8 @@ def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_data
     # return matadata file key on insertion
     cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
 
-    return import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
+    await import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
+    return file_key
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
@@ -131,24 +133,24 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                 TableFilter("id", metadata["_id"])
             ]):
                 metadata_file_key = FileKey.must_parse(row["file_key"])
-                async with repo.filestore.get_file_object(metadata_file_key) as metadata_file:
-                    existing_metadata = json.load(metadata_file)
-                    if source.assume_same_file(metadata, existing_metadata, page_number):
-                        submission_file_key = submissions_table.get_row(filters=[
-                            TableFilter("source", source.source_name),
-                            TableFilter("id", metadata["_id"]),
-                            TableFilter("metadata_file_key", metadata_file_key),
-                            TableFilter("part", page_number),
-                        ])
-                        await submissions_table.insert(TableRow({
-                            "source": source.source_name,
-                            "id": metadata["_id"],
-                            "metadata_file_key": metadata["_metadata_file_key"],
-                            "part": page_number,
-                            "submission_file_key": submission_file_key,
-                        }))
-                        metadata["_skip"] = 1
-                        return
+                metadata_bytes = await repo.filestore.get_file_bytes(metadata_file_key)
+                existing_metadata = json.loads(metadata_bytes)
+                if source.assume_same_file(metadata, existing_metadata, page_number):
+                    submission_file_key = submissions_table.get_row(filters=[
+                        TableFilter("source", source.source_name),
+                        TableFilter("id", metadata["_id"]),
+                        TableFilter("metadata_file_key", metadata_file_key),
+                        TableFilter("part", page_number),
+                    ])
+                    await submissions_table.insert(TableRow({
+                        "source": source.source_name,
+                        "id": metadata["_id"],
+                        "metadata_file_key": metadata["_metadata_file_key"],
+                        "part": page_number,
+                        "submission_file_key": submission_file_key,
+                    }))
+                    metadata["_skip"] = 1
+                    return
 
     context.run(get_files_coro())
     return

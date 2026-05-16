@@ -31,7 +31,7 @@ async def test_import(temp_dir, setup):
     )
     await run(
         args=[
-            "dolt-annex", "import", "--force",
+            "dolt-annex", "script", "import", "--", "--force",
             "--importer", "gallerydl.GalleryDL test.com",
             "--move",
             "--dataset",  "gallery-dl",

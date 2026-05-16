@@ -81,11 +81,23 @@ class SyncOperation:
                 raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
             await self.to_table.flush()
 
-    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow]]) -> bool:
+    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow, TableRow]]) -> bool:
         has_more = False
-        for diff_type, key, table_row in keys_and_submissions:
+        for diff_type, key, to_table_row, from_table_row in keys_and_submissions:
             has_more = True
-            await self.work_queue.put((key, table_row))
+            match diff_type:
+                case "added": 
+                    await self.work_queue.put((key, to_table_row))
+                case "removed":
+                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    await self.to_table.remove(from_table_key)
+                case "modified":
+                    await self.work_queue.put((key, to_table_row))
+                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    await self.to_table.remove(from_table_key)
+                case _:
+                    raise ValueError(f"Unknown diff type {diff_type}")
+                    
         return has_more
     
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> Result[None]:

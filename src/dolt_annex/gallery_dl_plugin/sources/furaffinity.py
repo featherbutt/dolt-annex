@@ -34,5 +34,5 @@ class Furaffinity(GalleryDLSource, source_name = "furaffinity.net"):
         tags: list[str] = metadata["tags"]
         if "Keywords" in tags:
             tags.remove("Keywords")
-        
-            
+    
+    format_file_metadata = format_post_metadata
