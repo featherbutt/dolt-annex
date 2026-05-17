@@ -70,6 +70,7 @@ class Init(cli.Application):
                 uuid=uuid.uuid4(),
                 filestore=AnnexFSModel(root=Path("./annex")),
                 key_format=base_config.default_file_key_type,
+                alternate_key_formats=base_config.default_alternate_key_types
             )
             local_repo.save()
         do_init(self.parent.config, init_config)
