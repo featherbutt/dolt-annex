@@ -85,6 +85,10 @@ class MemoryFS(FileStore):
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         self.files[bytes(new_key)] = self.files[bytes(old_key)]
         return Result.done()
+    
+    @override
+    def delete(self, key: FileKey) -> None:
+        del self.files[bytes(key)]
 
 class MemoryFSModel(FileStoreModel):
 

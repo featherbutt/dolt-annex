@@ -10,12 +10,13 @@ Note that only some filestore types support deletion.
 
 import json
 import logging
-from typing import Dict
+from typing import Dict, Iterable
 from typing_extensions import Literal
 from contextlib import AsyncExitStack
 from plumbum import cli
 
 from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys.base import FileKey
@@ -30,6 +31,7 @@ class DeleteRedundantFiles(SubCommand):
         "--delete-from",
         str,
         help="The name of the repo to delete from",
+        mandatory = True,
     )
 
     if_in = cli.SwitchAttr(
@@ -43,12 +45,19 @@ class DeleteRedundantFiles(SubCommand):
         "--dataset",
         str,
         help="The name of the dataset to delete from",
+        mandatory = True,
     )
 
     table_name = cli.SwitchAttr(
         "--table",
         str,
         help="The name of the table to delete from",
+        mandatory = True,
+    )
+
+    dry_run = cli.Flag(
+        "--dry-run",
+        help="If set, will only log the files that would be deleted without actually deleting them",
     )
 
     async def main(self, *args: str) -> Literal[0,1]:
@@ -62,20 +71,28 @@ class DeleteRedundantFiles(SubCommand):
             dataset_repo_to_delete_from = await stack.enter_async_context(dataset.with_repo(repo_to_delete_from.uuid))
             table_to_delete_from = dataset_repo_to_delete_from.get_table(self.table_name)
             
+            row_iter: Iterable[TableRow]
+            if len(args) == 0:
+                row_iter = table_to_delete_from.get_rows()
+            else:
+                def row_generator():
+                    for row_to_remove in args:
+                        row_filters = json.loads(row_to_remove)
+                        table_row_to_remove = table_to_delete_from.get_row(filters=row_filters)
+                        if table_row_to_remove is None:
+                            logger.warning(f"Row not found: {row_to_remove}")
+                            continue
+                        yield table_row_to_remove
+                row_iter = row_generator()
                                                                     
-            filestores: Dict[str, FileStore] = []
+            filestores: Dict[str, FileStore] = {}
             for repo_name in self.if_in:
                 repo_model = RepoModel.open(self.parent.config, repo_name)
                 filestore = await stack.enter_async_context(repo_model.filestore.open(self.parent.config))
                 filestores[repo_name] = filestore
 
-            for row_to_remove in args:
-                row_filters = json.loads(row_to_remove)
-                table_row_to_remove = table_to_delete_from.get_row(filters=row_filters)
-                if table_row_to_remove is None:
-                    logger.warning(f"Row not found: {row_to_remove}")
-                    continue
-                file_key_string = table_row_to_remove.get(table_to_delete_from.schema.file_column)
+            for row_to_remove in row_iter:
+                file_key_string = row_to_remove.get(table_to_delete_from.schema.file_column)
                 if file_key_string is None:
                     logger.fatal(f"Missing file key column")
                     return 1
@@ -90,9 +107,12 @@ class DeleteRedundantFiles(SubCommand):
                 else:
                     can_remove = True
                 if can_remove:
-                    repo_to_delete_from.filestore.delete(file_key)
-                    await table_to_delete_from.remove(table_row_to_remove)
-                
+                    if not self.dry_run:
+                        repo_to_delete_from.filestore.delete(file_key)
+                        await table_to_delete_from.remove(row_to_remove)
+                    else:
+                        logger.info(f"Would delete file: {file_key}")
+
         return 0
 
 Command = DeleteRedundantFiles
