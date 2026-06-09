@@ -115,6 +115,11 @@ class AnnexFS(FileStore):
         new_path.parent.mkdirs(exist_ok=True)
         old_path.link(new_path)
         return Result.done()
+    
+    @override
+    def delete(self, key: FileKey):
+        self.get_old_key_path(key).delete(allow_missing=True)
+        self.get_key_path(key).delete(allow_missing=True)
 
 class AnnexFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]

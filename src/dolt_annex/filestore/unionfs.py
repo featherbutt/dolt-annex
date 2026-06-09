@@ -3,10 +3,11 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Tuple
 from typing_extensions import override, Any
 
 from dolt_annex.datatypes.async_utils import Result, await_or_enter
-from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
@@ -107,6 +108,17 @@ class UnionFS(FileStore):
             if await maybe_await(child.exists(old_key)):
                 return await maybe_await(child.create_alias(old_key, new_key))
         raise FileNotFoundError(f"File with key {old_key} not found in annex.")
+
+    @override
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+        for child in self.children:
+            async for key, stream in child.get_files(prefix):
+                yield key, stream
+
+    @override
+    def delete(self, key: FileKey):
+        for child in self.children:
+            child.delete(key)
 
 class UnionFSModel(FileStoreModel):
     children: list[FileStoreModel]

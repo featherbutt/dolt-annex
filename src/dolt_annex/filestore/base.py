@@ -160,6 +160,12 @@ class FileStore(abc.ABC):
         """
         raise NotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
+    def delete(self, key: FileKey):
+        """
+        Remove a file from a filestore if supported. Is not guarenteed to free space, and may not play well with aliases.
+        """
+        pass
+    
     async def verify_all_files(self) -> None:
         """
         Verify that all files in the filestore have the correct bytes by recomputing their keys.
