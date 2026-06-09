@@ -135,7 +135,7 @@ class SQLiteModel(FileStoreModel):
 
     @override
     @asynccontextmanager
-    async def open(self, config: Config):
+    async def open(self, config: Config) -> AsyncGenerator[SQLite]:
         """Open a SQLite Archive, creating and initializing it if it does not exist."""
         self.root.mkdir(parents=True, exist_ok=True)
         db_path = self.root / SQLAR_DB_FILENAME
