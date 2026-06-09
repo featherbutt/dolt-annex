@@ -11,7 +11,7 @@ from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.file_keys.hash_size_extension import MD5eHSe, SHA1eHSe, Sha256eHSe
+from dolt_annex.file_keys.hash_size_extension import MD5HSe, Sha1HSe, Sha256HSe
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -49,7 +49,7 @@ class Config(StrictBaseModel):
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256E
-    default_alternate_key_types: List[FileKeyType] = [Sha256eHSe, SHA1eHSe, MD5eHSe]
+    default_alternate_key_types: List[FileKeyType] = [Sha256HSe, Sha1HSe, MD5HSe]
 
     def get_default_repo(self) -> RepoModel:
         return RepoModel.must_load(self.local_repo_name)

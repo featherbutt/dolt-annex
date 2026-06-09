@@ -9,6 +9,7 @@ from pydantic import ModelWrapValidatorHandler, PlainSerializer, WrapValidator
 from typing_extensions import Annotated
 from .base import FileKey
 from .size_hash_extension import Sha256E, MD5e, SHA1e
+from .hash_size_extension import Sha1HSe, Sha256HSe, MD5HSe
 
 def file_key_type_validator(name, _: ModelWrapValidatorHandler[type[FileKey]]) -> type[FileKey]:
     """Get the FileKey subclass for the given key format name."""
@@ -22,4 +23,4 @@ def get_file_key_type(name: str) -> type[FileKey]:
 
 FileKeyType = Annotated[type[FileKey], WrapValidator(file_key_type_validator), PlainSerializer(lambda t: t.prefix)]
 
-__all__ = ['FileKey', 'FileKeyType', 'Sha256E', 'MD5e', 'SHA1e']
+__all__ = ['FileKey', 'FileKeyType', 'Sha256E', 'MD5e', 'SHA1e', 'Sha1HSe', 'Sha256HSe', 'MD5HSe']

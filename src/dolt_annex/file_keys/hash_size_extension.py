@@ -144,7 +144,7 @@ async def file_digest(fileobj: ReadableStream, digest: FileKeyGenerator, /, *, _
 
     return
 
-class Sha256eHSe(HashSizeExtensionFileKey, prefix="SHA256_HSe", lower_extensions=True):
+class Sha256HSe(HashSizeExtensionFileKey, prefix="SHA256_HSe", lower_extensions=True):
     """
     SHA256_HSe file keys have the format: SHA256_HSe-<sha256>--s<size>.<extension>
     
@@ -156,7 +156,7 @@ class Sha256eHSe(HashSizeExtensionFileKey, prefix="SHA256_HSe", lower_extensions
     def hash_function(cls) -> hashlib.HASH:
         return hashlib.sha256()
 
-class MD5eHSe(HashSizeExtensionFileKey, prefix="MD5_HSe", lower_extensions=True):
+class MD5HSe(HashSizeExtensionFileKey, prefix="MD5_HSe", lower_extensions=True):
     """
     MD5_HSe file keys have the format: MD5_HSe-{md5}--s{size}.{extension.lower()}
 
@@ -168,7 +168,7 @@ class MD5eHSe(HashSizeExtensionFileKey, prefix="MD5_HSe", lower_extensions=True)
     def hash_function(cls) -> hashlib.HASH:
         return hashlib.md5()
     
-class SHA1eHSe(HashSizeExtensionFileKey, prefix="SHA1_HSe", lower_extensions=True):
+class Sha1HSe(HashSizeExtensionFileKey, prefix="SHA1_HSe", lower_extensions=True):
     """
     SHA1_HSe file keys have the format: SHA1_HSe-{sha1}--s{size}.{extension.lower()}
     
