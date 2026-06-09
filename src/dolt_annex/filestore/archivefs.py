@@ -156,11 +156,9 @@ class ArchiveFS(FileStore):
         if await maybe_await(self.secondary.exists(file_key)):
             logger.debug("%s already exists", file_key)
             # The file already exists, so we don't need to do anything.
-            # Open the stream in order to close it.
             try:
                 await self.verify_file(file_key)
-                async with data_source:
-                    return Result.done()
+                return Result.done()
             except (AssertionError, tarfile.ReadError):
                 pass
         callback = asyncio.Future[None]()
