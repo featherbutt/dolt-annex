@@ -19,7 +19,7 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.file_io import Path, async_bytes_io
-from dolt_annex.file_keys import Sha256E, MD5e, SHA1e
+from dolt_annex.file_keys import Sha256E, MD5e, SHA1e, Sha1HSe, Sha256HSe, MD5HSe
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
@@ -134,23 +134,36 @@ async def cas(request, test_config) -> AsyncGenerator[ContentAddressableStorage]
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e])
+            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e, Sha256HSe])
+
+@pytest_asyncio.fixture()
+async def second_cas(test_config) -> AsyncGenerator[ContentAddressableStorage]:
+    filestore_model: FileStoreModel = ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
+    with (
+        tempfile.TemporaryDirectory() as temp_dir,
+        contextlib.chdir(temp_dir)
+    ):
+        async with filestore_model.open(test_config) as filestore:
+            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e, Sha256HSe, MD5e])
+
 
 @pytest.mark.asyncio
-async def test_file_stores(cas: ContentAddressableStorage):
+async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAddressableStorage):
     file_bytes = b"test"
     # This test uses SHA256 as the main key format, with SHA1 as an alternate,
     # and creates an MD5 file key alias explicitly.
     md5_key = MD5e.from_bytes(file_bytes)
     sha1_key = SHA1e.from_bytes(file_bytes)
     sha256_key = Sha256E.from_bytes(file_bytes)
+    sha256hs_key = Sha256HSe.from_bytes(file_bytes)
     result = await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
+
     await result.wait_for_complete()
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
     await cas.file_store.create_alias(sha256_key, md5_key)
     await maybe_await(cas.file_store.flush())
-    for key in (sha256_key, md5_key, sha1_key):
+    for key in (sha256_key, md5_key, sha1_key, sha256hs_key):
         assert await maybe_await(cas.file_store.exists(key))
         file_info = await maybe_await(cas.file_store.stat(key))
         assert file_info.size == 4
@@ -159,14 +172,18 @@ async def test_file_stores(cas: ContentAddressableStorage):
             assert file_info.size == 4
             read_bytes = await f.read()
             assert read_bytes == b"test"
+        # Test that the filestore can produce an input stream that can be used in CAS operations
         await cas.file_store.verify_file(key)
+        second_result = await second_cas.put_file_object(cas.file_store.with_file_object(key), file_key=key)
+        await second_result.wait_for_complete()
+        await second_cas.file_store.verify_file(key)
 
     # If iterate_all_files is implemented, test it
     try:
         all_files = [file async for file in cas.file_store.get_files()]
-        assert len(all_files) == 3
+        assert len(all_files) == 4
         sha_files = [file async for file in cas.file_store.get_files(prefix=b"SHA")]
-        assert len(sha_files) == 2
+        assert len(sha_files) == 3
     except NotImplementedError:
         pass
 
