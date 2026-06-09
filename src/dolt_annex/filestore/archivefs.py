@@ -16,6 +16,7 @@ from typing import AsyncGenerator, BinaryIO, Generator
 import uuid
 from pydantic import InstanceOf
 from typing_extensions import override, Tuple
+import logging
 
 from fs.base import FS as FileSystem
 import fs.memoryfs
@@ -31,6 +32,8 @@ from dolt_annex.filestore.file_handles import ExistingFileHandle
 from dolt_annex.tarfile_utils import addfile, advance_to_end
 
 from .base import FileInfo, FileStore, FileStoreModel
+
+logger = logging.getLogger(__name__)
 
 class ArchiveFS(FileStore):
     """
@@ -151,6 +154,7 @@ class ArchiveFS(FileStore):
     @override
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         if await maybe_await(self.secondary.exists(file_key)):
+            logger.debug("%s already exists", file_key)
             # The file already exists, so we don't need to do anything.
             # Open the stream in order to close it.
             try:
