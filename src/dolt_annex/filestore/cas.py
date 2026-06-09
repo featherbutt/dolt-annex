@@ -79,9 +79,14 @@ class ContentAddressableStorage:
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
         """Upload a file-like object to the remote. If file_key is provided, it will be compared to the computed key and an error will be raised if they do not match."""
 
-        generators = self.file_key_generators(file_key.extension)
+        # We only create key generators if the data source stream is opened.
+        # This means that if the write is a no-op because it already exists in
+        # the destination, we don't compute alias keys.
+        generators = []
         @asynccontextmanager
-        async def open_data_source() -> AsyncGenerator[ReadableStream]: 
+        async def open_data_source() -> AsyncGenerator[ReadableStream]:
+            nonlocal generators
+            generators = self.file_key_generators(file_key.extension)
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
 
@@ -90,7 +95,7 @@ class ContentAddressableStorage:
 
         async def create_key_aliases():
             computed_keys = [generator.finalize() for generator in generators]
-            if file_key is not None and not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
+            if computed_keys and file_key is not None and not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
                 raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
 
             async with asyncio.TaskGroup() as tg:
