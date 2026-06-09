@@ -114,16 +114,19 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
         has_keys_in_metadata = False
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
-            async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
-                await submissions_table.insert(TableRow({
-                    "source": source.source_name,
-                    "id": metadata["_id"],
-                    "metadata_file_key": metadata["_metadata_file_key"],
-                    "part": page_number,
-                    "submission_file_key": key
-                }))
-                metadata["_skip"] = 1
-                return
+            try:
+                async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
+                    await submissions_table.insert(TableRow({
+                        "source": source.source_name,
+                        "id": metadata["_id"],
+                        "metadata_file_key": metadata["_metadata_file_key"],
+                        "part": page_number,
+                        "submission_file_key": key
+                    }))
+                    metadata["_skip"] = 1
+                    return
+            except FileStore.GetFielsNotImplementedError:
+                pass
         
         if not has_keys_in_metadata:
             # If the source doesn't contain file hashes, it might contain other information

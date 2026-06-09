@@ -153,12 +153,15 @@ class FileStore(abc.ABC):
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
             assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
 
+    class GetFielsNotImplementedError(NotImplementedError):
+        pass
+
     def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         """
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
+        raise FileStore.GetFielsNotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
     def delete(self, key: FileKey):
         """
