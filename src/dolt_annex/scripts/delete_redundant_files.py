@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+This script deletes files from a dataset copy and its filestore if the files are present in one or more other filestores.
+The file must be present in each of the target filestores in order to be removed.
+
+Note that only some filestore types support deletion.
+"""
+
+import json
+import logging
+from typing import Dict
+from typing_extensions import Literal
+from contextlib import AsyncExitStack
+from plumbum import cli
+
+from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.repo import Repo, RepoModel
+from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStore
+from dolt_annex.replicated_db.dolt import DatabaseConnection
+
+logger = logging.getLogger(__name__)
+
+class DeleteRedundantFiles(SubCommand):
+
+    delete_from = cli.SwitchAttr(
+        "--delete-from",
+        str,
+        help="The name of the repo to delete from",
+    )
+
+    if_in = cli.SwitchAttr(
+        "--if-in",
+        str,
+        help="The names of the repos to check for copies in",
+        list = True,
+    )
+
+    dataset = cli.SwitchAttr(
+        "--dataset",
+        str,
+        help="The name of the dataset to delete from",
+    )
+
+    table_name = cli.SwitchAttr(
+        "--table",
+        str,
+        help="The name of the table to delete from",
+    )
+
+    async def main(self, *args: str) -> Literal[0,1]:
+        
+        dataset_schema = DatasetSchema.must_load(self.dataset)
+        
+        async with AsyncExitStack() as stack:
+            repo_to_delete_from = await stack.enter_async_context(Repo.open(self.parent.config, self.delete_from))
+            conn = stack.enter_context(DatabaseConnection.open(self.parent.config))
+            dataset = stack.enter_context(conn.open_dataset(dataset_schema))
+            dataset_repo_to_delete_from = await stack.enter_async_context(dataset.with_repo(repo_to_delete_from.uuid))
+            table_to_delete_from = dataset_repo_to_delete_from.get_table(self.table_name)
+            
+                                                                    
+            filestores: Dict[str, FileStore] = []
+            for repo_name in self.if_in:
+                repo_model = RepoModel.open(self.parent.config, repo_name)
+                filestore = await stack.enter_async_context(repo_model.filestore.open(self.parent.config))
+                filestores[repo_name] = filestore
+
+            for row_to_remove in args:
+                row_filters = json.loads(row_to_remove)
+                table_row_to_remove = table_to_delete_from.get_row(filters=row_filters)
+                if table_row_to_remove is None:
+                    logger.warning(f"Row not found: {row_to_remove}")
+                    continue
+                file_key_string = table_row_to_remove.get(table_to_delete_from.schema.file_column)
+                if file_key_string is None:
+                    logger.fatal(f"Missing file key column")
+                    return 1
+                file_key = FileKey.must_parse(file_key_string)
+                for repo_name, filestore in filestores.items():
+                    # TODO: exists and verify require multiple round trip times. Make a combined function that only requires a single probe
+                    if not filestore.exists(file_key):
+                        logger.info(f"key {file_key} does not exist on repo {repo_name}")
+                        can_remove = False
+                        break
+                    await filestore.verify_file(file_key)
+                else:
+                    can_remove = True
+                if can_remove:
+                    repo_to_delete_from.filestore.delete(file_key)
+                    await table_to_delete_from.remove(table_row_to_remove)
+                
+        return 0
+
+Command = DeleteRedundantFiles
