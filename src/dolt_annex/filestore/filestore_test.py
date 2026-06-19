@@ -173,10 +173,10 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
             read_bytes = await f.read()
             assert read_bytes == b"test"
         # Test that the filestore can produce an input stream that can be used in CAS operations
-        await cas.file_store.verify_file(key)
+        await cas.verify_file(key)
         second_result = await second_cas.put_file_object(cas.file_store.with_file_object(key), file_key=key)
         await second_result.wait_for_complete()
-        await second_cas.file_store.verify_file(key)
+        await second_cas.verify_file(key)
 
     # If iterate_all_files is implemented, test it
     try:
@@ -195,7 +195,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
         result = await maybe_await(cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key))
         await result.wait_for_complete()
         with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
-            await cas.file_store.verify_file(wrong_sha256_key)
+            await cas.verify_file(wrong_sha256_key)
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))

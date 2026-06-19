@@ -85,11 +85,10 @@ class DeleteRedundantFiles(SubCommand):
                         yield table_row_to_remove
                 row_iter = row_generator()
                                                                     
-            filestores: Dict[str, FileStore] = {}
+            repos: Dict[str, Repo] = {}
             for repo_name in self.if_in:
-                repo_model = RepoModel.open(self.parent.config, repo_name)
-                filestore = await stack.enter_async_context(repo_model.filestore.open(self.parent.config))
-                filestores[repo_name] = filestore
+                filestore = await stack.enter_async_context(Repo.open(self.parent.config, repo_name))
+                repos[repo_name] = filestore
 
             for row_to_remove in row_iter:
                 file_key_string = row_to_remove.get(table_to_delete_from.schema.file_column)
@@ -97,13 +96,13 @@ class DeleteRedundantFiles(SubCommand):
                     logger.fatal("Missing file key column")
                     return 1
                 file_key = FileKey.must_parse(file_key_string)
-                for repo_name, filestore in filestores.items():
+                for repo_name, repo in repos.items():
                     # TODO: exists and verify require multiple round trip times. Make a combined function that only requires a single probe
-                    if not filestore.exists(file_key):
+                    if not repo.filestore.file_store.exists(file_key):
                         logger.info(f"key {file_key} does not exist on repo {repo_name}")
                         can_remove = False
                         break
-                    await filestore.verify_file(file_key)
+                    await repo.filestore.verify_file(file_key)
                 else:
                     can_remove = True
                 if can_remove:

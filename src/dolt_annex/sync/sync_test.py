@@ -119,7 +119,7 @@ async def test_async_move(
         )
         # Check that files have been moved
         for file_key in added_file_keys:
-            await to_repo.filestore.file_store.verify_file(file_key)
+            await to_repo.filestore.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         for row in to_table.get_rows():
@@ -169,7 +169,7 @@ async def test_diff_types(
             FILTERS,
         )
         # Check that files have been moved
-        await to_repo.filestore.file_store.verify_file(file_key)
+        await to_repo.filestore.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         rows = list(to_table.get_rows())
@@ -194,7 +194,7 @@ async def test_diff_types(
         )
 
         # Check that files have been moved
-        await to_repo.filestore.file_store.verify_file(new_file_key)
+        await to_repo.filestore.verify_file(new_file_key)
         # Check that db entries have been updated
         rows = list(to_table.get_rows())
         assert len(rows) == 1

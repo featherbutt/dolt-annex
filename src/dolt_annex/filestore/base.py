@@ -142,17 +142,6 @@ class FileStore(abc.ABC):
         """
         return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
     
-    async def verify_file(self, file_key: FileKey) -> None:
-        """
-        Assert that a file has the correct bytes by recomputing its key.
-        """
-        # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
-        if str(file_key)[-1] == '.':
-            return
-        async with self.with_file_object(file_key) as in_fd:
-            actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
-            assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
-
     class GetFielsNotImplementedError(NotImplementedError):
         pass
 

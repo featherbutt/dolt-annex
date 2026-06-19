@@ -156,11 +156,7 @@ class ArchiveFS(FileStore):
         if await maybe_await(self.secondary.exists(file_key)):
             logger.debug("%s already exists", file_key)
             # The file already exists, so we don't need to do anything.
-            try:
-                await self.verify_file(file_key)
-                return Result.done()
-            except (AssertionError, tarfile.ReadError):
-                pass
+            return Result.done()
         callback = asyncio.Future[None]()
         await self.files_queue.put((file_key, data_source, callback))
         return Result(callback)

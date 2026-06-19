@@ -86,8 +86,8 @@ class Migrate(SubCommand):
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
                     if await maybe_await(to_repo.filestore.file_store.exists(file_key)):
-                        await from_repo.filestore.file_store.verify_file(file_key)
-                        await to_repo.filestore.file_store.verify_file(file_key)
+                        await from_repo.filestore.verify_file(file_key)
+                        await to_repo.filestore.verify_file(file_key)
 
                         if self.remove_if_exists:
                             logger.info("%s exists in destination store, removing", file_key)
