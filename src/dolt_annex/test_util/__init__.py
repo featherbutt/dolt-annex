@@ -26,9 +26,7 @@ class EnvironmentForTest:
     """
     The output of dolt_annex.conftest.setup
     """
-    local_file_store: ContentAddressableStorage
     local_repo: Repo
-    remote_file_store: ContentAddressableStorage
     remote_repo: Repo
     config: Config
 

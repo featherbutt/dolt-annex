@@ -113,7 +113,7 @@ def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> 
     return Repo(
         name="__local__",
         uuid=local_uuid,
-        filestore=local_filestore.file_store,
+        filestore=local_filestore,
         key_format=Sha256E,
         alternate_key_formats=[MD5e],
     )
@@ -123,7 +123,7 @@ def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) 
     return Repo(
         name="test_remote",
         uuid=remote_uuid,
-        filestore=remote_filestore.file_store,
+        filestore=remote_filestore,
         key_format=Sha256E,
         alternate_key_formats=[MD5e],
     )
@@ -144,9 +144,7 @@ async def setup(
             f.write(test_config.model_dump_json())
 
         yield EnvironmentForTest(
-            local_file_store=local_filestore,
             local_repo=local_repo,
-            remote_file_store=remote_filestore,
             remote_repo=remote_repo,
             config=test_config
         )

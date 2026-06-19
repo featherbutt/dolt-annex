@@ -94,7 +94,7 @@ class DeleteRedundantFiles(SubCommand):
             for row_to_remove in row_iter:
                 file_key_string = row_to_remove.get(table_to_delete_from.schema.file_column)
                 if file_key_string is None:
-                    logger.fatal(f"Missing file key column")
+                    logger.fatal("Missing file key column")
                     return 1
                 file_key = FileKey.must_parse(file_key_string)
                 for repo_name, filestore in filestores.items():
@@ -108,7 +108,7 @@ class DeleteRedundantFiles(SubCommand):
                     can_remove = True
                 if can_remove:
                     if not self.dry_run:
-                        repo_to_delete_from.filestore.delete(file_key)
+                        repo_to_delete_from.filestore.file_store.delete(file_key)
                         await table_to_delete_from.remove(row_to_remove)
                     else:
                         logger.info(f"Would delete file: {file_key}")

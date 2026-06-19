@@ -8,7 +8,6 @@ import random
 
 import pytest_asyncio
 
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
@@ -21,7 +20,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressab
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
-from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 
@@ -120,7 +119,7 @@ async def test_async_move(
         )
         # Check that files have been moved
         for file_key in added_file_keys:
-            await to_repo.filestore.verify_file(file_key)
+            await to_repo.filestore.file_store.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         for row in to_table.get_rows():
@@ -155,7 +154,7 @@ async def test_diff_types(
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key_result = await setup.local_file_store.put_file_bytes(file_bytes)
+        file_key_result = await setup.local_repo.filestore.put_file_bytes(file_bytes)
         file_key = await file_key_result.wait_for_complete()
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
@@ -170,7 +169,7 @@ async def test_diff_types(
             FILTERS,
         )
         # Check that files have been moved
-        await to_repo.filestore.verify_file(file_key)
+        await to_repo.filestore.file_store.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         rows = list(to_table.get_rows())
@@ -181,7 +180,7 @@ async def test_diff_types(
         # Modify the table row
         await from_table.remove(table_row)
         new_file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key_result = await setup.local_file_store.put_file_bytes(new_file_bytes)
+        file_key_result = await setup.local_repo.filestore.put_file_bytes(new_file_bytes)
         new_file_key = await file_key_result.wait_for_complete()
         new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
         await from_table.insert(new_table_row)
@@ -195,7 +194,7 @@ async def test_diff_types(
         )
 
         # Check that files have been moved
-        await to_repo.filestore.verify_file(new_file_key)
+        await to_repo.filestore.file_store.verify_file(new_file_key)
         # Check that db entries have been updated
         rows = list(to_table.get_rows())
         assert len(rows) == 1

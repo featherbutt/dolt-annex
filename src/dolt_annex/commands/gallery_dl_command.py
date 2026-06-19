@@ -4,14 +4,12 @@
 import dataclasses
 import json
 import logging
-from pathlib import Path
-import shutil
 from plumbum import cli # type: ignore
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl, skip_db_path
+from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 logger = logging.getLogger(__name__)
 

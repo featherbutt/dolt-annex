@@ -5,16 +5,16 @@
 Helper functions that gallery-dl postprocessors can use to format data for dolt-annex.
 """
 
-import hashlib
 import json
 import pathlib
 import sys
 from typing import Dict
-from typing_extensions import Any, Optional
+from typing_extensions import Any
 
 import fs.osfs
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
@@ -69,9 +69,8 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, rep
 
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
-    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
 
-    await import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
+    await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", Sha256E)
     return file_key
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
@@ -115,7 +114,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
             try:
-                async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
+                async for key, _ in repo.filestore.file_store.get_files(bytes(key_prefix)):
                     await submissions_table.insert(TableRow({
                         "source": source.source_name,
                         "id": metadata["_id"],
@@ -136,7 +135,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                 TableFilter("id", metadata["_id"])
             ]):
                 metadata_file_key = FileKey.must_parse(row["file_key"])
-                metadata_bytes = await repo.filestore.get_file_bytes(metadata_file_key)
+                metadata_bytes = await repo.filestore.file_store.get_file_bytes(metadata_file_key)
                 existing_metadata = json.loads(metadata_bytes)
                 if source.assume_same_file(metadata, existing_metadata, page_number):
                     submission_file_key = submissions_table.get_row(filters=[
@@ -185,11 +184,10 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "metadata_file_key": metadata["_metadata_file_key"],
         "part": source.page_number(metadata)
     })
-    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
-    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"]))
+    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"]))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        context.run(import_file(cas, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
         context.submission_metadata_files_processed += 1
 
 async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str):

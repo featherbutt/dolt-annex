@@ -13,7 +13,7 @@ from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
 @pytest.mark.asyncio
 async def test_insert_record(tmp_path, setup: EnvironmentForTest):
     """Run and validate inserting content files into a repo"""
-    local_file_store = setup.local_file_store.file_store
+    local_file_store = setup.local_repo.filestore.file_store
 
     key = Sha256E.from_bytes(b"new file content", "txt")
     await run(

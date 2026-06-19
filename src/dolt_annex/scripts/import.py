@@ -22,6 +22,7 @@ from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.importers.base import get_importer
 from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 from dolt_annex.datatypes.file_io import Path
@@ -145,7 +146,7 @@ class Import(cli.Application):
 
         return 0
 
-async def do_import(repo_dataset: RepoDataset, file_store: FileStore, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(repo_dataset: RepoDataset, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in repo_dataset.tables.items():
         key_paths[table_name] = {}
@@ -203,15 +204,15 @@ async def do_import(repo_dataset: RepoDataset, file_store: FileStore, import_con
     for file_or_directory in files_or_directories:
         await import_path(pathlib.Path(file_or_directory))
 
-async def move_files(file_store: FileStore, import_config: ImportConfig, files: Dict[Path, FileKey]):
+async def move_files(file_store: ContentAddressableStorage, import_config: ImportConfig, files: Dict[Path, FileKey]):
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():
         if import_config.copy:
-            result = await file_store.copy_file(file_path, key)
+            result = await file_store.file_store.copy_file(file_path, key)
             await result.wait_for_complete()
         else:
-            result = await maybe_await(file_store.put_file(file_path, key))
+            result = await maybe_await(file_store.file_store.put_file(file_path, key))
             await result.wait_for_complete()
         if import_config.move:
             # TODO: Add an extra check here that the file was added successfully, then delete the file

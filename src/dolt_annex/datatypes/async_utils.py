@@ -3,12 +3,12 @@
 
 from asyncio import Future, sleep
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from typing_extensions import Self
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ContextManager, MaybeAwaitable, maybe_await
 
-class Result[T]:
+class Result[T = None]:
     """
     The eventual result of a file operation.
     

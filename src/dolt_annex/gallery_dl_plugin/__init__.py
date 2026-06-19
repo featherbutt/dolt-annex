@@ -6,12 +6,10 @@ gallery-dl integration for dolt-annex.
 """
 
 import asyncio
-from collections.abc import Awaitable
 import contextlib
 import contextvars
 from dataclasses import dataclass
 import io
-import queue
 import shutil
 import sys
 from pathlib import Path
@@ -22,7 +20,7 @@ import gallery_dl
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset, RepoDataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 
 config_path = Path(__file__).parent / "gallery_dl_config.json"
 skip_db_path = Path(__file__).parent / "skip.sqlite3"

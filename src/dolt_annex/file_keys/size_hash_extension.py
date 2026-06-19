@@ -10,7 +10,6 @@ from typing import ClassVar, Type, override
 from typing_extensions import Optional, Self
 
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
-from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKey, FileKeyGenerator, HasherProtocol
 
 class SizeHashExtensionFileKey(FileKey, is_abstract=True):

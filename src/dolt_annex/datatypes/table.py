@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import pathlib
-from typing import Optional
 from typing_extensions import List
 
 from .loader import Loadable

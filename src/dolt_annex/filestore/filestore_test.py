@@ -19,7 +19,7 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.file_io import Path, async_bytes_io
-from dolt_annex.file_keys import Sha256E, MD5e, SHA1e, Sha1HSe, Sha256HSe, MD5HSe
+from dolt_annex.file_keys import Sha256E, MD5e, SHA1e, Sha256HSe
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
@@ -118,13 +118,13 @@ def local_filestore_types():
 
 def all_filestore_types() -> Generator[FileStoreModel]:
     yield from local_filestore_types()
-    for fs in local_filestore_types():
-        yield SftpWrappedFilestoreModel(remote_file_store_model=fs)
+    for filestore_model in local_filestore_types():
+        yield SftpWrappedFilestoreModel(remote_file_store_model=filestore_model)
     yield SimpleSftpFilestoreModel()
 
 def all_filestore_type_parameters():
-    for fs in all_filestore_types():
-        yield pytest.param(fs, id=fs.type_name())
+    for filestore_model in all_filestore_types():
+        yield pytest.param(filestore_model, id=filestore_model.type_name())
 
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
 async def cas(request, test_config) -> AsyncGenerator[ContentAddressableStorage]:

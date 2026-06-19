@@ -103,13 +103,13 @@ class SyncOperation:
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> Result[None]:
         logger.info("moving %s: %s", table_row, key)
 
-        if await maybe_await(self.to_repo.filestore.exists(key)):
+        if await maybe_await(self.to_repo.filestore.file_store.exists(key)):
             logger.debug("file %s already exists in destination filestore", key)
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.to_table.insert(table_row)
             return Result.done()
-        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
+        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.file_store.exists(key)):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return Result.done()
         result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)

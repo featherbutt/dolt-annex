@@ -12,6 +12,7 @@ from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.hash_size_extension import MD5HSe, Sha1HSe, Sha256HSe
+from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -58,9 +59,10 @@ class Config(StrictBaseModel):
     async def open_default_repo(self) -> AsyncGenerator[Repo]:
         repo_model = RepoModel.must_load(self.local_repo_name)
         async with repo_model.filestore.open(self) as filestore:
+            cas = ContentAddressableStorage(filestore, repo_model.key_format, repo_model.alternate_key_formats)
             yield Repo(
                 name=repo_model.name,
                 uuid=repo_model.uuid,
-                filestore=filestore,
+                filestore=cas,
                 key_format=repo_model.key_format
             )

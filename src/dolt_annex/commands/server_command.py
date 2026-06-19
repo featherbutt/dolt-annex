@@ -8,7 +8,6 @@ from plumbum import cli # type: ignore
 from dolt_annex.application import Application
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.server.ssh import server_context
 
 logger = logging.getLogger(__name__)
@@ -56,10 +55,9 @@ class Server(cli.Application):
         config: Config = self.parent.config
 
         async with Repo.open(config, self.repo) as repo:
-            cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
             async with (
                 server_context(
-                    cas=cas,
+                    cas=repo.filestore,
                     host=self.host,
                     port=self.port,
                     authorized_keys=self.authorized_keys,

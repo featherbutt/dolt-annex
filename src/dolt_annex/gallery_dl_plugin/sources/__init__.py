@@ -3,7 +3,6 @@
 
 import copy
 from typing import Any, List
-from xml.etree.ElementTree import PI
 
 from typing_extensions import Dict
 

@@ -136,7 +136,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted row"
     )
 
-    remote_memory_store = cast(MemoryFS, setup.remote_file_store.file_store)
+    remote_memory_store = cast(MemoryFS, setup.remote_repo.filestore.file_store)
     del remote_memory_store.files[b"SHA256E-s14--92d7f552b54125f4a8076811c310c671a21b1538842f36afbda91ba7534f21d2.txt"]
 
     await run(
@@ -145,7 +145,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     )
 
     # Assert that the first file was still pulled
-    local_memory_store = cast(MemoryFS, setup.local_file_store.file_store)
+    local_memory_store = cast(MemoryFS, setup.local_repo.filestore.file_store)
     assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt"] == b"file_content_1"
 
     # Assert that the record was added to the local database
@@ -175,7 +175,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
         expected_output_contains="Inserted row"
     )
 
-    remote_memory_store = cast(MemoryFS, setup.remote_file_store.file_store)
+    remote_memory_store = cast(MemoryFS, setup.remote_repo.filestore.file_store)
     remote_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] = b"modified_content"
 
     # Assert that the local db does not contain any records.
@@ -195,6 +195,6 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     )
 
     # Assert that the file in the local filestore was not modified
-    local_memory_store = cast(MemoryFS, setup.local_file_store.file_store)
+    local_memory_store = cast(MemoryFS, setup.local_repo.filestore.file_store)
     assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] == b"file_content_1"
 

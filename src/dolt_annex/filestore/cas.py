@@ -129,8 +129,6 @@ class ContentAddressableStorage:
 
         return batch()
 
-async def filestore_copy(*, src: FileStore, dst: FileStore, key: FileKey) -> Result[None]:
-    # TODO: Set alternate key formats
-    dst_cas = ContentAddressableStorage(file_store=dst, file_key_format=key.__class__, alternate_key_formats=[])
-    data_source = src.with_file_object(key)
-    return await dst_cas.put_file_object(data_source, file_key=key)
+async def filestore_copy(*, src: ContentAddressableStorage, dst: ContentAddressableStorage, key: FileKey) -> Result[None]:
+    data_source = src.file_store.with_file_object(key)
+    return await dst.put_file_object(data_source, file_key=key)

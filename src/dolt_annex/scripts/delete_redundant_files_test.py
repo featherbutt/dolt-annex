@@ -4,16 +4,14 @@
 from dataclasses import dataclass
 import json
 import uuid
-from uuid import UUID
 
 import fs.memoryfs
 import pytest
 
-from dolt_annex.datatypes.repo import Repo, RepoModel
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFSModel
-from dolt_annex.filestore.memory import MemoryFS
 from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
