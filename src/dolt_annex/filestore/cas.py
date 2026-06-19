@@ -117,6 +117,14 @@ class ContentAddressableStorage:
             actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
             assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
 
+    async def verify_all_files(self) -> None:
+        """
+        Verify that all files in the filestore have the correct bytes by recomputing their keys.
+        """
+        async for file_key, in_fd in self.file_store.get_files():
+            async with in_fd as in_fd_opened:
+                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
+                assert actual_key == file_key
 
     async def batch(self, batch_size: Optional[int]=10000) -> AsyncContextManager[None]:
         """

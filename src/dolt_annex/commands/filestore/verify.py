@@ -6,7 +6,7 @@ import logging
 from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.repo import RepoModel
+from dolt_annex.datatypes.repo import Repo
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,8 @@ class Verify(SubCommand):
     )
         
     async def main(self, *args) -> int:
-        repo = RepoModel.must_load(self.repo)
-        async with repo.filestore.open(self.config) as filestore:
-            await filestore.verify_all_files()
+        async with Repo.open(self.config, self.repo) as repo:
+            await repo.filestore.verify_all_files()
             logger.info("All files verified successfully.")
             
         return 0

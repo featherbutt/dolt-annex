@@ -157,15 +157,6 @@ class FileStore(abc.ABC):
         Remove a file from a filestore if supported. Is not guarenteed to free space, and may not play well with aliases.
         """
         pass
-    
-    async def verify_all_files(self) -> None:
-        """
-        Verify that all files in the filestore have the correct bytes by recomputing their keys.
-        """
-        async for file_key, in_fd in self.get_files():
-            async with in_fd as in_fd_opened:
-                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
-                assert actual_key == file_key
 
 async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
     while True:
