@@ -55,7 +55,9 @@ class SftpFileStore(FileStore):
     async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        
+        if self.sftp.isdir(remote_file_path):
+            remote_file_path = self.get_old_key_path(file_key).as_posix()
+
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         
@@ -90,6 +92,17 @@ class SftpFileStore(FileStore):
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
         return Path('.') / md5[:3] / md5[3:6] / str(key)
+    
+    def get_old_key_path(self, key: FileKey) -> Path:
+        """
+        Get the relative path for an annex key using the old layout that includes an extra directory
+        with the same name as the key.
+
+        Some older versions of dolt-annex used this layout, so we fall back to it when looking for files.
+        """
+        md5 = hashlib.md5(bytes(key)).hexdigest()
+        return Path('.') / md5[:3] / md5[3:6] / str(key) / str(key)
+
 
     @override
     async def exists(self, file_key: FileKey) -> bool:
