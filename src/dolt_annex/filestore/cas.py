@@ -2,15 +2,19 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Tuple
 from typing_extensions import Optional
+import logging
 
 from dolt_annex.datatypes.async_types import maybe_await, ReadableStream, AsyncContextManager
 from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.file_io import Path, async_bytes_io
+from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey, FileKeyGeneratingReader, FileKeyGenerator
 from dolt_annex.filestore.base import FileStore
 
+logger = logging.getLogger(__name__)
 class ContentAddressableStorageError(Exception):
     pass
 
@@ -20,6 +24,7 @@ class ContentAddressableStorageKeyMismatchError(ContentAddressableStorageError):
 
 @dataclass
 class ContentAddressableStorage:
+    filestore_config: FilestoreConfig
     file_store: FileStore
     file_key_format: FileKeyType
     alternate_key_formats: list[FileKeyType]
@@ -37,25 +42,21 @@ class ContentAddressableStorage:
 
     async def put_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
         """
-        Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file.
+        Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file (but currently doesn't).
         
         If file_key is not provided, it will be computed.
         """
-        if file_key is None:
-            file_key = await self.file_key_format.from_file(file_path)
-        result = await maybe_await(self.put_file_object(file_path.open(), file_key))
-        await result.wait_for_complete()
-        return file_key
-
+        return await self.copy_file(file_path, file_key=file_key)
+    
     async def copy_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
         """
-        Upload an on-disk file to the remote. If the repo is local, this must copy the file.
+        Upload an on-disk file to the repo. This must copy the file.
         
         If file_key is not provided, it will be computed.
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        result = await maybe_await(self.put_file_object(file_path.open(), file_key=file_key))
+        result = await self.put_file_object(file_path.open(), file_key)
         await result.wait_for_complete()
         return file_key
 
@@ -67,7 +68,7 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = self.file_key_format.from_bytes(file_bytes)
-        result = await maybe_await(self.file_store.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
+        result = await self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
         return result.map(lambda _: file_key)
     
     def file_key_generators(self, extension: Optional[str] = None) -> list[FileKeyGenerator]:
@@ -77,7 +78,24 @@ class ContentAddressableStorage:
         ]
     
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
-        """Upload a file-like object to the remote. If file_key is provided, it will be compared to the computed key and an error will be raised if they do not match."""
+        """
+        Insert a file-like object into the repo.
+        
+        If the key already exists, then based on the configuration,
+        this will either do nothing, or validate that the existing content's
+        hash matches the key, and replace it if the existing content is corrupted.
+        """
+        if self.filestore_config.verify_existing_files_on_write:
+            exists = await maybe_await(self.file_store.exists(file_key))
+            if exists:
+                is_valid, _ = await self.contains_valid_file(file_key)
+                if not is_valid:
+                    # If the existing file is corrupted, we replace it with the new content.
+                    logger.warning("Existing file with key %s is corrupted, replacing it", file_key)
+                else:
+                    # If the existing file is valid, we skip writing the new content.
+                    logger.info("File with key %s already exists and is valid, skipping write", file_key)
+                    return Result.done()
 
         # We only create key generators if the data source stream is opened.
         # This means that if the write is a no-op because it already exists in
@@ -102,20 +120,53 @@ class ContentAddressableStorage:
                 for alias in computed_keys:
                     if alias == file_key:
                         continue
-                    result = await self.file_store.create_alias(old_key=file_key, new_key=alias)
+                    result = await self.create_alias(old_key=file_key, new_key=alias)
                     tg.create_task(result.wait_for_complete())
         return result.and_then(create_key_aliases)
     
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+        """
+        Insert a new key that references the same content as an existing key.
+        """
+        if self.filestore_config.verify_existing_files_on_write:
+            exists = await maybe_await(self.file_store.exists(new_key))
+            if exists:
+                is_valid, _ = await self.contains_valid_file(new_key)
+                if not is_valid:
+                    # If the existing file is corrupted, we replace it with the new content.
+                    logger.warning("Existing file with key %s is corrupted, replacing it", new_key)
+                else:
+                    # If the existing file is valid, we skip writing the new content.
+                    logger.info("File with key %s already exists and is valid, skipping write", new_key)
+                    return Result.done()
+        return await maybe_await(self.file_store.create_alias(old_key=old_key, new_key=new_key))
+    
+    
+    async def contains_valid_file(self, file_key: FileKey) -> Tuple[bool, Optional[FileKey]]:
+        """
+        Check whether the filestore contains a valid file for the given key. This checks that the file exists, and that its contents match the key.
+
+        If a key mismatch is detected, this returns False, and the computed key of the existing file.
+        """
+        if not await maybe_await(self.file_store.exists(file_key)):
+            return False, None
+        # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
+        if str(file_key)[-1] == '.':
+            return True, None
+        async with self.file_store.with_file_object(file_key) as in_fd:
+            actual_key = await type(file_key).from_fo(in_fd)
+            return actual_key.same_bytes(file_key), actual_key
+
     async def verify_file(self, file_key: FileKey) -> None:
         """
         Assert that a file has the correct bytes by recomputing its key.
         """
-        # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
-        if str(file_key)[-1] == '.':
-            return
-        async with self.file_store.with_file_object(file_key) as in_fd:
-            actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
-            assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
+        is_valid, actual_key = await self.contains_valid_file(file_key)
+        if not is_valid:
+            if actual_key is None:
+                raise ContentAddressableStorageError(f"File with key {file_key} does not exist in filestore")
+            else:
+                assert actual_key.same_bytes(file_key), f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
 
     async def verify_all_files(self) -> None:
         """
@@ -123,8 +174,8 @@ class ContentAddressableStorage:
         """
         async for file_key, in_fd in self.file_store.get_files():
             async with in_fd as in_fd_opened:
-                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
-                assert actual_key == file_key
+                actual_key = await type(file_key).from_fo(in_fd_opened)
+                assert actual_key.same_bytes(file_key)
 
     async def batch(self, batch_size: Optional[int]=10000) -> AsyncContextManager[None]:
         """

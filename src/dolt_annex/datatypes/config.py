@@ -7,6 +7,7 @@ from typing import AsyncGenerator, List
 from typing_extensions import Optional
 
 from dolt_annex.datatypes.common import MySQLConnection
+from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
@@ -47,6 +48,7 @@ class Config(StrictBaseModel):
     user: UserConfig = UserConfig(name="user", email="user@localhost")
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
+    filestore: FilestoreConfig = FilestoreConfig()
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256E
@@ -57,12 +59,5 @@ class Config(StrictBaseModel):
 
     @asynccontextmanager
     async def open_default_repo(self) -> AsyncGenerator[Repo]:
-        repo_model = RepoModel.must_load(self.local_repo_name)
-        async with repo_model.filestore.open(self) as filestore:
-            cas = ContentAddressableStorage(filestore, repo_model.key_format, repo_model.alternate_key_formats)
-            yield Repo(
-                name=repo_model.name,
-                uuid=repo_model.uuid,
-                filestore=cas,
-                key_format=repo_model.key_format
-            )
+        async with Repo.open(self, self.local_repo_name) as filestore:
+            yield filestore

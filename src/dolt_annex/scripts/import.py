@@ -209,11 +209,9 @@ async def move_files(file_store: ContentAddressableStorage, import_config: Impor
     logger.debug("moving annex files")
     for file_path, key in files.items():
         if import_config.copy:
-            result = await file_store.file_store.copy_file(file_path, key)
-            await result.wait_for_complete()
+            await file_store.copy_file(file_path, key)
         else:
-            result = await maybe_await(file_store.file_store.put_file(file_path, key))
-            await result.wait_for_complete()
+            await file_store.put_file(file_path, key)
         if import_config.move:
             # TODO: Add an extra check here that the file was added successfully, then delete the file
             # os.remove(file_path)

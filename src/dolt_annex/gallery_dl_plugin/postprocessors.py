@@ -184,18 +184,19 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "metadata_file_key": metadata["_metadata_file_key"],
         "part": source.page_number(metadata)
     })
-    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, metadata["extension"]))
+    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json")))
         context.submission_metadata_files_processed += 1
 
-async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     file_key = await cas.file_key_format.from_file(from_path)
     table_key["submission_file_key"] = str(file_key)
 
     await cas.put_file(from_path, file_key)
+    from_path.delete()
     await maybe_await(file_table.insert(table_key))
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):

@@ -88,7 +88,7 @@ def init_dolt(dolt):
 @contextlib.asynccontextmanager
 async def create_test_filestore(config: Config, filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
     async with filestore_model.open(config) as filestore:
-        cas = ContentAddressableStorage(filestore, Sha256E, [MD5e])
+        cas = ContentAddressableStorage(config.filestore, filestore, Sha256E, [MD5e])
         for file_content in files:
             await cas.put_file_bytes(file_content)
         yield cas

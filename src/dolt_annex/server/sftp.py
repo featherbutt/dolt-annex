@@ -165,7 +165,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         # Move the file to the annex location
         # When calling, indicate whether file is being moved, deleted, or neither.
-        result = await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key))
+        result = await maybe_await(self.cas.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key))
         
         # Delete the temporary file unless put_file moved it.
         def delete_temp_file(_: Future[None]) -> None:
@@ -414,7 +414,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        result = await self.cas.file_store.create_alias(
+        result = await self.cas.create_alias(
             self.cas.file_key_format(key=oldpath.rsplit(b'/')[-1]),
             self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
         )

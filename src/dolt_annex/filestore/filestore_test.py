@@ -127,24 +127,24 @@ def all_filestore_type_parameters():
         yield pytest.param(filestore_model, id=filestore_model.type_name())
 
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
-async def cas(request, test_config) -> AsyncGenerator[ContentAddressableStorage]:
+async def cas(request, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = request.param
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e, Sha256HSe])
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe])
 
 @pytest_asyncio.fixture()
-async def second_cas(test_config) -> AsyncGenerator[ContentAddressableStorage]:
+async def second_cas(test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e, Sha256HSe, MD5e])
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e])
 
 
 @pytest.mark.asyncio
@@ -161,7 +161,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     await result.wait_for_complete()
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
-    await cas.file_store.create_alias(sha256_key, md5_key)
+    await cas.create_alias(sha256_key, md5_key)
     await maybe_await(cas.file_store.flush())
     for key in (sha256_key, md5_key, sha1_key, sha256hs_key):
         assert await maybe_await(cas.file_store.exists(key))

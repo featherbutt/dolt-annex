@@ -66,25 +66,25 @@ class FileStore(abc.ABC):
 
     def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
         """
-        Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file.
+        Insert an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
         return self.copy_file(file_path, file_key)
 
     async def copy_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
         """
-        Upload an on-disk file to the remote. If the repo is local, this must copy the file.
+        Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
         return await maybe_await(self.put_file_object(file_path.open(), file_key))
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
         """
-        Upload an in-memory file to the remote.
+        Insert an in-memory file to the remote.
         """
         return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
     
     @abstractmethod
     def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
-        """Upload a file-like object to the remote."""
+        """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     @abstractmethod
     def get_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
