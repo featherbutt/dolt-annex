@@ -42,8 +42,7 @@ class AnnexFS(FileStore):
         """Move an on-disk file to the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
-        if not output_path.exists():
-            file_path.rename(output_path)
+        file_path.rename(output_path)
         return Result.done()
 
     @override

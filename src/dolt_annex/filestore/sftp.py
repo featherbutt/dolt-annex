@@ -55,7 +55,7 @@ class SftpFileStore(FileStore):
     async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        if self.sftp.isdir(remote_file_path):
+        if await self.sftp.isdir(remote_file_path):
             remote_file_path = self.get_old_key_path(file_key).as_posix()
 
         if not await self.exists(file_key):
