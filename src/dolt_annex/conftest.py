@@ -17,6 +17,7 @@ import pytest_asyncio
 
 from dolt_annex.data import data_dir
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import Sha256E, MD5e
@@ -25,9 +26,15 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.test_util import EnvironmentForTest
 
+@pytest.fixture(params=[{}])
+def filestore_config(request) -> FilestoreConfig:
+    return FilestoreConfig(**request.param)
+
 @pytest.fixture
-def test_config() -> Config:
-    return Config()
+def test_config(filestore_config: FilestoreConfig) -> Config:
+    return Config(
+        filestore=filestore_config,
+    )
 
 @pytest.fixture
 def local_uuid() -> UUID:

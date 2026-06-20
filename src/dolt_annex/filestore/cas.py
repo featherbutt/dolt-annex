@@ -141,7 +141,12 @@ class ContentAddressableStorage:
                     return Result.done()
         return await maybe_await(self.file_store.create_alias(old_key=old_key, new_key=new_key))
     
-    
+    async def exists(self, file_key: FileKey) -> bool:
+        if self.filestore_config.verify_existing_files_on_write:
+            is_valid, _ = await self.contains_valid_file(file_key)
+            return is_valid
+        return await maybe_await(self.file_store.exists(file_key))
+
     async def contains_valid_file(self, file_key: FileKey) -> Tuple[bool, Optional[FileKey]]:
         """
         Check whether the filestore contains a valid file for the given key. This checks that the file exists, and that its contents match the key.

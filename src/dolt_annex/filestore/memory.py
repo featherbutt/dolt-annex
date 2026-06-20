@@ -45,7 +45,7 @@ class MemoryFS(FileStore):
             self.files[bytes(file_key)] = await in_fd.read()
         return Result.done()
 
-    def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
         """
         Upload an in-memory file to the remote.
 
