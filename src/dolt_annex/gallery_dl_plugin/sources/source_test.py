@@ -284,7 +284,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
                 assert actual_source  == site.source_name
                 assert actual_id == test.id
                 if actual_metadata_key != expected_row.metadata_file_key:
-                    actual_metadata_bytes = await setup.local_repo.filestore.get_file_bytes(actual_metadata_key)
+                    actual_metadata_bytes = await setup.local_repo.filestore.file_store.get_file_bytes(actual_metadata_key)
                     pytest.fail(
 f"""metadata has unexpected file key.
 

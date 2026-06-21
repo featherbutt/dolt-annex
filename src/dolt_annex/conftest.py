@@ -26,7 +26,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.test_util import EnvironmentForTest
 
-@pytest.fixture(params=[{}])
+@pytest.fixture(params=[pytest.param({}, id="")])
 def filestore_config(request) -> FilestoreConfig:
     return FilestoreConfig(**request.param)
 
