@@ -60,6 +60,10 @@ class Migrate(SubCommand):
         "--remove-if-exists",
         help="remove files from the source filestore if they already exist in the destination filestore"        
     )
+    remove_corrupt_files = cli.Flag(
+        "--remove-corrupt-files",
+        help="remove files from the source filestore if they are corrupt"        
+    )
         
     async def main(self, *args) -> int:
 
@@ -85,8 +89,15 @@ class Migrate(SubCommand):
                 for file in files:
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
+                    if not await from_repo.filestore.contains_valid_file(file_key):
+                        if self.remove_corrupt_files:
+                            logger.info("%s is corrupt in the source store, removing", file_key)
+                            from_repo.filestore.file_store.file_system.remove(file_path)
+                        else:
+                            logger.info("%s is corrupt in the source store, skipping", file_key)
+                            can_remove_dir = False
+                        continue
                     if await maybe_await(to_repo.filestore.file_store.exists(file_key)):
-                        await from_repo.filestore.verify_file(file_key)
                         await to_repo.filestore.verify_file(file_key)
 
                         if self.remove_if_exists:
@@ -95,18 +106,15 @@ class Migrate(SubCommand):
                         else:
                             logger.info("%s exists in destination store, skipping", file_key)
                             can_remove_dir = False
+                        continue
                     else:
                         logger.info("%s does not exist in destination store, copying", file_key)
-                        try:
-                            result = await filestore_copy(
-                                src=from_repo.filestore,
-                                dst=to_repo.filestore,
-                                key=file_key
-                            )
-                            await result.wait_for_complete()
-                        except ContentAddressableStorageKeyMismatchError as e:
-                            # The file from the source filestore is most likely corrupt.
-                            pass
+                        result = await filestore_copy(
+                            src=from_repo.filestore,
+                            dst=to_repo.filestore,
+                            key=file_key
+                        )
+                        await result.wait_for_complete()
                         
                         can_remove_dir = False
                 if not has_dirs and can_remove_dir:
