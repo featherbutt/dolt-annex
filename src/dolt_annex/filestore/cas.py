@@ -124,6 +124,30 @@ class ContentAddressableStorage:
                     tg.create_task(result.wait_for_complete())
         return result.and_then(create_key_aliases)
     
+    async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> Result[None]:
+        """
+        Insert a new key that references the same content as an existing key.
+        """
+        if new_key_types is None:
+            new_key_types = self.alternate_key_formats
+
+        generators = [format.generator(extension=old_key.extension) for format in new_key_types]
+
+        async with self.file_store.get_file_object(old_key) as in_fd:
+            reader = FileKeyGeneratingReader(in_fd, generators)
+            buffer_size = 1024 * 1024
+            while True:
+                chunk = await reader.read(buffer_size)
+                if not chunk:
+                    break
+
+        computed_keys = [generator.finalize() for generator in generators]
+        for computed_key in computed_keys:
+            result = await self.file_store.create_alias(old_key=old_key, new_key=computed_key)
+            await result.wait_for_complete()
+
+        return Result.done()
+
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         """
         Insert a new key that references the same content as an existing key.

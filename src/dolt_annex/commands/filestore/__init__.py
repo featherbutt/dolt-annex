@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.commands.filestore import export, verify
+from dolt_annex.commands.filestore import export, make_alias, verify
 from dolt_annex.commands.filestore import migrate
 
 from . import insert, whereis, copy
@@ -20,4 +20,5 @@ FilestoreSubcommand.subcommand("copy", copy.Copy)
 FilestoreSubcommand.subcommand("export-file", export.Export)
 FilestoreSubcommand.subcommand("migrate", migrate.Migrate)
 FilestoreSubcommand.subcommand("verify", verify.Verify)
+FilestoreSubcommand.subcommand("make-alias", make_alias.MakeAlias)
 

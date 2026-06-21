@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
 from typing import TYPE_CHECKING, Tuple
+import logging
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.async_utils import Result
@@ -20,6 +21,8 @@ from dolt_annex.file_keys import FileKey
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
+
+logger = logging.getLogger(__name__)
 
 class FileStoreError(Exception):
     pass
@@ -140,6 +143,7 @@ class FileStore(abc.ABC):
         For most filestores, this is inefficient; subclasses should override this method to
         avoid transferring data over the network and duplicating storage.
         """
+        logger.info(f"alias {old_key} -> {new_key}")
         return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
     
     class GetFielsNotImplementedError(NotImplementedError):

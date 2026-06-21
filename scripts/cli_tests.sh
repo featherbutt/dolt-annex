@@ -49,4 +49,20 @@ output=$(dolt-annex dataset diff \
   | dolt-annex filestore whereis)
 assert_contain "$output" '"name": "__local__"'
 
+# Test filestore make_alias command
+md5_file_key="MD5e-s3204233--8bdf45da6e71714bcfafb2c15914cc71.png"
+
+dolt-annex dataset read-table \
+  --dataset gallery-dl \
+  --table-name submissions \
+  --columns submission_file_key \
+  | jq -r '.submission_file_key' | dolt-annex filestore make-alias --key-type MD5e
+
+echo $temp_dir
+dolt-annex filestore export-file $md5_file_key > downloaded_image.png
+
+md5_hash=$(sha256sum downloaded_image.png | awk '{print $1}')
+assert_eq "$md5_hash" "8bdf45da6e71714bcfafb2c15914cc71"
+
+
 log_success "All tests passed!"
