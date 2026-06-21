@@ -13,7 +13,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.archivefs import ArchiveFS
-from dolt_annex.filestore.cas import filestore_copy
+from dolt_annex.filestore.cas import ContentAddressableStorageKeyMismatchError, filestore_copy
 
 logger = logging.getLogger(__name__)
 
@@ -97,12 +97,17 @@ class Migrate(SubCommand):
                             can_remove_dir = False
                     else:
                         logger.info("%s does not exist in destination store, copying", file_key)
-                        result = await filestore_copy(
-                            src=from_repo.filestore,
-                            dst=to_repo.filestore,
-                            key=file_key
-                        )
-                        await result.wait_for_complete()
+                        try:
+                            result = await filestore_copy(
+                                src=from_repo.filestore,
+                                dst=to_repo.filestore,
+                                key=file_key
+                            )
+                            await result.wait_for_complete()
+                        except ContentAddressableStorageKeyMismatchError as e:
+                            # The file from the source filestore is most likely corrupt.
+                            pass
+                        
                         can_remove_dir = False
                 if not has_dirs and can_remove_dir:
                     from_repo.filestore.file_store.file_system.removedir(root)
