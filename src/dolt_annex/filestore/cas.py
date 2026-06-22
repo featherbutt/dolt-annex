@@ -29,17 +29,6 @@ class ContentAddressableStorage:
     file_key_format: FileKeyType
     alternate_key_formats: list[FileKeyType]
 
-    _batch_size: Optional[int] = None
-    _pending_changes: int = 0
-
-    async def tick(self) -> None:
-        """Record a single operation in the current batch, then possibly flush."""
-        if self._batch_size is not None:
-            self._pending_changes += 1
-            if self._pending_changes >= self._batch_size:
-                await maybe_await(self.file_store.flush())
-                self._pending_changes = 0
-
     async def put_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
         """
         Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file (but currently doesn't).
@@ -205,29 +194,6 @@ class ContentAddressableStorage:
             async with in_fd as in_fd_opened:
                 actual_key = await type(file_key).from_fo(in_fd_opened)
                 assert actual_key.same_bytes(file_key)
-
-    async def batch(self, batch_size: Optional[int]=10000) -> AsyncContextManager[None]:
-        """
-        Some file stores are more efficient when performing multiple operations in a batch.
-
-        This comes at the cost of atomicity: if the process terminates unexpectedly during a batch,
-        some or all of the operations in the batch may not be completed. However, the filestore
-        should remain in a consistent state regardless.
-
-        If batch_size is provided, then the filestore will flush the batch after
-        that many operations have been performed.
-        """
-
-        @asynccontextmanager
-        async def batch() -> AsyncGenerator[None]:
-            original_batch_size = self._batch_size
-            self._batch_size = batch_size
-            yield
-            await maybe_await(self.file_store.flush())
-            self._pending_changes = 0
-            self._batch_size = original_batch_size
-
-        return batch()
 
 async def filestore_copy(*, src: ContentAddressableStorage, dst: ContentAddressableStorage, key: FileKey) -> Result[None]:
     data_source = src.file_store.with_file_object(key)
