@@ -156,7 +156,7 @@ class FileStore(abc.ABC):
         """
         raise FileStore.GetFielsNotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
-    def delete(self, key: FileKey):
+    def delete(self, key: FileKey) -> None:
         """
         Remove a file from a filestore if supported. Is not guarenteed to free space, and may not play well with aliases.
         """

@@ -77,6 +77,13 @@ class LevelDB(FileStore):
             if not key.startswith(prefix):
                 break
             yield FileKey.must_parse(key), async_bytes_io(value)
+
+    @override
+    def delete(self, key: FileKey) -> None:
+        """
+        Remove a file from a filestore.
+        """
+        self.db.delete(bytes(key), sync=True)
     
 
 class LevelDBModel(FileStoreModel):

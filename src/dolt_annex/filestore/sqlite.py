@@ -128,6 +128,12 @@ class SQLite(FileStore):
         for name, data in rows:
             yield FileKey.must_parse(name), async_bytes_io(data)
 
+    @override
+    def delete(self, key: FileKey) -> None:
+        """
+        Remove a file from a filestore.
+        """
+        self.db.execute("DELETE FROM sqlar WHERE name = ?", (str(key),))
 
 class SQLiteModel(FileStoreModel):
 

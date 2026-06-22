@@ -216,7 +216,12 @@ class ArchiveFS(FileStore):
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
         return await self.secondary.create_alias(old_key, new_key)
 
-
+    @override
+    def delete(self, key: FileKey) -> None:
+        """
+        Remove a file from a filestore. Note that this causes the filestore to "forget" about the file, but does not delete the file from the archive files.
+        """
+        self.secondary.delete(key)
 
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
