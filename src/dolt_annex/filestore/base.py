@@ -146,7 +146,7 @@ class FileStore(abc.ABC):
         logger.info(f"alias {old_key} -> {new_key}")
         return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
     
-    class GetFielsNotImplementedError(NotImplementedError):
+    class GetFilesNotImplementedError(NotImplementedError):
         pass
 
     def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
@@ -154,7 +154,7 @@ class FileStore(abc.ABC):
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.
         """
-        raise FileStore.GetFielsNotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
+        raise FileStore.GetFilesNotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
     def delete(self, key: FileKey) -> None:
         """

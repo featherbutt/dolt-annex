@@ -124,7 +124,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                     }))
                     metadata["_skip"] = 1
                     return
-            except FileStore.GetFielsNotImplementedError:
+            except FileStore.GetFilesNotImplementedError:
                 pass
         
         if not has_keys_in_metadata:
