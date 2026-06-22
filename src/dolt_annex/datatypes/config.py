@@ -51,8 +51,8 @@ class Config(StrictBaseModel):
     filestore: FilestoreConfig = FilestoreConfig()
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
-    default_file_key_type: FileKeyType = Sha256E
-    default_alternate_key_types: List[FileKeyType] = [Sha256HSe, Sha1HSe, MD5HSe]
+    default_file_key_type: FileKeyType = Sha256HSe
+    default_alternate_key_types: List[FileKeyType] = [Sha1HSe, MD5HSe]
 
     def get_default_repo(self) -> RepoModel:
         return RepoModel.must_load(self.local_repo_name)

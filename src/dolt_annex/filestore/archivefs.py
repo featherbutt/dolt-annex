@@ -14,7 +14,7 @@ import pathlib
 import tarfile
 from typing import AsyncGenerator, BinaryIO, Generator
 import uuid
-from pydantic import InstanceOf
+from pydantic import InstanceOf, SerializeAsAny
 from typing_extensions import override, Tuple
 import logging
 
@@ -220,7 +220,7 @@ class ArchiveFS(FileStore):
 
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
-    secondary: FileStoreModel
+    secondary: SerializeAsAny[FileStoreModel]
 
     # The number of parallel workers to use for writing archives.
     # Each worker has an exclusive lock on a different archive file.

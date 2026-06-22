@@ -77,12 +77,12 @@ class UpdateMetadata(cli.Application):
             submissions_table = dataset_repo.get_table("submissions")
             for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                 old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
-                metadata_bytes = await repo.filestore.get_file_bytes(old_metadata_file_key)
+                metadata_bytes = await repo.filestore.file_store.get_file_bytes(old_metadata_file_key)
                 metadata = json.loads(metadata_bytes)
                 new_metadata = remove_metadata(metadata)
                 category = new_metadata["category"]
                 source = category_to_source[category]
-                new_metadata_file_key, _ = serialize_metadata(new_metadata, source)
+                new_metadata_file_key, _ = serialize_metadata(new_metadata, source, repo)
                 if new_metadata_file_key != old_metadata_file_key:
                     await insert_metadata(new_metadata, source, dataset_repo, repo)
                     for old_submission_row in submissions_table.get_rows(filters=[

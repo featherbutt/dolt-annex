@@ -8,7 +8,7 @@ Helper functions that gallery-dl postprocessors can use to format data for dolt-
 import json
 import pathlib
 import sys
-from typing import Dict
+from typing import Dict, Optional
 from typing_extensions import Any
 
 import fs.osfs
@@ -49,7 +49,7 @@ def gallery_dl_post(metadata: dict):
     context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
     context.post_metadata_files_processed += 1
 
-def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
+def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
     metadata_bytes = json.dumps(    
@@ -58,11 +58,11 @@ def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
         sort_keys=True,
         indent=4,
         default=json_default).encode('utf-8') + b'\n'
-    return Sha256E.from_bytes(metadata_bytes, "json"), metadata_bytes
+    return repo.key_format.from_bytes(metadata_bytes, "json"), metadata_bytes
 
 
 async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
-    file_key, metadata_bytes = serialize_metadata(metadata, source)
+    file_key, metadata_bytes = serialize_metadata(metadata, source, repo)
     metadata["_metadata_file_key"] = file_key
 
     table_row = TableRow({"source": source.source_name, "id": metadata["_id"], "file_key": file_key})
@@ -70,7 +70,7 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, rep
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
 
-    await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", Sha256E)
+    await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", repo.key_format)
     return file_key
 
 def gallery_dl_prepare(metadata: dict[str, Any]):
@@ -184,15 +184,22 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "metadata_file_key": metadata["_metadata_file_key"],
         "part": source.page_number(metadata)
     })
-    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path))
+    file_key: Optional[FileKey] = None
+    for key_prefix in source.keys_from_metadata(metadata):
+        if isinstance(key_prefix, FileKey):
+            file_key = key_prefix
+            break
+        
+    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, file_key=file_key))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
         context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json")))
         context.submission_metadata_files_processed += 1
 
-async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, file_key: Optional[FileKey] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    file_key = await cas.file_key_format.from_file(from_path)
+    if file_key is None:
+        file_key = await cas.file_key_format.from_file(from_path)
     table_key["submission_file_key"] = str(file_key)
 
     await cas.put_file(from_path, file_key)
