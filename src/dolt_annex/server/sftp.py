@@ -165,14 +165,11 @@ class SFTPServer(asyncssh.SFTPServer):
 
         # Move the file to the annex location
         # When calling, indicate whether file is being moved, deleted, or neither.
-        result = await maybe_await(self.cas.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key))
+        await self.cas.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key)
         
         # Delete the temporary file unless put_file moved it.
-        def delete_temp_file(_: Future[None]) -> None:
-            if os.path.exists(file_obj.name):
-                os.remove(file_obj.name)
-        result.future.add_done_callback(delete_temp_file)
-        await result.wait_for_complete()
+        if os.path.exists(file_obj.name):
+            os.remove(file_obj.name)
 
     @override
     async def stat(self, path: bytes) -> asyncssh.SFTPAttrs:

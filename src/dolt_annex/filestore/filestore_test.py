@@ -82,6 +82,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
         )
         async with self.remote_file_store_model.open(config) as remote_file_store:
             remote_file_cas = ContentAddressableStorage(
+                filestore_config=config.filestore,
                 file_store=remote_file_store,
                 file_key_format=Sha256E,
                 alternate_key_formats=[SHA1e]
@@ -199,6 +200,11 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
+
+    # Test that delete removes a file from the filestore, if implemented.
+    if type(cas.file_store).delete is not FileStore.delete:
+        cas.file_store.delete(sha256_key)
+        assert not await maybe_await(cas.file_store.exists(sha256_key))
 
 
 @pytest.mark.asyncio
