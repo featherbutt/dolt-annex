@@ -77,12 +77,12 @@ class SFTPServer(asyncssh.SFTPServer):
     async def open(self, path: bytes, pflags: int, attrs: asyncssh.SFTPAttrs) -> ReadableFileObject:
         logger.info("Opening file: %s", path)
 
-        if not (pflags & (asyncssh.FXF_READ | asyncssh.FXF_CREAT)):
+        if not (pflags & (asyncssh.constants.FXF_READ | asyncssh.constants.FXF_CREAT)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
         key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
-        if pflags & asyncssh.FXF_CREAT:
+        if pflags & asyncssh.constants.FXF_CREAT:
             return await self.create_file(key)
         else:
             # If create flag is not set, read must be set.
@@ -114,12 +114,12 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         logger.info("Opening file: %s", path)
 
-        if not (flags & (asyncssh.FXF_OPEN_EXISTING | asyncssh.FXF_CREATE_NEW)):
+        if not (flags & (asyncssh.constants.FXF_OPEN_EXISTING | asyncssh.constants.FXF_CREATE_NEW)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
         key = self.cas.file_key_format(path.rsplit(b'/')[-1])
-        if flags & asyncssh.FXF_CREATE_NEW:
+        if flags & asyncssh.constants.FXF_CREATE_NEW:
             return await self.create_file(key)
         else:
             # If create flag is not set, read must be set.
@@ -196,13 +196,13 @@ class SFTPServer(asyncssh.SFTPServer):
             file_info = await maybe_await(self.cas.file_store.stat(key))
             if file_info:
                 return asyncssh.SFTPAttrs(
-                    type=asyncssh.FILEXFER_TYPE_REGULAR,
+                    type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
                     size=file_info.size,
                 )
             raise asyncssh.SFTPNoSuchFile(f"Key {key} does not exist on this filestore.")
            
         # Otherwise assume it's a directory
-        return asyncssh.SFTPAttrs(asyncssh.FILEXFER_TYPE_DIRECTORY)
+        return asyncssh.SFTPAttrs(asyncssh.constants.FILEXFER_TYPE_DIRECTORY)
     
     @override
     async def fstat(self, file_obj: Any) -> asyncssh.SFTPAttrs:
@@ -223,7 +223,7 @@ class SFTPServer(asyncssh.SFTPServer):
         else:
             file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(
-            type=asyncssh.FILEXFER_TYPE_REGULAR,
+            type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
             size=file_info.size,
         )
 
