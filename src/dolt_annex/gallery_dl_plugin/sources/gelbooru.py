@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing import Any
+from typing import Any, Iterable
 
 from typing_extensions import override
+
+from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
+from dolt_annex.file_keys.hash_size_extension import MD5HSe
 
 from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 
@@ -22,6 +25,11 @@ class Gelbooru(GalleryDLSource, source_name = "gelbooru.com"):
             "has_comments",
             "has_notes",
         ]
+
+    @override
+    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+        md5 = metadata["md5"]
+        yield bytes(f"{MD5HSe.prefix}-{md5}", encoding="utf-8")
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         mutate_remove_fields(metadata, self.fields_to_remove())
