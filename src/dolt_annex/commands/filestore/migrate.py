@@ -8,6 +8,7 @@ import fs.info
 from plumbum import cli # type: ignore
 
 from dolt_annex.commands import CommandGroup, SubCommand
+from dolt_annex.datatypes import repo
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
@@ -64,6 +65,10 @@ class Migrate(SubCommand):
         "--remove-corrupt-files",
         help="remove files from the source filestore if they are corrupt"        
     )
+    create_aliases_if_exists = cli.Flag(
+        "--create-aliases-if-exists",
+        help="create alias keys in the destination filestore even if the file already exists there"
+    )
         
     async def main(self, *args) -> int:
 
@@ -99,6 +104,9 @@ class Migrate(SubCommand):
                         continue
                     if await maybe_await(to_repo.filestore.file_store.exists(file_key)):
                         await to_repo.filestore.verify_file(file_key)
+                        if self.create_aliases_if_exists:
+                            result = await to_repo.filestore.create_aliases(file_key)
+                            await result.wait_for_complete()
 
                         if self.remove_if_exists:
                             logger.info("%s exists in destination store, removing", file_key)
