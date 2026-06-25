@@ -7,13 +7,12 @@ from typing import AsyncGenerator, List
 from typing_extensions import Optional
 
 from dolt_annex.datatypes.common import MySQLConnection
+from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.hash_size_extension import MD5HSe, Sha1HSe, Sha256HSe
-from dolt_annex.filestore.cas import ContentAddressableStorage
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -49,6 +48,7 @@ class Config(StrictBaseModel):
     dolt: DoltConfig = DoltConfig()
     ssh: SshSettings = SshSettings()
     filestore: FilestoreConfig = FilestoreConfig()
+    gallery_dl: GalleryDLConfig = GalleryDLConfig()
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
     default_file_key_type: FileKeyType = Sha256HSe

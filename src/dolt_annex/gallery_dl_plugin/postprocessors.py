@@ -86,7 +86,14 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     """Check whether we should skip downloading this file."""
     # First, check whether we already have the file in the annex.
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
+
     context = _gallery_dl_context.get()
+
+    # First, if the --skip-download flag is set, we skip all downloads.
+    if _gallery_dl_context.get().config.skip_download:
+        metadata["_skip"] = 1
+        return
+
     repo_dataset = context.repo_dataset
     repo = context.repo
 
