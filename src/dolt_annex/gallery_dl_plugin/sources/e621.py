@@ -8,7 +8,7 @@ from typing_extensions import Any, override
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 from dolt_annex.file_keys.size_hash_extension import MD5e
 
-from .base import GalleryDLSource, mutate_remove_fields
+from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 
 class E621(GalleryDLSource, source_name = "e621.net"):
     """Support for e621.net"""
@@ -18,7 +18,7 @@ class E621(GalleryDLSource, source_name = "e621.net"):
         return ["post", "tag"]
     
     @override
-    def fields_to_remove(self) -> list[str | list[str]]:
+    def fields_to_remove(self) -> PathSelector:
         return [
             "score",
             "fav_count",
@@ -39,8 +39,9 @@ class E621(GalleryDLSource, source_name = "e621.net"):
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         """
-        gallery-dl changed how tags are formatted. We continue to represent tags using the previous
-        formatting for consistency.
+        gallery-dl changed how tags are formatted, to standardize tags across sources.
+        In the event that posts were downloaded with an older version of gallery-dl,
+        this normalizes the tags to the new format.
         """
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
@@ -52,7 +53,6 @@ class E621(GalleryDLSource, source_name = "e621.net"):
                 metadata[f"tags_{tag_type}"] = old_tags[tag_type]
                 all_tags.extend(old_tags[tag_type])
             
-            #tags = { tag_type: metadata.pop(f"tags_{tag_type}", []) for tag_type in tag_types }
             metadata["tags"] = all_tags
         metadata["tags"].sort()
             
