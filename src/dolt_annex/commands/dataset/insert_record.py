@@ -106,6 +106,7 @@ class InsertRecord(cli.Application):
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)
-            await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
+            result = await repo.filestore.put_file_bytes(file_bytes, key)
+            await result.wait_for_complete()
             print(f"Inserted row {self.value} into table '{self.table_name}' in dataset '{self.dataset}'")
         return 0
