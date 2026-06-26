@@ -18,7 +18,7 @@ async def server_context(
     port: int,
     authorized_keys: Optional[str] = None,
     server_host_key: Optional[str] = None,
-) -> AsyncGenerator[asyncssh.SSHServer]:
+) -> AsyncGenerator[asyncssh.SSHAcceptor]:
 
     def make_server(chan: asyncssh.SSHServerChannel):
         return SFTPServer(chan, cas)

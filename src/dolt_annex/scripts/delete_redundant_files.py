@@ -65,8 +65,8 @@ class DeleteRedundantFiles(SubCommand):
         dataset_schema = DatasetSchema.must_load(self.dataset)
         
         async with AsyncExitStack() as stack:
-            repo_to_delete_from = await stack.enter_async_context(Repo.open(self.parent.config, self.delete_from))
-            conn = stack.enter_context(DatabaseConnection.open(self.parent.config))
+            repo_to_delete_from = await stack.enter_async_context(Repo.open(self.config, self.delete_from))
+            conn = stack.enter_context(DatabaseConnection.open(self.config))
             dataset = stack.enter_context(conn.open_dataset(dataset_schema))
             dataset_repo_to_delete_from = await stack.enter_async_context(dataset.with_repo(repo_to_delete_from.uuid))
             table_to_delete_from = dataset_repo_to_delete_from.get_table(self.table_name)
@@ -87,7 +87,7 @@ class DeleteRedundantFiles(SubCommand):
                                                                     
             repos: Dict[str, Repo] = {}
             for repo_name in self.if_in:
-                filestore = await stack.enter_async_context(Repo.open(self.parent.config, repo_name))
+                filestore = await stack.enter_async_context(Repo.open(self.config, repo_name))
                 repos[repo_name] = filestore
 
             for row_to_remove in row_iter:
