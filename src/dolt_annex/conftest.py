@@ -106,17 +106,17 @@ def loadable_context():
         yield
 
 @pytest_asyncio.fixture 
-async def local_filestore(temp_dir: pathlib.Path, local_uuid: UUID, local_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+async def local_filestore(temp_dir: pathlib.Path, local_uuid: Repo.Id, local_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
     async with create_test_filestore(test_config, local_filestore_model, []) as local_filestore:
         yield local_filestore
 
 @pytest_asyncio.fixture 
-async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: UUID, remote_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: Repo.Id, remote_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
     async with create_test_filestore(test_config, remote_filestore_model, []) as remote_filestore:
         yield remote_filestore
 
 @pytest.fixture
-def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> Repo:
+def local_repo(local_uuid: Repo.Id, local_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
         name="__local__",
         uuid=local_uuid,
@@ -126,7 +126,7 @@ def local_repo(local_uuid: UUID, local_filestore: ContentAddressableStorage) -> 
     )
 
 @pytest.fixture
-def remote_repo(remote_uuid: UUID, remote_filestore: ContentAddressableStorage) -> Repo:
+def remote_repo(remote_uuid: Repo.Id, remote_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
         name="test_remote",
         uuid=remote_uuid,
