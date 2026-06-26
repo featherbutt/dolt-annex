@@ -6,13 +6,16 @@ from plumbum import cli # type: ignore
 from dolt_annex.datatypes.async_types import MaybeAwaitable
 from dolt_annex.datatypes.config import Config
 
+class Env:
+    CONFIG_FILE = "DA_CONFIG"
+
 class Command(cli.Application):
     """
     A base class for all commands, including the top-level application, middle-level command groups, and non-group subcommands.
     """
 
     # The root application, set automatically by plumbum.
-    root_app: CommandGroup
+    root_app: BaseApplication
 
 class CommandGroup(Command):
     """
@@ -34,6 +37,17 @@ class CommandGroup(Command):
             return 0
         return 0
     
+class BaseApplication(CommandGroup):
+    """The top level CLI command"""
+    PROGNAME = "dolt-annex"
+    VERSION = "0.8.1"
+
+    config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
+
+    config: Config
+
+    log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
+
 class SubCommand(Command):
     """
     A base class for all subcommands, including middle-level command groups, but not the top-level application.
