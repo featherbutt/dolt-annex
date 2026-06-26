@@ -183,6 +183,8 @@ class Path:
         return Path(self.fs, link_target)
 
     def link(self, target: Path) -> None:
+        if target.exists():
+            return
         try:
             old_syspath = self.fs.getsyspath(self.path.as_posix())
             new_syspath = target.fs.getsyspath(target.path.as_posix())
