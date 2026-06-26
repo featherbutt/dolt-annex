@@ -16,6 +16,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 from gallery_dl.util import json_default
@@ -29,7 +30,7 @@ from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
 
-def gallery_dl_post(metadata: dict):
+def gallery_dl_post(metadata: PostMetadata):
     """The entrypoint for 'post' postprocessor hooks (run at the start of a batch of related downloads)"""
     context = _gallery_dl_context.get()
     if context.abort_flag:
@@ -73,16 +74,17 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, rep
     await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", repo.key_format)
     return file_key
 
-def gallery_dl_prepare(metadata: dict[str, Any]):
+def gallery_dl_prepare(metadata: FileMetadata):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
     category = metadata["category"]
     subcategory = metadata["subcategory"]
     source = get_source(category, subcategory)
 
     source.format_file_metadata(metadata)
-    check_skip(source, metadata)
+    if check_skip(source, metadata):
+        metadata["_skip"] = 1
 
-def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
+def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     """Check whether we should skip downloading this file."""
     # First, check whether we already have the file in the annex.
     # TODO: We may want to skip if any known remote has a copy, not just the local remote.
@@ -91,8 +93,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
 
     # First, if the --skip-download flag is set, we skip all downloads.
     if _gallery_dl_context.get().config.skip_download:
-        metadata["_skip"] = 1
-        return
+        return True
 
     repo_dataset = context.repo_dataset
     repo = context.repo
@@ -109,14 +110,13 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     ]
     if submissions_table.has_row(filters):
         # We already have this file, skip it.
-        metadata["_skip"] = 1
-        return
+        return True
 
     # Alternatively, if the source provides a hash in the metadata, we can check to see
     # Whether a file with that hash already exists in the filestore. If it does, we
     # make a task to insert a record into the table, and then skip.
 
-    async def get_files_coro():
+    async def get_files_coro() -> bool:
         has_keys_in_metadata = False
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
@@ -129,8 +129,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                         "part": page_number,
                         "submission_file_key": key
                     }))
-                    metadata["_skip"] = 1
-                    return
+                    return True
             except FileStore.GetFilesNotImplementedError:
                 pass
         
@@ -158,11 +157,10 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                         "part": page_number,
                         "submission_file_key": submission_file_key,
                     }))
-                    metadata["_skip"] = 1
-                    return
+                    return True
+        return False
 
-    context.run(get_files_coro())
-    return
+    return context.run(get_files_coro())
 
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""
