@@ -12,6 +12,8 @@ from typing import Dict, Optional
 from typing_extensions import Any
 
 import fs.osfs
+from gallery_dl.util import json_default
+
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
@@ -19,12 +21,11 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
-from gallery_dl.util import json_default
+
 
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.file_keys import Sha256E
 
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
@@ -87,7 +88,6 @@ def gallery_dl_prepare(metadata: FileMetadata):
 def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     """Check whether we should skip downloading this file."""
     # First, check whether we already have the file in the annex.
-    # TODO: We may want to skip if any known remote has a copy, not just the local remote.
 
     context = _gallery_dl_context.get()
 
@@ -211,11 +211,20 @@ async def import_file(cas: ContentAddressableStorage, file_table: FileTable, tab
     from_path.delete()
     await maybe_await(file_table.insert(table_key))
 
+async def import_url(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, url: str, file_key: Optional[FileKey] = None):
+    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
+    # TODO: Some sources may require authentication to download files.
+    async with aiohttp.ClientSession() as session:
+        new_file_key = await cas.put_file_object(session.get(url), file_key)
+        if file_key is None:
+            file_key = new_file_key
+    table_key["submission_file_key"] = str(file_key)
+    await maybe_await(file_table.insert(table_key))
+
 async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     file_key = file_key_type.from_bytes(file_bytes, extension=extension)
 
-    result = await cas.put_file_bytes(file_bytes, file_key)
-    await result.wait_for_complete()
+    await cas.put_file_bytes(file_bytes, file_key)
         
     await maybe_await(file_table.insert(table_key))

@@ -8,7 +8,7 @@ from typing_extensions import override
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 from dolt_annex.file_keys.hash_size_extension import MD5HSe
 
-from .base import GalleryDLSource, PathSelector, mutate_remove_fields
+from .base import FileMetadata, GalleryDLSource, PathSelector, PostMetadata, mutate_remove_fields
 
 class Gelbooru(GalleryDLSource, source_name = "gelbooru.com"):
     """Support for gelbooru.com"""
@@ -27,11 +27,20 @@ class Gelbooru(GalleryDLSource, source_name = "gelbooru.com"):
         ]
 
     @override
-    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+    def num_pages(self, metadata: PostMetadata) -> int:
+        return 1
+    
+    @override
+    def keys_from_metadata(self, metadata: FileMetadata) -> Iterable[FileKey | FileKeyPrefix]:
         md5 = metadata["md5"]
         yield bytes(f"{MD5HSe.prefix}-{md5}", encoding="utf-8")
 
-    def format_post_metadata(self, metadata: dict[str, Any]):
+    @override
+    def file_url_from_metadata(self, metadata: FileMetadata) -> str:
+        return metadata["file_url"]
+
+    @override
+    def format_post_metadata(self, metadata: PostMetadata | FileMetadata):
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
         if isinstance(metadata["tags"], str):
