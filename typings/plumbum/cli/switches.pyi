@@ -31,10 +31,41 @@ class SwitchAttr[T]:
     def __set__(self, inst, val): # -> None:
         ...
 
-ExistingDirectory = Path
+class Flag(SwitchAttr):
+    """A specialized :class:`SwitchAttr <plumbum.cli.SwitchAttr>` for boolean flags. If the flag is not
+    given, the value of this attribute is ``default``; if it is given, the value changes
+    to ``not default``. Usage::
 
-MakeDirectory = Path
+        class MyApp(Application):
+            verbose = Flag(["-v", "--verbose"], help = "If given, I'll be very talkative")
 
-ExistingFile = Path
+    :param names: The switch names
+    :param default: The attribute's initial value (``False`` by default)
+    :param kwargs: Any of the keyword arguments accepted by :func:`switch <plumbum.cli.switch>`,
+                   except for ``list`` and ``argtype``.
+    """
 
-NonexistentPath = Path
+    def __init__(self, names, default=False, **kwargs):
+        ...
+
+
+ExistingDirectory = str
+
+ExistingFile = str
+
+NonexistentPath = str
+
+def switch(
+    names,
+    argtype=None,
+    argname=None,
+    list=False,  # pylint: disable=redefined-builtin
+    mandatory=False,
+    requires=(),
+    excludes=(),
+    help=None,  # pylint: disable=redefined-builtin
+    overridable=False,
+    group="Switches",
+    envname=None,
+):
+    ...
