@@ -10,7 +10,7 @@ import logging
 from typing_extensions import Iterable, Optional, Tuple, List
 
 from dolt_annex.replicated_db.dolt import Dataset, FileTable
-from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.replicated_db.interface import ReplicatedDataset, TableFilter, TableReplica
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
@@ -22,7 +22,7 @@ from dolt_annex.filestore.cas import filestore_copy
 logger = logging.getLogger(__name__)
 
 class SyncOperation:
-    to_table: FileTable
+    to_table: TableReplica
     from_repo: Repo
     to_repo: Repo
     ignore_missing: bool = False
@@ -34,7 +34,7 @@ class SyncOperation:
     def __init__(
             self,
             *,
-            to_table: FileTable,
+            to_table: TableReplica,
             from_repo: Repo,
             to_repo: Repo,
             ignore_missing: bool = False,
@@ -73,7 +73,7 @@ class SyncOperation:
 
         has_more = True
         while has_more:
-            keys_and_submissions = list(self.to_table.dataset.diff_keys(self.from_repo.uuid, self.to_repo.uuid, self.to_table.schema, where, batch_size))
+            keys_and_submissions = list(self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size))
             has_more = await self.move_submissions_and_keys(keys_and_submissions)
             # Await here so that the next diff sees the updated state
             await self.work_queue.join()
@@ -123,7 +123,7 @@ class SyncOperation:
     async def context_manager(
             cls,
             *,
-            to_table: FileTable,
+            to_table: TableReplica,
             from_repo: Repo,
             to_repo: Repo,
             ignore_missing: bool = False,
@@ -153,7 +153,7 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
 
-async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
+async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
     if moved_files is None:
         moved_files = []
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
