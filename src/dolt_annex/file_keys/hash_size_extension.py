@@ -9,7 +9,7 @@ import hashlib
 from typing import ClassVar, Type, override
 from typing_extensions import Optional, Self
 
-from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, SizedBuffer
 from dolt_annex.file_keys.base import FileKey, FileKeyGenerator, HasherProtocol
 
 class HashSizeExtensionFileKey(FileKey, is_abstract=True):
@@ -112,7 +112,7 @@ class Generator[T: HashSizeExtensionFileKey](FileKeyGenerator):
         hashlib.sha256()
 
     @override
-    def update(self, data: bytes) -> None:
+    def update(self, data: SizedBuffer) -> None:
         self._hasher.update(data)
         self._size += len(data)
 

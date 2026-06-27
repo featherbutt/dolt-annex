@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Dict, overload
 from typing_extensions import Literal, Optional, Protocol, Self
 
-from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, SizedBuffer
 from dolt_annex.datatypes.file_io import Path
 
 type FileKeyPrefix = bytes
@@ -124,7 +124,7 @@ class FileKeyGenerator(Protocol):
 
 class HasherProtocol(Protocol):
 
-    def update(self, data: bytes) -> None:
+    def update(self, data: SizedBuffer) -> None:
         ...
     
     def hexdigest(self) -> str:

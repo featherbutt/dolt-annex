@@ -11,8 +11,11 @@ from collections.abc import Awaitable, Buffer
 import inspect
 import os
 from types import TracebackType
-from typing import Any
+from typing import Any, Sized
 from typing_extensions import Protocol
+
+class SizedBuffer(Sized, Buffer, Protocol):
+    pass
 
 type MaybeAwaitable[T] = T | Awaitable[T]
 
@@ -60,7 +63,7 @@ class ReadableStream(Closable, Protocol):
         ...
 
 class WritableStream(Closable, Protocol):
-    def write(self, s: Buffer, /) -> Awaitable[int]:
+    def write(self, s: SizedBuffer, /) -> Awaitable[int]:
         ...
 
 class ReadableFileObject(ReadableStream, Protocol):
