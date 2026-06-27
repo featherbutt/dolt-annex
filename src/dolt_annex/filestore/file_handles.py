@@ -14,7 +14,8 @@ from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes import FileKey
 from dolt_annex.datatypes.async_types import ReadableFileObject, WritableFileObject
-from dolt_annex.datatypes.file_io import FileInfo
+from dolt_annex.datatypes.file_io import FileInfo, SizedBuffer
+from dolt_annex.file_keys.base import FileKeyGenerator
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 CHUNK_SIZE = 8092
@@ -46,7 +47,6 @@ class ExistingFileHandle(FileHandle, ReadableFileObject):
     def close(self) -> Awaitable[None]:
         return self.readfile.close()
 
-# TODO: Make writing to NewFileHandles async
 class NewFileHandle(FileHandle, WritableFileObject):
     """A file handle for uploading a new key.
     
@@ -57,27 +57,24 @@ class NewFileHandle(FileHandle, WritableFileObject):
 
     writefile: WritableFileObject
 
-    key: FileKey
-    suffix: str
-
     cas: ContentAddressableStorage
+    file_key_generator: FileKeyGenerator
 
     @classmethod
-    async def create(cls, temp_fs: FileSystem, cas: ContentAddressableStorage, key: FileKey) -> NewFileHandle:
-        suffix = pathlib.Path(str(key)).suffix[1:] 
+    async def create(cls, temp_fs: FileSystem, cas: ContentAddressableStorage) -> NewFileHandle:
         writefile = await aiofiles.tempfile.NamedTemporaryFile(dir=temp_fs.getsyspath('/'), delete=False, suffix=suffix, buffering=CHUNK_SIZE) # type: ignore
-        handle = cls(temp_fs=temp_fs, name=writefile.name, suffix=suffix, cas=cas, key=key, writefile=writefile)
+        handle = cls(temp_fs=temp_fs, name=writefile.name, cas=cas, writefile=writefile)
         return handle
     
-    def __init__(self, temp_fs: FileSystem, name: str, suffix: str, cas: ContentAddressableStorage, key: FileKey, writefile: WritableFileObject):
+    def __init__(self, temp_fs: FileSystem, name: str, cas: ContentAddressableStorage, writefile: WritableFileObject):
         self.temp_fs = temp_fs
         self.name = name
-        self.suffix = suffix
         self.cas = cas
-        self.key = key
         self.writefile = writefile
+        self.file_key_generator = cas.file_key_format.generator()
 
-    async def write(self, data: Buffer, /) -> int:
+    async def write(self, data: SizedBuffer, /) -> int:
+        self.file_key_generator.update(data)
         return await self.writefile.write(data)
     
     async def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:

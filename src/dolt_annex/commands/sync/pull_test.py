@@ -226,8 +226,7 @@ async def test_pull_overwrites_corrupt_local_file(tmp_path, setup: EnvironmentFo
         expected_output_contains="Inserted row"
     )
 
-    result = await setup.local_repo.filestore.file_store.put_file_bytes(b"corrupted_content", file_key=record1_key)
-    await result.wait_for_complete()
+    await setup.local_repo.filestore.file_store.put_file_bytes(b"corrupted_content", file_key=record1_key)
 
     await run(
         args=[

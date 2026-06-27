@@ -42,7 +42,6 @@ class MakeAlias(SubCommand):
                     print(f"File with key {queried_key} not found in annex, skipping.", file=sys.stderr)
                     continue
                 
-                result = await repo.filestore.create_aliases(queried_key, key_types)
-                await result.wait_for_complete()
+                await repo.filestore.create_aliases(queried_key, key_types)
         
         return 0

@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -7,7 +6,6 @@ from typing_extensions import Optional
 import logging
 
 from dolt_annex.datatypes.async_types import maybe_await, ReadableStream, AsyncContextManager
-from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.file_io import Path, async_bytes_io
 from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.file_keys import FileKeyType
@@ -45,11 +43,10 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        result = await self.put_file_object(file_path.open(), file_key)
-        await result.wait_for_complete()
+        await self.put_file_object(file_path.open(), file_key)
         return file_key
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> Result[FileKey]:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> FileKey:
         """
         Upload an in-memory file to the remote.
 
@@ -57,8 +54,8 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = self.file_key_format.from_bytes(file_bytes)
-        result = await self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
-        return result.map(lambda _: file_key)
+        await self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
+        return file_key
     
     def file_key_generators(self, extension: Optional[str] = None) -> list[FileKeyGenerator]:
         """Get a list of FileKeyGenerators for all supported key formats."""
@@ -66,7 +63,7 @@ class ContentAddressableStorage:
             format.generator(extension=extension) for format in [self.file_key_format, *self.alternate_key_formats]
         ]
     
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: Optional[FileKey]) -> FileKey:
         """
         Insert a file-like object into the repo.
         
@@ -74,7 +71,7 @@ class ContentAddressableStorage:
         this will either do nothing, or validate that the existing content's
         hash matches the key, and replace it if the existing content is corrupted.
         """
-        if self.filestore_config.verify_existing_files_on_write:
+        if file_key is not None and self.filestore_config.verify_existing_files_on_write:
             exists = await maybe_await(self.file_store.exists(file_key))
             if exists:
                 is_valid, _ = await self.contains_valid_file(file_key)
@@ -84,36 +81,42 @@ class ContentAddressableStorage:
                 else:
                     # If the existing file is valid, we skip writing the new content.
                     logger.info("File with key %s already exists and is valid, skipping write", file_key)
-                    return Result.done()
+                    return file_key
 
         # We only create key generators if the data source stream is opened.
         # This means that if the write is a no-op because it already exists in
         # the destination, we don't compute alias keys.
-        generators = []
+        generators: list[FileKeyGenerator] = []
         @asynccontextmanager
         async def open_data_source() -> AsyncGenerator[ReadableStream]:
             nonlocal generators
-            generators = self.file_key_generators(file_key.extension)
+            generators = self.file_key_generators(file_key.extension if file_key is not None else None)
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
 
-        result = await maybe_await(self.file_store.put_file_object(open_data_source(), file_key=file_key))
-        await result.wait_for_complete()
+        def make_file_key() -> FileKey:
+            return generators[0].finalize()
+        
+        await self.file_store.put_file_object(open_data_source(), file_key_producer=make_file_key)
 
-        async def create_key_aliases():
-            computed_keys = [generator.finalize() for generator in generators]
-            if computed_keys and file_key is not None and not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
-                raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
+        computed_keys = [generator.finalize() for generator in generators]
+        if file_key is None:
+            if not computed_keys:
+                raise ContentAddressableStorageError("No keys were computed for the file")
+            file_key = computed_keys[0]
 
-            async with asyncio.TaskGroup() as tg:
-                for alias in computed_keys:
-                    if alias == file_key:
-                        continue
-                    result = await self.create_alias(old_key=file_key, new_key=alias)
-                    tg.create_task(result.wait_for_complete())
-        return result.and_then(create_key_aliases)
+        if computed_keys and file_key is not None and not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
+            raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
+
+        for alias in computed_keys:
+            if alias == file_key:
+                continue
+            await self.create_alias(old_key=file_key, new_key=alias)
+
+        return file_key
+        
     
-    async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> Result[None]:
+    async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> None:
         """
         Insert a new key that references the same content as an existing key.
         """
@@ -132,12 +135,9 @@ class ContentAddressableStorage:
 
         computed_keys = [generator.finalize() for generator in generators]
         for computed_key in computed_keys:
-            result = await self.file_store.create_alias(old_key=old_key, new_key=computed_key)
-            await result.wait_for_complete()
+            await self.file_store.create_alias(old_key=old_key, new_key=computed_key)
 
-        return Result.done()
-
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         """
         Insert a new key that references the same content as an existing key.
         """
@@ -151,8 +151,8 @@ class ContentAddressableStorage:
                 else:
                     # If the existing file is valid, we skip writing the new content.
                     logger.info("File with key %s already exists and is valid, skipping write", new_key)
-                    return Result.done()
-        return await maybe_await(self.file_store.create_alias(old_key=old_key, new_key=new_key))
+                    return
+        await self.file_store.create_alias(old_key=old_key, new_key=new_key)
     
     async def exists(self, file_key: FileKey) -> bool:
         if self.filestore_config.verify_existing_files_on_write:
@@ -195,6 +195,6 @@ class ContentAddressableStorage:
                 actual_key = await type(file_key).from_fo(in_fd_opened)
                 assert actual_key.same_bytes(file_key)
 
-async def filestore_copy(*, src: ContentAddressableStorage, dst: ContentAddressableStorage, key: FileKey) -> Result[None]:
+async def filestore_copy(*, src: ContentAddressableStorage, dst: ContentAddressableStorage, key: FileKey) -> None:
     data_source = src.file_store.with_file_object(key)
-    return await dst.put_file_object(data_source, file_key=key)
+    await dst.put_file_object(data_source, file_key=key)

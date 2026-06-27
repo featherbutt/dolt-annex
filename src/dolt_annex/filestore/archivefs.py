@@ -9,6 +9,7 @@ with the file key as the key and the file contents as the value.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager
 import pathlib
 import tarfile
@@ -19,11 +20,10 @@ from typing_extensions import override, Tuple
 import logging
 
 from fs.base import FS as FileSystem
-import fs.memoryfs
 import fs.osfs
 
 from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
 from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager
@@ -46,7 +46,7 @@ class ArchiveFS(FileStore):
 
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
+    files_queue: asyncio.Queue[Tuple[Callable[[], FileKey], AsyncContextManager[ReadableStream], asyncio.Future[None]]]
     workers: asyncio.TaskGroup
     max_archive_size: int
     append: bool
@@ -127,20 +127,16 @@ class ArchiveFS(FileStore):
                         advance_to_end(archive_tar)
                         while archive_tar.offset < self.max_archive_size:
                             try:
-                                file_key, data_source, callback = await self.files_queue.get()
+                                file_key_producer, data_source, callback = await self.files_queue.get()
                             except asyncio.QueueShutDown:
                                 return
                             try:
-                                tar_info = tarfile.TarInfo(name=str(file_key))
-                                tar_info.size = file_key.size
-                                buf = tar_info.tobuf(archive_tar.format, archive_tar.encoding, archive_tar.errors)
-                                offset = archive_tar.offset + len(buf)
                                 async with data_source as in_fd:
-                                    await addfile(archive_tar, tarfile_fd=archive_fd, tarinfo=tar_info, input_fileobj=in_fd)
+                                    file_key, offset, file_size = await addfile(archive_tar, tarfile_fd=archive_fd, input_fileobj=in_fd, file_key_producer=file_key_producer)
                                 # TODO: We probably don't need to flush immediately after each write,
                                 # But there's no way to signal a flush for tests.
                                 archive_fd_sync.flush()
-                                secondary_value = f"{archive_file.name}:{offset}:{tar_info.size}"
+                                secondary_value = f"{archive_file.name}:{offset}:{file_size}"
                                 await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
                                 callback.set_result(None)
                             except Exception as e:
@@ -152,10 +148,10 @@ class ArchiveFS(FileStore):
             archive_file.rename(self.finalized_archives_dir / archive_file.name)
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]):
         callback = asyncio.Future[None]()
-        await self.files_queue.put((file_key, data_source, callback))
-        return Result(callback)
+        await self.files_queue.put((file_key_producer, data_source, callback))
+        await callback
 
     @await_or_enter
     async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:
@@ -213,7 +209,7 @@ class ArchiveFS(FileStore):
         await maybe_await(self.secondary.flush())
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         return await self.secondary.create_alias(old_key, new_key)
 
     @override

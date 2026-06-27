@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import pathlib
-from typing import Tuple
+from typing import Callable, Tuple
 from typing_extensions import override
 
 import sqlite3
@@ -60,15 +60,14 @@ class SQLite(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
         async with data_source as in_fd:
             data = await in_fd.read()
         self.db.execute(
             "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
-            (str(file_key), len(data), data),
+            (str(file_key_producer()), len(data), data),
         )
         self.db.commit()
-        return Result.done()
 
     @override
     @await_or_enter

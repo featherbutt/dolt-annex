@@ -157,9 +157,8 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     sha1_key = SHA1e.from_bytes(file_bytes)
     sha256_key = Sha256E.from_bytes(file_bytes)
     sha256hs_key = Sha256HSe.from_bytes(file_bytes)
-    result = await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
+    await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
 
-    await result.wait_for_complete()
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
     await cas.create_alias(sha256_key, md5_key)
@@ -175,8 +174,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
             assert read_bytes == b"test"
         # Test that the filestore can produce an input stream that can be used in CAS operations
         await cas.verify_file(key)
-        second_result = await second_cas.put_file_object(cas.file_store.with_file_object(key), file_key=key)
-        await second_result.wait_for_complete()
+        await second_cas.put_file_object(cas.file_store.with_file_object(key), file_key=key)
         await second_cas.verify_file(key)
 
     # If iterate_all_files is implemented, test it
@@ -193,8 +191,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     # So we skip this test for SftpFileStore.
     if not isinstance(cas.file_store, SftpFileStore):
         wrong_sha256_key = Sha256E.from_bytes(b"wrong bytes")
-        result = await maybe_await(cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key))
-        await result.wait_for_complete()
+        await cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key)
         with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
             await cas.verify_file(wrong_sha256_key)
 
@@ -220,8 +217,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
         for i, child in enumerate(union_filestore.children):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
-            result = await maybe_await(child.put_file_bytes(file_bytes, file_key=file_key))
-            await result.wait_for_complete()
+            await maybe_await(child.put_file_bytes(file_bytes, file_key=file_key))
 
         for i in range(len(union_filestore.children)):
             file_bytes = f"file_in_child_{i}".encode()
@@ -233,8 +229,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
 
         # Creating a child in the parent UnionFS creates the file in the first child filestore
         new_file_key = Sha256E.from_bytes(b"new_file")
-        result = await maybe_await(union_filestore.put_file_bytes(b"new_file", new_file_key))
-        await result.wait_for_complete()
+        await maybe_await(union_filestore.put_file_bytes(b"new_file", new_file_key))
         assert await maybe_await(union_filestore.children[0].exists(new_file_key))
 
         # Creating an alias in the UnionFS creates the alias in the child filestore where the original file exists
@@ -243,8 +238,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
             alias_key = MD5e.from_bytes(file_bytes)
-            result = await maybe_await(union_filestore.create_alias(file_key, alias_key))
-            await result.wait_for_complete()
+            await maybe_await(union_filestore.create_alias(file_key, alias_key))
             assert await maybe_await(child.exists(alias_key))
 
 def assert_tarfile_has_members(tar_file_path: Path, expected_num_members: int):
@@ -279,8 +273,7 @@ async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Confi
 
         for i in range(3):
             content = f"file_{i}_".encode()
-            result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
-            await result.wait_for_complete()
+            await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
 
         # Flush to ensure all writes are complete
         await maybe_await(archive_filestore.flush())
@@ -295,8 +288,7 @@ async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Confi
         # Adding another file should write to the new archive file, without affecting the finalized archive.
 
         content = b"file_4_"
-        result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
-        await result.wait_for_complete()
+        await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
 
         await maybe_await(archive_filestore.flush())
 

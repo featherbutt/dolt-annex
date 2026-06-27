@@ -9,11 +9,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Callable, Tuple
 import logging
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
-from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.common import YesNoMaybe
 from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
@@ -67,26 +66,26 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
 
 class FileStore(abc.ABC):
 
-    def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """
         Insert an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
-        return self.copy_file(file_path, file_key)
+        return await self.copy_file(file_path, file_key)
 
-    async def copy_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
+    async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
         """
         Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        return await maybe_await(self.put_file_object(file_path.open(), file_key))
+        return await maybe_await(self.put_file_object(file_path.open(), lambda: file_key))
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Insert an in-memory file to the remote.
         """
-        return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
+        return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=lambda: file_key))
     
     @abstractmethod
-    def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
         """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     @abstractmethod
@@ -135,7 +134,7 @@ class FileStore(abc.ABC):
         """Flush any pending operations to the filestore."""
 
     @abstractmethod
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         """
         Insert a new key that references the same content as an existing key.
 
@@ -144,7 +143,7 @@ class FileStore(abc.ABC):
         avoid transferring data over the network and duplicating storage.
         """
         logger.info(f"alias {old_key} -> {new_key}")
-        return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
+        return await self.put_file_object(self.get_file_object(old_key), lambda: new_key)
     
     class GetFilesNotImplementedError(NotImplementedError):
         pass
@@ -162,12 +161,14 @@ class FileStore(abc.ABC):
         """
         pass
 
-async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
+async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384) -> int:
+    bytes_copied = 0
     while True:
         buf = await src.read(buffer_size)
         if not buf:
-            break
+            return bytes_copied
         await dst.write(buf)
+        bytes_copied += len(buf)
 
 class FileStoreModel(AbstractBaseModel):
     """

@@ -15,7 +15,8 @@ relative to the filestore root.
 from dataclasses import dataclass
 import hashlib
 import pathlib
-from typing import AsyncGenerator
+import random
+from typing import AsyncGenerator, Callable
 from pydantic import InstanceOf
 from typing_extensions import override
 
@@ -38,24 +39,23 @@ class AnnexFS(FileStore):
     file_system: FileSystem
 
     @override
-    def put_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
+    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """Move an on-disk file to the annex."""
         output_path = self.get_key_path(file_key)
         output_path.parent.mkdirs(exist_ok=True)
         file_path.rename(output_path)
-        return Result.done()
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]):
         """Copy a file-like object into the annex."""
-        output_path = self.get_key_path(file_key)
+        output_path = Path(self.file_system) / "tmp" / random.randbytes(16).hex()
         output_path.parent.mkdirs(exist_ok=True)
         async with (
             output_path.open('wb') as out_fd,
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        return Result.done()
+        output_path.rename(self.get_key_path(file_key_producer()))
 
     @override
     @await_or_enter

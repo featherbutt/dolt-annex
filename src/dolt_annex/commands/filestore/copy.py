@@ -46,18 +46,16 @@ class Copy(SubCommand):
         ):
             if self.all:
                 async for file_key, data_source in from_repo.filestore.file_store.get_files():
-                    result = await to_repo.filestore.put_file_object(data_source, file_key=file_key)
-                    await result.wait_for_complete()
+                    await to_repo.filestore.put_file_object(data_source, file_key=file_key)
                     logger.info("Copied key %s from repo %s to repo %s", file_key, from_repo.name, to_repo.name)
             else:
                 for key_str in args or sys.stdin.readlines():
                     file_key = FileKey.must_parse(bytes(key_str.strip(), encoding='utf-8'))
-                    result = await filestore_copy(
+                    await filestore_copy(
                         src=from_repo.filestore,
                         dst=to_repo.filestore,
                         key=file_key,
                     )
-                    await result.wait_for_complete()
                     logger.info("Copied key %s from repo %s to repo %s", file_key, from_repo.name, to_repo.name)
 
         return 0

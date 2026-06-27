@@ -17,7 +17,8 @@ from dataclasses import dataclass
 import getpass
 import hashlib
 from pathlib import Path
-from typing import Self
+import random
+from typing import Callable, Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
@@ -38,16 +39,21 @@ class SftpFileStore(FileStore):
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
         """Upload a file-like object to the remote."""
-        remote_file_path = self.get_key_path(file_key).as_posix()
-        await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
+        temp_remote_file_path = f"tmp/{random.randbytes(16).hex()}"
+
+        await self.sftp.makedirs(Path(temp_remote_file_path).parent.as_posix(), exist_ok=True)
         async with (
             data_source as in_fd,
-            self.sftp.open(remote_file_path, 'wb') as out_fd,
+            self.sftp.open(temp_remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        return Result.done()
+        real_remote_file_path = self.get_key_path(file_key_producer()).as_posix()
+        await self.sftp.makedirs(Path(real_remote_file_path).parent.as_posix(), exist_ok=True)
+
+        await self.sftp.posix_rename(temp_remote_file_path, real_remote_file_path)
+        
 
     @override
     @await_or_enter

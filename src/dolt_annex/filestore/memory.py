@@ -7,7 +7,7 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
-from typing import Tuple
+from typing import Callable, Tuple
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
@@ -32,27 +32,26 @@ class MemoryFS(FileStore):
             self.files = files
 
     @override
-    async def put_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
+    async def put_file(self, file_path: Path, file_key: FileKey):
         """Move an on-disk file to the annex."""
         async with file_path.open() as f:
             self.files[bytes(file_key)] = await f.read()
-        return Result.done()
              
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
-            self.files[bytes(file_key)] = await in_fd.read()
-        return Result.done()
+            value = await in_fd.read()
+            self.files[bytes(file_key_producer())] = value
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
+    @override
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Upload an in-memory file to the remote.
 
         If file_key is not provided, it will be computed.
         """
         self.files[bytes(file_key)] = file_bytes
-        return Result.done()
 
     @override
     @await_or_enter
@@ -82,9 +81,8 @@ class MemoryFS(FileStore):
         return bytes(file_key) in self.files
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         self.files[bytes(new_key)] = self.files[bytes(old_key)]
-        return Result.done()
     
     @override
     def delete(self, key: FileKey) -> None:

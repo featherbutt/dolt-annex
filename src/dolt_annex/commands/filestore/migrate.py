@@ -105,8 +105,7 @@ class Migrate(SubCommand):
                     if await maybe_await(to_repo.filestore.file_store.exists(file_key)):
                         await to_repo.filestore.verify_file(file_key)
                         if self.create_aliases_if_exists:
-                            result = await to_repo.filestore.create_aliases(file_key)
-                            await result.wait_for_complete()
+                            await to_repo.filestore.create_aliases(file_key)
 
                         if self.remove_if_exists:
                             logger.info("%s exists in destination store, removing", file_key)
@@ -117,12 +116,11 @@ class Migrate(SubCommand):
                         continue
                     else:
                         logger.info("%s does not exist in destination store, copying", file_key)
-                        result = await filestore_copy(
+                        await filestore_copy(
                             src=from_repo.filestore,
                             dst=to_repo.filestore,
                             key=file_key
                         )
-                        await result.wait_for_complete()
                         
                         can_remove_dir = False
                 if not has_dirs and can_remove_dir:
