@@ -147,7 +147,9 @@ class Path:
     def mkdirs(self, exist_ok: bool = False) -> None:
         self.fs.makedirs(self.path.as_posix(), recreate=exist_ok)
 
-    def rename(self, target: Path) -> None:
+    def rename(self, target: Path, mkdirs: bool = True) -> None:
+        if mkdirs:
+            target.parent.mkdirs(exist_ok=True)
         fs.move.move_file(self.fs, self.path.as_posix(), target.fs, target.path.as_posix())
 
     def upload(self, in_fd: BinaryIO) -> None:
