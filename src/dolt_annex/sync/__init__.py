@@ -112,10 +112,9 @@ class SyncOperation:
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.file_store.exists(key)):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return Result.done()
-        result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
+        await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
         # We must wait for the copy to complete before updating the dataset.
         async def update_table_on_complete() -> None:
-            await result.wait_for_complete()
             await self.to_table.insert(table_row)
         return Result(asyncio.create_task(update_table_on_complete()))
 
