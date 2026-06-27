@@ -89,11 +89,11 @@ class SyncOperation:
                 case "added": 
                     await self.work_queue.put((key, to_table_row))
                 case "removed":
-                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
                     await self.to_table.remove(from_table_key)
                 case "modified":
                     await self.work_queue.put((key, to_table_row))
-                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
                     await self.to_table.remove(from_table_key)
                 case _:
                     raise ValueError(f"Unknown diff type {diff_type}")
