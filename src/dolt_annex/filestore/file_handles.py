@@ -13,8 +13,8 @@ import aiofiles
 from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes import FileKey
-from dolt_annex.datatypes.async_types import ReadableFileObject, WritableFileObject
-from dolt_annex.datatypes.file_io import FileInfo, SizedBuffer
+from dolt_annex.datatypes.async_types import ReadableFileObject, WritableFileObject, SizedBuffer
+from dolt_annex.datatypes.file_io import FileInfo
 from dolt_annex.file_keys.base import FileKeyGenerator
 from dolt_annex.filestore.cas import ContentAddressableStorage
 

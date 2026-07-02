@@ -4,7 +4,7 @@
 import dataclasses
 import json
 import logging
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig

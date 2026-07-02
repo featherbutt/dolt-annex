@@ -85,7 +85,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
                 filestore_config=config.filestore,
                 file_store=remote_file_store,
                 file_key_format=Sha256E,
-                alternate_key_formats=[SHA1e]
+                alternate_key_formats=[SHA1e],
             )
             # setup server, then create server context, then setup client.
             async with (
