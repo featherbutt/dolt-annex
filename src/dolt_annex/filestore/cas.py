@@ -26,6 +26,11 @@ class ContentAddressableStorage:
     file_store: FileStore
     file_key_format: FileKeyType
     alternate_key_formats: list[FileKeyType]
+    content_addressed: bool = True
+
+    # In some cases, filestores may store values that are not a content-hash of their keys (such as the "secondary" filestores used by ArchiveFS)
+    # In these cases, we don't want to skip validating file integrity and auto-computing keys.
+    content_addressed: bool
 
     async def put_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
         """
@@ -53,6 +58,8 @@ class ContentAddressableStorage:
         If file_key is not provided, it will be computed.
         """
         if file_key is None:
+            if not self.content_addressed:
+                raise ContentAddressableStorageError("Cannot compute file key for non-content-addressed filestore")
             file_key = self.file_key_format.from_bytes(file_bytes)
         await self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
         return file_key
@@ -71,6 +78,12 @@ class ContentAddressableStorage:
         this will either do nothing, or validate that the existing content's
         hash matches the key, and replace it if the existing content is corrupted.
         """
+        if not self.content_addressed:
+            if file_key is None:
+                raise ContentAddressableStorageError("Cannot compute file key for non-content-addressed filestore")
+            await self.file_store.put_file_object(data_source, file_key_producer=lambda: file_key)
+            return file_key
+
         if file_key is not None and self.filestore_config.verify_existing_files_on_write:
             exists = await maybe_await(self.file_store.exists(file_key))
             if exists:
@@ -141,7 +154,7 @@ class ContentAddressableStorage:
         """
         Insert a new key that references the same content as an existing key.
         """
-        if self.filestore_config.verify_existing_files_on_write:
+        if self.content_addressed and self.filestore_config.verify_existing_files_on_write:
             exists = await maybe_await(self.file_store.exists(new_key))
             if exists:
                 is_valid, _ = await self.contains_valid_file(new_key)
@@ -155,7 +168,7 @@ class ContentAddressableStorage:
         await self.file_store.create_alias(old_key=old_key, new_key=new_key)
     
     async def exists(self, file_key: FileKey) -> bool:
-        if self.filestore_config.verify_existing_files_on_write:
+        if self.content_addressed and self.filestore_config.verify_existing_files_on_write:
             is_valid, _ = await self.contains_valid_file(file_key)
             return is_valid
         return await maybe_await(self.file_store.exists(file_key))
