@@ -21,6 +21,7 @@ from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import Sha256E, MD5e
+from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
@@ -53,20 +54,40 @@ def remote_filestore_model() -> FileStoreModel:
     return MemoryFSModel()
 
 @pytest.fixture
-def local_repo_model(local_uuid: UUID, local_filestore_model: FileStoreModel) -> RepoModel:
+def key_format() -> type[FileKey]:
+    return Sha256E
+
+@pytest.fixture
+def alternate_key_formats() -> list[type[FileKey]]:
+    return []
+
+@pytest.fixture
+def local_repo_model(
+    local_uuid: UUID,
+    local_filestore_model: FileStoreModel,
+    key_format: type[FileKey],
+    alternate_key_formats: list[type[FileKey]],
+) -> RepoModel:
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
-        key_format=Sha256E,
-        filestore= local_filestore_model
+        key_format=key_format,
+        alternate_key_formats=alternate_key_formats,
+        filestore=local_filestore_model
     )
 
 @pytest.fixture
-def remote_repo_model(remote_uuid: UUID, remote_filestore_model: FileStoreModel) -> RepoModel:
+def remote_repo_model(
+    remote_uuid: UUID, 
+    remote_filestore_model: FileStoreModel,
+    key_format: type[FileKey],
+    alternate_key_formats: list[type[FileKey]],
+) -> RepoModel:
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
-        key_format=Sha256E,
+        key_format=key_format,
+        alternate_key_formats=alternate_key_formats,
         filestore= remote_filestore_model
     )
 

@@ -122,7 +122,7 @@ class SftpFileStore(FileStore):
   
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         new_relative_path = self.get_key_path(new_key).as_posix()
         await self.sftp.makedirs(Path(new_relative_path).parent.as_posix(), exist_ok=True)
 
@@ -135,7 +135,6 @@ class SftpFileStore(FileStore):
             oldpath=old_absolute_path,
             newpath=new_absolute_path,
         )
-        return Result.done()
 
     @classmethod
     @asynccontextmanager

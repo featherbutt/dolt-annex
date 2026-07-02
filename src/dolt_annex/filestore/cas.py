@@ -136,8 +136,19 @@ class ContentAddressableStorage:
         if new_key_types is None:
             new_key_types = self.alternate_key_formats
 
-        generators = [format.generator(extension=old_key.extension) for format in new_key_types]
+        # If a target key type can be generated from the source key type, we don't need to hash the file contents.
+        # If all the target key types can be generated this way, we don't need to read the file contents at all.
+        generators: List[FileKeyGenerator] = []
+        for format in new_key_types:
+            if format.convertable_from(type(old_key)):
+                new_key = format.convert_from(old_key)
+                await self.file_store.create_alias(old_key=old_key, new_key=new_key)
+            else:
+                generators.append(format.generator(extension=old_key["extension"]))
 
+        if len(generators) == 0:
+            return
+        
         async with self.file_store.get_file_object(old_key) as in_fd:
             reader = FileKeyGeneratingReader(in_fd, generators)
             buffer_size = 1024 * 1024
