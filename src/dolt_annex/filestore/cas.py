@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Tuple
+from typing import List, Tuple
 from typing_extensions import Optional
 import logging
 
@@ -90,7 +90,7 @@ class ContentAddressableStorage:
         @asynccontextmanager
         async def open_data_source() -> AsyncGenerator[ReadableStream]:
             nonlocal generators
-            generators = self.file_key_generators(file_key.extension if file_key is not None else None)
+            generators = self.file_key_generators(file_key["extension"] if file_key is not None else None)
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
 

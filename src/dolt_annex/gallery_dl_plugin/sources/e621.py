@@ -6,7 +6,7 @@ from typing import Iterable
 from typing_extensions import Any, override
 
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
-from dolt_annex.file_keys.hash_size_extension import MD5HSe
+from dolt_annex.file_keys.base import MD5HSe
 
 from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 
@@ -35,7 +35,7 @@ class E621(GalleryDLSource, source_name = "e621.net"):
         md5 = file_info["md5"]
         size = file_info["size"]
         ext = file_info["ext"]
-        yield MD5HSe.make(size, md5, ext)
+        yield MD5HSe.from_fields(size=size, md5=md5, extension=ext)
 
     def format_post_metadata(self, metadata: dict[str, Any]):
         """

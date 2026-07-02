@@ -12,7 +12,7 @@ from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.file_keys.hash_size_extension import MD5HSe, Sha1HSe, Sha256HSe
+from dolt_annex.file_keys.base import MD5HSe, Sha1HSe, Sha256HSe
 
 class UserConfig(StrictBaseModel):
     email: str

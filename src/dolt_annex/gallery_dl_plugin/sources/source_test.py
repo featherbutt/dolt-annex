@@ -259,7 +259,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
 
     for test in tests[site].import_tests:
 
-        output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, test.post_url.url)
+        output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, False, test.post_url.url)
 
         assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
@@ -307,12 +307,12 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
     dataset_schema = make_default_schema("gallery-dl")
     # download https://inkbunny.net/s/3783696
     # download https://e621.net/posts/6086319 and confirm it gets skipped
-    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://inkbunny.net/s/3783696")
+    output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, False, "https://inkbunny.net/s/3783696")
 
     assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
     assert output.submission_files_processed == 2, f"Expected to process 1 submission file, but processed {output.submission_files_processed}"
 
-    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://e621.net/posts/6086319")
+    output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, False, "https://e621.net/posts/6086319")
 
     assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
     assert output.submission_files_processed == 0, f"Expected to process 0 submission files, but processed {output.submission_files_processed}"

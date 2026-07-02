@@ -6,7 +6,7 @@ from typing import Any, Iterable
 from typing_extensions import override
 
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
-from dolt_annex.file_keys.hash_size_extension import MD5HSe
+from dolt_annex.file_keys.base import MD5HSe
 
 from .base import FileMetadata, GalleryDLSource, PathSelector, PostMetadata, mutate_remove_fields
 

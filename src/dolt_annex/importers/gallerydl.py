@@ -5,7 +5,7 @@ from typing_extensions import Optional, override
 
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.file_io import Path
-from dolt_annex.file_keys.size_hash_extension import Sha256E
+from dolt_annex.file_keys.base import Sha256E
 from .base import Importer
 
 # Remove subcategory and sort keys when importing post

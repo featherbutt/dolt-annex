@@ -7,9 +7,7 @@ Logic for computing keys for files.
 
 from pydantic import ModelWrapValidatorHandler, PlainSerializer, WrapValidator
 from typing_extensions import Annotated
-from .base import FileKey
-from .size_hash_extension import Sha256E, MD5e, SHA1e
-from .hash_size_extension import Sha1HSe, Sha256HSe, MD5HSe
+from .base import FileKey, Sha256E, MD5e, SHA1e, Sha1HSe, Sha256HSe, MD5HSe
 
 def file_key_type_validator(name, _: ModelWrapValidatorHandler[type[FileKey]]) -> type[FileKey]:
     """Get the FileKey subclass for the given key format name."""
