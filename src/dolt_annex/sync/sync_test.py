@@ -20,6 +20,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressab
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
+from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
@@ -27,13 +28,14 @@ from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 # Try every combination of two and from types.
 def all_filestore_types(prefix: pathlib.Path) -> Generator[FileStoreModel]:
     yield LevelDBModel(root=prefix / "leveldb")
+    yield SQLiteModel(root=prefix / "sqlite")
     yield AnnexFSModel(root=prefix / "annexfs")
-    yield ArchiveFSModel(num_workers=4, root=prefix / "archivefs" / "archives", secondary=LevelDBModel(root=prefix / "archivefs" / "secondary"))
+    yield ArchiveFSModel(num_workers=4, root=prefix / "archivefs" / "archives", secondary=SQLiteModel(root=prefix / "archivefs" / "secondary"))
     yield SftpWrappedFilestoreModel(
         remote_file_store_model=ArchiveFSModel(
             num_workers=4,
             root=prefix / "archivefs" / "archives",
-            secondary=LevelDBModel(root=prefix / "archivefs" / "secondary")
+            secondary=SQLiteModel(root=prefix / "archivefs" / "secondary")
         )
     )
     yield SimpleSftpFilestoreModel()
