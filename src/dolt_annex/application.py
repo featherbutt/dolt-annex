@@ -3,14 +3,12 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
 from typing_extensions import Literal
 
-from plumbum import cli # type: ignore
 from pydantic import ValidationError
 import pyjson5
 
-from dolt_annex.commands import BaseApplication, CommandGroup
+from dolt_annex.commands import BaseApplication
 from dolt_annex.datatypes.config import Config
 
 default_config_file_locations = [
@@ -33,7 +31,7 @@ class Application(BaseApplication):
         for config_path in config_file_locations:
             if config_path.exists():
                 with open(config_path, encoding="utf-8") as fd:
-                    config_json = pyjson5.load(fd)
+                    config_json = pyjson5.load(fd) # type: ignore
                 try:
                     self.config = Config(**config_json)
                 except ValidationError as e:

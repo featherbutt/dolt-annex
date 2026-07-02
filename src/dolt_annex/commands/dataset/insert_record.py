@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm

@@ -5,7 +5,7 @@ import logging
 from typing import Iterable, cast
 
 import fs.info
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes import repo

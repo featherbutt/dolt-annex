@@ -11,7 +11,7 @@ import contextlib
 from typing import AsyncGenerator, Iterable
 from uuid import UUID
 
-from plumbum import local # type: ignore
+from plumbum import local
 import pytest
 import pytest_asyncio
 

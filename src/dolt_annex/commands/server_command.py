@@ -3,7 +3,7 @@
 
 import logging
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.application import Application
 from dolt_annex.commands import SubCommand

@@ -3,7 +3,7 @@ import sys
 
 from typing_extensions import List
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm

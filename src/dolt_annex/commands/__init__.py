@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable
 from dolt_annex.datatypes.config import Config

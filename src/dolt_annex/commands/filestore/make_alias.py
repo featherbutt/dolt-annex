@@ -1,14 +1,12 @@
-from contextlib import AsyncExitStack
-import json
 import sys
 import logging
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.async_types import maybe_await
 
-from dolt_annex.datatypes.repo import Repo, RepoModel
-from dolt_annex.file_keys import FileKeyType, get_file_key_type
+from dolt_annex.datatypes.repo import Repo
+from dolt_annex.file_keys import get_file_key_type
 from dolt_annex.file_keys.base import FileKey
 
 logger = logging.getLogger(__name__)
