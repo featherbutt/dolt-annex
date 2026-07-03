@@ -149,7 +149,7 @@ class ContentAddressableStorage:
                 generators.append(format.generator(extension=old_key["extension"]))
 
         if len(generators) == 0:
-            return
+            return alias_keys
         
         async with self.file_store.get_file_object(old_key) as in_fd:
             reader = FileKeyGeneratingReader(in_fd, generators)
