@@ -106,12 +106,22 @@ class ContentAddressableStorage:
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
 
+        computed_keys: list[FileKey] = []
         def make_file_key() -> FileKey:
-            return generators[0].finalize()
+            # If a file key was provided, we should use that, but only
+            # after we confirm it matches the computed keys.
+            nonlocal computed_keys
+            computed_keys = [generator.finalize() for generator in generators]
+            if file_key is not None:
+                if not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
+                    raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
+                return file_key
+            if not computed_keys:
+                raise ContentAddressableStorageError("No keys were computed for the file")
+            return computed_keys[0]
         
         await self.file_store.put_file_object(open_data_source(), file_key_producer=make_file_key)
 
-        computed_keys = [generator.finalize() for generator in generators]
         if file_key is None:
             if not computed_keys:
                 raise ContentAddressableStorageError("No keys were computed for the file")
