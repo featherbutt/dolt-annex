@@ -25,7 +25,7 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
         """Upload a file-like object to the remote."""
         return await self.children[0].put_file_object(data_source, file_key_producer)
 

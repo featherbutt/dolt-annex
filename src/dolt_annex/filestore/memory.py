@@ -38,11 +38,13 @@ class MemoryFS(FileStore):
             self.files[bytes(file_key)] = await f.read()
              
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
             value = await in_fd.read()
-            self.files[bytes(file_key_producer())] = value
+            file_key = file_key_producer()
+            self.files[bytes(file_key)] = value
+            return file_key
 
     @override
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:

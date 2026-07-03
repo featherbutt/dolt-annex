@@ -46,7 +46,7 @@ class ArchiveFS(FileStore):
 
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[Callable[[], FileKey], AsyncContextManager[ReadableStream], asyncio.Future[None]]]
+    files_queue: asyncio.Queue[Tuple[Callable[[], FileKey], AsyncContextManager[ReadableStream], asyncio.Future[FileKey]]]
     workers: asyncio.TaskGroup
     max_archive_size: int
     append: bool
@@ -138,7 +138,7 @@ class ArchiveFS(FileStore):
                                 archive_fd_sync.flush()
                                 secondary_value = f"{archive_file.name}:{offset}:{file_size}"
                                 await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
-                                callback.set_result(None)
+                                callback.set_result(file_key)
                             except Exception as e:
                                 callback.set_exception(e)
                             finally:
@@ -148,10 +148,10 @@ class ArchiveFS(FileStore):
             archive_file.rename(self.finalized_archives_dir / archive_file.name)
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]):
-        callback = asyncio.Future[None]()
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+        callback = asyncio.Future[FileKey]()
         await self.files_queue.put((file_key_producer, data_source, callback))
-        await callback
+        return await callback
 
     @await_or_enter
     async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:

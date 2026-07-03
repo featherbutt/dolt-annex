@@ -55,7 +55,10 @@ class AnnexFS(FileStore):
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
+        file_key = file_key_producer()
         output_path.rename(self.get_key_path(file_key_producer()))
+        return file_key
+
 
     @override
     @await_or_enter

@@ -39,7 +39,7 @@ class SftpFileStore(FileStore):
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
         """Upload a file-like object to the remote."""
         temp_remote_file_path = f"tmp/{random.randbytes(16).hex()}"
 
@@ -49,11 +49,12 @@ class SftpFileStore(FileStore):
             self.sftp.open(temp_remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        real_remote_file_path = self.get_key_path(file_key_producer()).as_posix()
+        file_key = file_key_producer()
+        real_remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(real_remote_file_path).parent.as_posix(), exist_ok=True)
 
         await self.sftp.posix_rename(temp_remote_file_path, real_remote_file_path)
-        
+        return file_key
 
     @override
     @await_or_enter

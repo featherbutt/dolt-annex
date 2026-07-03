@@ -38,10 +38,12 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
         async with data_source as in_fd:
             value = await maybe_await(in_fd.read())
-            self.db.put(bytes(file_key_producer()), value, sync=True)
+            file_key = file_key_producer()
+            self.db.put(bytes(file_key), value, sync=True)
+            return file_key
 
     @override
     @await_or_enter

@@ -70,22 +70,22 @@ class FileStore(abc.ABC):
         """
         Insert an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
-        return await self.copy_file(file_path, file_key)
+        await self.copy_file(file_path, file_key)
 
     async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
         """
         Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        return await maybe_await(self.put_file_object(file_path.open(), lambda: file_key))
+        await maybe_await(self.put_file_object(file_path.open(), lambda: file_key))
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Insert an in-memory file to the remote.
         """
-        return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=lambda: file_key))
+        await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=lambda: file_key))
     
     @abstractmethod
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> None:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
         """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     @abstractmethod
