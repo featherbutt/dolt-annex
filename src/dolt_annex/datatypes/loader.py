@@ -70,7 +70,10 @@ class Loadable(StrictBaseModel):
         path = cls.config_dir / f"{name}.{cls.extension}"
         if path.exists():
             with path.open() as f:
-                data = pyjson5.load(f)
+                try:
+                    data = pyjson5.load(f)
+                except pyjson5.Json5Exception as e:
+                    raise ValueError(f"Error loading {name} from {path}: {e}")
                 if not isinstance(data, dict):
                     raise ValueError(f"{cls} loaded from {path} is not an object")
                 if data.get("name") != name:
