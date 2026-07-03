@@ -129,19 +129,21 @@ class ContentAddressableStorage:
         return file_key
         
     
-    async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> None:
+    async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> List[FileKey]:
         """
         Insert a new key that references the same content as an existing key.
         """
         if new_key_types is None:
             new_key_types = self.alternate_key_formats
 
+        alias_keys: List[FileKey] = []
         # If a target key type can be generated from the source key type, we don't need to hash the file contents.
         # If all the target key types can be generated this way, we don't need to read the file contents at all.
         generators: List[FileKeyGenerator] = []
         for format in new_key_types:
             if format.convertable_from(type(old_key)):
                 new_key = format.convert_from(old_key)
+                alias_keys.append(new_key)
                 await self.file_store.create_alias(old_key=old_key, new_key=new_key)
             else:
                 generators.append(format.generator(extension=old_key["extension"]))
@@ -160,6 +162,11 @@ class ContentAddressableStorage:
         computed_keys = [generator.finalize() for generator in generators]
         for computed_key in computed_keys:
             await self.file_store.create_alias(old_key=old_key, new_key=computed_key)
+
+        alias_keys.extend(computed_keys)
+        return alias_keys
+
+        
 
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         """
