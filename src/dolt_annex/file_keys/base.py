@@ -75,7 +75,7 @@ class FileKey(FileKeyMixinBase):
     
     def same_bytes(self, other: FileKey) -> bool:
         """Returns whether this FileKey is the same as another, ignoring extensions."""
-        return self.remove_extension() == other.remove_extension()
+        return self.hash_name == other.hash_name and self.hash() == other.hash()
     
     def __getitem__(self, field_name: str) -> Optional[str]:
         """Returns the value of the specified field, if any."""
@@ -146,6 +146,11 @@ class FileKey(FileKeyMixinBase):
     @classmethod
     def convertable_from(cls, other: type[FileKey]) -> bool:
         return cls.named_fields <= other.named_fields
+    
+    def hash(self) -> str:
+        """Return the hash of the file key."""
+        fields = self.to_fields()
+        return fields[self.hash_name]
     
     def remove_extension(self) -> Self:
         """Returns a file key with extension removed, if any."""
