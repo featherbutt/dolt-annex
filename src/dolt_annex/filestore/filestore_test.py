@@ -128,24 +128,24 @@ def all_filestore_type_parameters():
         yield pytest.param(filestore_model, id=filestore_model.type_name())
 
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
-async def cas(request, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+async def cas(request, test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = request.param
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe])
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe], content_addressed=is_content_addressed)
 
 @pytest_asyncio.fixture()
-async def second_cas(test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e])
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
 
 
 @pytest.mark.asyncio

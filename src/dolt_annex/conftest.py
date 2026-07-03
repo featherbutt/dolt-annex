@@ -62,18 +62,24 @@ def alternate_key_formats() -> list[type[FileKey]]:
     return []
 
 @pytest.fixture
+def is_content_addressed() -> bool:
+    return True
+
+@pytest.fixture
 def local_repo_model(
     local_uuid: UUID,
     local_filestore_model: FileStoreModel,
     key_format: type[FileKey],
     alternate_key_formats: list[type[FileKey]],
+    is_content_addressed: bool,
 ) -> RepoModel:
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
         key_format=key_format,
         alternate_key_formats=alternate_key_formats,
-        filestore=local_filestore_model
+        filestore=local_filestore_model,
+        content_addressed=is_content_addressed
     )
 
 @pytest.fixture
@@ -82,13 +88,15 @@ def remote_repo_model(
     remote_filestore_model: FileStoreModel,
     key_format: type[FileKey],
     alternate_key_formats: list[type[FileKey]],
+    is_content_addressed: bool,
 ) -> RepoModel:
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
         key_format=key_format,
         alternate_key_formats=alternate_key_formats,
-        filestore= remote_filestore_model
+        filestore= remote_filestore_model,
+        content_addressed=is_content_addressed
     )
 
 @pytest.fixture
@@ -114,9 +122,9 @@ def init_dolt(dolt):
     yield dolt
 
 @contextlib.asynccontextmanager
-async def create_test_filestore(config: Config, filestore_model: FileStoreModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
-    async with filestore_model.open(config) as filestore:
-        cas = ContentAddressableStorage(config.filestore, filestore, Sha256E, [MD5e])
+async def create_test_filestore(config: Config, repo_model: RepoModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
+    async with repo_model.filestore.open(config) as filestore:
+        cas = ContentAddressableStorage(config.filestore, filestore, repo_model.key_format, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
         for file_content in files:
             await cas.put_file_bytes(file_content)
         yield cas
@@ -127,33 +135,33 @@ def loadable_context():
         yield
 
 @pytest_asyncio.fixture 
-async def local_filestore(temp_dir: pathlib.Path, local_uuid: Repo.Id, local_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
-    async with create_test_filestore(test_config, local_filestore_model, []) as local_filestore:
+async def local_filestore(temp_dir: pathlib.Path, local_repo_model: RepoModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+    async with create_test_filestore(test_config, local_repo_model, []) as local_filestore:
         yield local_filestore
 
 @pytest_asyncio.fixture 
-async def remote_filestore(temp_dir: pathlib.Path, remote_uuid: Repo.Id, remote_filestore_model: FileStoreModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
-    async with create_test_filestore(test_config, remote_filestore_model, []) as remote_filestore:
+async def remote_filestore(temp_dir: pathlib.Path, remote_repo_model: RepoModel, test_config: Config) -> AsyncGenerator[ContentAddressableStorage]:
+    async with create_test_filestore(test_config, remote_repo_model, []) as remote_filestore:
         yield remote_filestore
 
 @pytest.fixture
-def local_repo(local_uuid: Repo.Id, local_filestore: ContentAddressableStorage) -> Repo:
+def local_repo(local_repo_model: RepoModel, local_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
-        name="__local__",
-        uuid=local_uuid,
+        name=local_repo_model.name,
+        uuid=local_repo_model.uuid,
         filestore=local_filestore,
-        key_format=Sha256E,
-        alternate_key_formats=[MD5e],
+        key_format=local_repo_model.key_format,
+        alternate_key_formats=local_repo_model.alternate_key_formats,
     )
 
 @pytest.fixture
-def remote_repo(remote_uuid: Repo.Id, remote_filestore: ContentAddressableStorage) -> Repo:
+def remote_repo(remote_repo_model: RepoModel, remote_filestore: ContentAddressableStorage) -> Repo:
     return Repo(
-        name="test_remote",
-        uuid=remote_uuid,
+        name=remote_repo_model.name,
+        uuid=remote_repo_model.uuid,
         filestore=remote_filestore,
-        key_format=Sha256E,
-        alternate_key_formats=[MD5e],
+        key_format=remote_repo_model.key_format,
+        alternate_key_formats=remote_repo_model.alternate_key_formats,
     )
 
 @pytest_asyncio.fixture 

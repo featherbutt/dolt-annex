@@ -26,11 +26,10 @@ class ContentAddressableStorage:
     file_store: FileStore
     file_key_format: FileKeyType
     alternate_key_formats: list[FileKeyType]
-    content_addressed: bool = True
 
     # In some cases, filestores may store values that are not a content-hash of their keys (such as the "secondary" filestores used by ArchiveFS)
     # In these cases, we don't want to skip validating file integrity and auto-computing keys.
-    content_addressed: bool
+    content_addressed: bool = True
 
     async def put_file(self, file_path: Path, file_key: Optional[FileKey] = None) -> FileKey:
         """
