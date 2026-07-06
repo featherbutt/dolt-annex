@@ -3,10 +3,10 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Callable, Tuple
+from typing import Awaitable, Tuple
 from typing_extensions import override, Any
 
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
@@ -25,9 +25,9 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Upload a file-like object to the remote."""
-        return await self.children[0].put_file_object(data_source, file_key_producer)
+        return await self.children[0].put_file_object(data_source, file_key_producer, overwrite_existing=overwrite_existing)
 
     @override
     @await_or_enter

@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import pathlib
-from typing import Callable, Tuple
+from typing import Awaitable, Tuple
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream, maybe_await
@@ -38,11 +38,12 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         async with data_source as in_fd:
             value = await maybe_await(in_fd.read())
-            file_key = file_key_producer()
-            self.db.put(bytes(file_key), value, sync=True)
+            file_key = await file_key_producer
+            if overwrite_existing or self.db.get(bytes(file_key)) is None:
+                self.db.put(bytes(file_key), value, sync=True)
             return file_key
 
     @override

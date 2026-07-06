@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import hashlib
 import pathlib
 import random
-from typing import AsyncGenerator, Callable
+from typing import AsyncGenerator, Awaitable
 from pydantic import InstanceOf
 from typing_extensions import override
 
@@ -46,7 +46,7 @@ class AnnexFS(FileStore):
         file_path.rename(output_path)
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]):
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Copy a file-like object into the annex."""
         output_path = Path(self.file_system) / "tmp" / random.randbytes(16).hex()
         output_path.parent.mkdirs(exist_ok=True)
@@ -55,8 +55,9 @@ class AnnexFS(FileStore):
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        file_key = file_key_producer()
-        output_path.rename(self.get_key_path(file_key_producer()))
+        file_key = await file_key_producer
+        # TODO: Handle the case where the file already exists.
+        output_path.rename(self.get_key_path(file_key))
         return file_key
 
 

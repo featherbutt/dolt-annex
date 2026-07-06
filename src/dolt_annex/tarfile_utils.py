@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-``
 
-from dataclasses import dataclass
 from tarfile import HeaderError, TarFile, TarInfo, BLOCKSIZE, NUL
-from typing import Callable, NamedTuple
+from typing import Awaitable, Callable, NamedTuple
 
 from dolt_annex.datatypes.async_types import ReadableStream, WritableFileObject
 from dolt_annex.file_keys.base import FileKey
@@ -35,11 +34,12 @@ def advance_to_end(tarfile: TarFile):
             break
 
 class TarFileEntry(NamedTuple):
+    success: bool
     file_key: FileKey
     offset: int
     size: int
 
-async def addfile(tarfile: TarFile, tarfile_fd: WritableFileObject, input_fileobj: ReadableStream, file_key_producer: Callable[[], FileKey]) -> TarFileEntry:
+async def addfile(tarfile: TarFile, tarfile_fd: WritableFileObject, input_fileobj: ReadableStream, file_key_producer: Awaitable[FileKey], exists: Callable[[FileKey], Awaitable[bool]], overwrite_existing: bool) -> TarFileEntry:
     """Add the TarInfo object 'tarinfo' to the archive. If 'tarinfo' represents
         a non zero-size regular file, the 'fileobj' argument should be a binary file,
         and tarinfo.size bytes are read from it and added to the archive.
@@ -61,7 +61,16 @@ async def addfile(tarfile: TarFile, tarfile_fd: WritableFileObject, input_fileob
         blocks += 1
     final_offset = file_offset + blocks * BLOCKSIZE
     # Now write the header
-    file_key = file_key_producer()
+    file_key = await file_key_producer
+    if not overwrite_existing and await exists(file_key):
+        tarfile.offset = header_offset
+        await tarfile_fd.seek(tarfile.offset)
+        return TarFileEntry(
+            success=False,
+            file_key=file_key,
+            offset=file_offset,
+            size=file_size
+        )
     tarfile.offset = header_offset
     await tarfile_fd.seek(tarfile.offset)
     tar_info = TarInfo(name=str(file_key))
@@ -74,6 +83,7 @@ async def addfile(tarfile: TarFile, tarfile_fd: WritableFileObject, input_fileob
 
     tarfile.members.append(tar_info)
     return TarFileEntry(
+        success=True,
         file_key=file_key,
         offset=file_offset,
         size=file_size

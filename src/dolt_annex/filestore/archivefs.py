@@ -9,11 +9,10 @@ with the file key as the key and the file contents as the value.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager
 import pathlib
 import tarfile
-from typing import AsyncGenerator, BinaryIO, Generator
+from typing import AsyncGenerator, Awaitable, BinaryIO, Generator, NamedTuple
 import uuid
 from pydantic import InstanceOf, SerializeAsAny
 from typing_extensions import override, Tuple
@@ -22,7 +21,7 @@ import logging
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_types import AwaitOrEnter, maybe_await, AsyncContextManager, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
@@ -44,9 +43,15 @@ class ArchiveFS(FileStore):
     This reduces the size of values in the secondary filestore.
     """
 
+    class QueueItem(NamedTuple):
+        file_key_producer: Awaitable[FileKey]
+        data_source: AsyncContextManager[ReadableStream]
+        callback: asyncio.Future[FileKey]
+        overwrite_existing: bool
+        
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[Callable[[], FileKey], AsyncContextManager[ReadableStream], asyncio.Future[FileKey]]]
+    files_queue: asyncio.Queue[QueueItem]
     workers: asyncio.TaskGroup
     max_archive_size: int
     append: bool
@@ -127,14 +132,18 @@ class ArchiveFS(FileStore):
                         advance_to_end(archive_tar)
                         while archive_tar.offset < self.max_archive_size:
                             try:
-                                file_key_producer, data_source, callback = await self.files_queue.get()
+                                file_key_producer, data_source, callback, overwrite_existing = await self.files_queue.get()
                             except asyncio.QueueShutDown:
                                 return
                             try:
                                 async with data_source as in_fd:
-                                    file_key, offset, file_size = await addfile(archive_tar, tarfile_fd=archive_fd, input_fileobj=in_fd, file_key_producer=file_key_producer)
+                                    success, file_key, offset, file_size = await addfile(archive_tar, tarfile_fd=archive_fd, input_fileobj=in_fd, file_key_producer=file_key_producer, exists=self.exists, overwrite_existing=overwrite_existing)
+                                    if not success:
+                                        callback.set_result(file_key)
+                                        continue
                                 # TODO: We probably don't need to flush immediately after each write,
                                 # But there's no way to signal a flush for tests.
+
                                 archive_fd_sync.flush()
                                 secondary_value = f"{archive_file.name}:{offset}:{file_size}"
                                 await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
@@ -148,9 +157,9 @@ class ArchiveFS(FileStore):
             archive_file.rename(self.finalized_archives_dir / archive_file.name)
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         callback = asyncio.Future[FileKey]()
-        await self.files_queue.put((file_key_producer, data_source, callback))
+        await self.files_queue.put(ArchiveFS.QueueItem(file_key_producer, data_source, callback, overwrite_existing))
         return await callback
 
     @await_or_enter
@@ -200,9 +209,9 @@ class ArchiveFS(FileStore):
         return file_obj.file_info
 
     @override
-    def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
-        return self.secondary.exists(file_key)
-    
+    async def exists(self, file_key: FileKey) -> bool:
+        return await maybe_await(self.secondary.exists(file_key))
+
     @override
     async def flush(self) -> None:
         await self.files_queue.join()

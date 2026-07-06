@@ -7,12 +7,18 @@ This module defines various types and protocols for async io.
 Definitions here should not depend on any other dolt_annex modules.
 """
 
+from asyncio import Future
 from collections.abc import Awaitable, Buffer
 import inspect
 import os
 from types import TracebackType
 from typing import Any, Sized
 from typing_extensions import Protocol
+
+def awaited[T](value: T) -> Awaitable[T]:
+    future = Future[T]()
+    future.set_result(value)
+    return future
 
 class SizedBuffer(Sized, Buffer, Protocol):
     pass

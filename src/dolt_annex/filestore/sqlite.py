@@ -23,19 +23,22 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+import logging
 import pathlib
-from typing import Callable, Tuple
+from typing import Awaitable, Tuple
 from typing_extensions import override
 
 import sqlite3
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreModel
+
+logger = logging.getLogger(__name__)
 
 SQLAR_SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -60,14 +63,20 @@ class SQLite(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         async with data_source as in_fd:
             data = await in_fd.read()
-        file_key = file_key_producer()
-        self.db.execute(
-            "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
-            (str(file_key), len(data), data),
-        )
+        file_key = await file_key_producer
+        if overwrite_existing:
+            self.db.execute(
+                "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
+                (str(file_key), len(data), data),
+            )
+        else:
+            self.db.execute(
+                "INSERT OR IGNORE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
+                (str(file_key), len(data), data),
+            )
         self.db.commit()
         return file_key
 
@@ -104,14 +113,13 @@ class SQLite(FileStore):
         return FileInfo(size=len(file_obj.data))
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         self.db.execute(
             "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) "
             "SELECT ?, mode, mtime, sz, data FROM sqlar WHERE name = ?",
             (str(new_key), str(old_key)),
         )
         self.db.commit()
-        return Result.done()
 
     async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         if prefix:

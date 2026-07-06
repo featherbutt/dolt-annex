@@ -7,11 +7,11 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
-from typing import Callable, Tuple
+from typing import Awaitable, Tuple
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
@@ -38,12 +38,13 @@ class MemoryFS(FileStore):
             self.files[bytes(file_key)] = await f.read()
              
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
             value = await in_fd.read()
-            file_key = file_key_producer()
-            self.files[bytes(file_key)] = value
+            file_key = await file_key_producer
+            if overwrite_existing or bytes(file_key) not in self.files:
+                self.files[bytes(file_key)] = value
             return file_key
 
     @override

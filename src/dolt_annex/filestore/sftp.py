@@ -16,14 +16,15 @@ from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
 from dataclasses import dataclass
 import getpass
 import hashlib
+import logging
 from pathlib import Path
 import random
-from typing import Callable, Self
+from typing import Awaitable, Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
 from asyncssh.sftp import SFTPError
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
@@ -31,6 +32,7 @@ from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wrap_errors
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SftpFileStore(FileStore):
@@ -39,7 +41,7 @@ class SftpFileStore(FileStore):
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Upload a file-like object to the remote."""
         temp_remote_file_path = f"tmp/{random.randbytes(16).hex()}"
 
@@ -49,7 +51,7 @@ class SftpFileStore(FileStore):
             self.sftp.open(temp_remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        file_key = file_key_producer()
+        file_key = await file_key_producer
         real_remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(real_remote_file_path).parent.as_posix(), exist_ok=True)
 

@@ -9,10 +9,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-from typing import TYPE_CHECKING, Callable, Tuple
+from typing import TYPE_CHECKING, Awaitable, Tuple
 import logging
 
-from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
+from dolt_annex.datatypes.async_types import MaybeAwaitable, awaited, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.common import YesNoMaybe
 from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
@@ -76,16 +76,16 @@ class FileStore(abc.ABC):
         """
         Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        await maybe_await(self.put_file_object(file_path.open(), lambda: file_key))
+        await maybe_await(self.put_file_object(file_path.open(), awaited(file_key)))
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Insert an in-memory file to the remote.
         """
-        await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=lambda: file_key))
+        await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=awaited(file_key)))
     
     @abstractmethod
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Callable[[], FileKey]) -> FileKey:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     @abstractmethod
@@ -143,7 +143,7 @@ class FileStore(abc.ABC):
         avoid transferring data over the network and duplicating storage.
         """
         logger.info(f"alias {old_key} -> {new_key}")
-        return await self.put_file_object(self.get_file_object(old_key), lambda: new_key)
+        await self.put_file_object(self.get_file_object(old_key), awaited(new_key))
     
     class GetFilesNotImplementedError(NotImplementedError):
         pass
