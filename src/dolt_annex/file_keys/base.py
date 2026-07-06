@@ -194,7 +194,7 @@ class FileKeyGenerator[FileKeyType: FileKey = FileKey]:
         self._hasher.update(data)
         self._size += len(data)
 
-    def finalize(self) -> FileKeyType:
+    def finalize(self, extension: Optional[str] = None) -> FileKeyType:
         hash_string = self._hasher.hexdigest()
         fields = {
             "size": self._size,
@@ -202,6 +202,8 @@ class FileKeyGenerator[FileKeyType: FileKey = FileKey]:
         }
         if self._extension:
             fields["extension"] = self._extension
+        if extension is not None:
+            fields["extension"] = extension
         return self._fileKeyType.from_fields(**fields)
 
 async def file_digest(fileobj: ReadableStream, digest: FileKeyGenerator, /, *, _bufsize=2**18):
