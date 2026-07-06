@@ -110,10 +110,32 @@ class ContentAddressableStorage:
             generators = self.file_key_generators()
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
+
+        computed_keys: list[FileKey] = []
+        original_key: FileKey | None = None
+        
+        async def file_key_producer() -> FileKey:
+            # If any of the computed keys are already in the filestore, we can abort the write
+            # by returning the existing key.
+
+
+            nonlocal computed_keys
+            nonlocal original_key
+            original_key = await file_key
+            computed_keys = [generator.finalize(extension=original_key["extension"]) for generator in generators]
+
+            # We only benefit from this check when there are multiple key types, so exiting early
+            # can save us RTTs for remote filestores.
+            if len(computed_keys) == 1:
+                # TODO: If the computed key doesn't match the supplied key, what should we do?
+                return computed_keys[0]
+            for computed_key in computed_keys:
+                if await maybe_await(self.file_store.exists(computed_key)):
+                    return computed_key
+            return original_key
  
-        file_key = await self.file_store.put_file_object(open_data_source(), file_key_producer=file_key, overwrite_existing=overwrite_existing)
-        computed_keys = [generator.finalize(extension=file_key["extension"]) for generator in generators]
-        if not any(computed_key.same_bytes(file_key) for computed_key in computed_keys):
+        file_key = await self.file_store.put_file_object(open_data_source(), file_key_producer=file_key_producer(), overwrite_existing=overwrite_existing)
+        if not any(computed_key.same_bytes(original_key) for computed_key in computed_keys):
             raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
         
         for alias in computed_keys:
