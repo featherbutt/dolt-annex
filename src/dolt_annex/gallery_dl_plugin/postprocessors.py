@@ -209,7 +209,7 @@ async def import_file(cas: ContentAddressableStorage, file_table: FileTable, tab
 
     await cas.put_file(from_path, file_key)
     from_path.delete()
-    await maybe_await(file_table.insert(table_key))
+    await file_table.insert(table_key)
 
 async def import_url(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, url: str, file_key: Optional[FileKey] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
@@ -219,7 +219,7 @@ async def import_url(cas: ContentAddressableStorage, file_table: FileTable, tabl
         if file_key is None:
             file_key = new_file_key
     table_key["submission_file_key"] = str(file_key)
-    await maybe_await(file_table.insert(table_key))
+    await file_table.insert(table_key)
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
@@ -227,4 +227,4 @@ async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, ta
 
     await cas.put_file_bytes(file_bytes, file_key)
         
-    await maybe_await(file_table.insert(table_key))
+    await file_table.insert(table_key)

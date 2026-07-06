@@ -50,7 +50,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
     NUM_FILES = 5
     file_keys: list[FileKey] = []
     for i in range(NUM_FILES):
-        file_bytes = random.randbytes(1024*i) # 1 MB
+        file_bytes = random.randbytes(1024*i)
         file_key = await local_filestore.put_file_bytes(file_bytes)
         file_keys.append(file_key)
     return file_keys

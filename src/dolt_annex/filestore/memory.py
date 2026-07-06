@@ -93,7 +93,9 @@ class MemoryFS(FileStore):
 
 class MemoryFSModel(FileStoreModel):
 
+    # Whether the filestore should persist files after being closed.
+    persistent: bool = True
     files: dict[bytes, bytes] = {}
 
     def create(self, config: Config) -> MemoryFS:
-        return MemoryFS(files=self.files)
+        return MemoryFS(files=self.files if self.persistent else self.files.copy())
