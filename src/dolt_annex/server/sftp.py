@@ -21,15 +21,17 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 
 logger = logging.getLogger(__name__)
 
-WORKERS = 10
-
 class NewFileWriter:
     path: bytes
     queue: asyncio.Queue[bytes]
+    file_key: asyncio.Future[FileKey]
+    done: asyncio.Event
 
     def __init__(self, path: bytes):
         self.path = path
-        self.queue = asyncio.Queue(maxsize=1)
+        self.queue = asyncio.Queue()
+        self.file_key = asyncio.get_event_loop().create_future()
+        self.done = asyncio.Event()
 
     async def write(self, data: bytes) -> int:
         await self.queue.put(data)
@@ -49,13 +51,13 @@ class NewFileWriter:
         return await self.queue.get()
     
     async def close(self) -> None:
-        await self.queue.put(b"") 
+        await self.queue.put(b"")
 
     async def __aenter__(self) -> ReadableStream:
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
-        pass
+        await self.close()
 
     async def readinto(self, buffer: Buffer) -> int:
         raise NotImplementedError("readinto is not implemented for NewFileWriter")
@@ -67,16 +69,15 @@ class SFTPServer(asyncssh.SFTPServer):
     temp_file_system: FileSystem
     file_receivers: asyncio.TaskGroup
     work_channel: asyncio.Queue[NewFileWriter]
-    newly_written_files: dict[bytes, FileKey]
+    type FilePath = bytes
+    new_files: dict[FilePath, NewFileWriter]
 
     def __init__(self, chan: asyncssh.SSHServerChannel, cas: ContentAddressableStorage):
         self.cas = cas
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_file_system = fs.osfs.OSFS(self.temp_dir.name)
-        self.work_channel = asyncio.Queue[NewFileWriter](maxsize=1)
-        self.newly_written_files = {}
-        for _ in range(WORKERS):
-            asyncio.create_task(self._worker_task())
+        self.work_channel = asyncio.Queue[NewFileWriter]()
+        self.new_files = {}
         super().__init__(chan, chroot=os.path.realpath(self.temp_dir.name).encode('utf-8'))
 
 
@@ -174,7 +175,8 @@ class SFTPServer(asyncssh.SFTPServer):
         
     async def create_file(self, path: bytes) -> NewFileWriter:
         file_writer = NewFileWriter(path)
-        await self.work_channel.put(file_writer)
+        self.new_files[path] = file_writer
+        asyncio.create_task(self.handle_new_file(file_writer))
         return file_writer
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
@@ -383,7 +385,7 @@ class SFTPServer(asyncssh.SFTPServer):
         return
 
     @override
-    def rename(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def rename(self, oldpath: bytes, newpath: bytes) -> None:
         """Rename a file, directory, or link
 
            This method renames a file, directory, or link.
@@ -407,9 +409,10 @@ class SFTPServer(asyncssh.SFTPServer):
         """
 
         received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
-        expected_file_key = self.newly_written_files[oldpath]
-        if not received_file_key.same_bytes(expected_file_key):
-            raise ValueError(f"File key mismatch: expected {expected_file_key}, got {received_file_key}")
+        new_file_writer = self.new_files[oldpath]
+        new_file_writer.file_key.set_result(received_file_key)
+        del self.new_files[oldpath]
+        await new_file_writer.done.wait()
 
 
     @override
@@ -479,7 +482,7 @@ class SFTPServer(asyncssh.SFTPServer):
         raise asyncssh.SFTPOpUnsupported('Byte range locks not supported')
 
     @override
-    def posix_rename(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def posix_rename(self, oldpath: bytes, newpath: bytes) -> None:
         """Rename a file, directory, or link with POSIX semantics
 
            This method renames a file, directory, or link, removing
@@ -496,10 +499,10 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
         received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
-        expected_file_key = self.newly_written_files[oldpath]
-        if not received_file_key.same_bytes(expected_file_key):
-            raise ValueError(f"File key mismatch: expected {expected_file_key}, got {received_file_key}")
-        del self.newly_written_files[oldpath]
+        new_file_writer = self.new_files[oldpath]
+        new_file_writer.file_key.set_result(received_file_key)
+        del self.new_files[oldpath]
+        await new_file_writer.done.wait()
 
     @override
     def statvfs(self, path: bytes):
@@ -548,8 +551,6 @@ class SFTPServer(asyncssh.SFTPServer):
         # TODO: Consider whether fsync should be supported
         pass
 
-    async def _worker_task(self):
-        while True:
-            file_writer = await self.work_channel.get()
-            actual_file_key = await self.cas.put_file_object(file_writer, file_key=None)
-            self.newly_written_files[file_writer.path] = actual_file_key
+    async def handle_new_file(self, file_writer: NewFileWriter):
+        await self.cas.put_file_object(file_writer, file_key=file_writer.file_key)
+        file_writer.done.set()
