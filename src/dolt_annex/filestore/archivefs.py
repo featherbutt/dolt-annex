@@ -54,7 +54,7 @@ class ArchiveFS(FileStore):
     
     # A list of archived files that are open and available for writing.
     # put_file_object pops files before writing, and pushes them back after writing.
-    available_archives: List[TarFileObject]
+    available_archives: List[TarFile]
     exit_stack: AsyncExitStack
     max_archive_size: int
     append: bool

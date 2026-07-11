@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from tarfile import HeaderError, TarInfo, BLOCKSIZE, NUL
 import tarfile
-from typing import AsyncGenerator, Awaitable, BinaryIO, Callable, NamedTuple
+from typing import AsyncGenerator, Awaitable, BinaryIO, Callable, NamedTuple, Self
 
 from dolt_annex.datatypes.async_types import ReadableStream, WritableFileObject
 from dolt_annex.datatypes.file_io import Path, async_open
@@ -53,7 +53,7 @@ class TarFile:
 
     @classmethod
     @asynccontextmanager
-    async def new(cls, lock_manager: LockManager, archive_file_path: Path) -> AsyncGenerator[TarFile, None]:
+    async def new(cls, lock_manager: LockManager, archive_file_path: Path) -> AsyncGenerator[Self, None]:
         with lock_manager.lock(archive_file_path.name):
             archive_file_path.touch()
             archive_fd_sync = archive_file_path.open_sync('r+b')
