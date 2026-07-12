@@ -42,6 +42,16 @@ class AlterFileKeyType(SubCommand):
         help="The type of file key to convert to",
     )
 
+    skip_metadata = cli.Flag(
+        "--skip-metadata",
+        help="If set, skip updating the metadata keys and only update the submissions keys",
+    )
+
+    skip_submissions = cli.Flag(
+        "--skip-submissions",
+        help="If set, skip updating the submissions keys and only update the metadata keys",
+    )
+
     filters: List[TableFilter] = []
 
     @cli.switch(
@@ -72,39 +82,60 @@ class AlterFileKeyType(SubCommand):
             TargetFileKeyType = get_file_key_type(self.file_key_type)
             metadata_table = dataset_repo.get_table("metadata")
             submissions_table = dataset_repo.get_table("submissions")
-            for old_metadata_row in metadata_table.get_rows(filters=self.filters):
-                old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
-                new_metadata_file_keys = await repo.filestore.create_aliases(old_metadata_file_key, new_key_types=[TargetFileKeyType])
-                assert len(new_metadata_file_keys) == 1, f"Expected exactly one new metadata file key, got {len(new_metadata_file_keys)}"
-                new_metadata_file_key = new_metadata_file_keys[0]
-                if new_metadata_file_key == old_metadata_file_key:
-                    print(f"File key for metadata row {old_metadata_row} is already of type {self.file_key_type}, skipping.")
-                    continue
-                await metadata_table.insert(TableRow({
-                    "source": old_metadata_row["source"],
-                    "id": old_metadata_row["id"],
-                    "file_key": str(new_metadata_file_keys[0])
-                }))
+            if not self.skip_metadata:
+                for old_metadata_row in metadata_table.get_rows(filters=self.filters):
+                    old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
+                    new_metadata_file_keys = await repo.filestore.create_aliases(old_metadata_file_key, new_key_types=[TargetFileKeyType])
+                    assert len(new_metadata_file_keys) == 1, f"Expected exactly one new metadata file key, got {len(new_metadata_file_keys)}"
+                    new_metadata_file_key = new_metadata_file_keys[0]
+                    if new_metadata_file_key == old_metadata_file_key:
+                        print(f"File key for metadata row {old_metadata_row} is already of type {self.file_key_type}, skipping.")
+                        continue
+                    await metadata_table.insert(TableRow({
+                        "source": old_metadata_row["source"],
+                        "id": old_metadata_row["id"],
+                        "file_key": str(new_metadata_file_keys[0])
+                    }))
 
-                for old_submission_row in submissions_table.get_rows(filters=[
-                    TableFilter("source", old_metadata_row["source"]),
-                    TableFilter("id", old_metadata_row["id"]),
-                    TableFilter("metadata_file_key", str(old_metadata_file_key))
-                ]):
+                    for old_submission_row in submissions_table.get_rows(filters=[
+                        TableFilter("source", old_metadata_row["source"]),
+                        TableFilter("id", old_metadata_row["id"]),
+                        TableFilter("metadata_file_key", str(old_metadata_file_key))
+                    ]):
+                        old_submission_file_key = FileKey.must_parse(old_submission_row["submission_file_key"])
+                        new_submission_file_keys = await repo.filestore.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
+                        assert len(new_submission_file_keys) == 1, f"Expected exactly one new submission file key, got {len(new_submission_file_keys)}"
+                        new_submission_file_key = new_submission_file_keys[0]
+                    
+                        await submissions_table.insert(TableRow({
+                            "source": old_submission_row["source"],
+                            "id": old_submission_row["id"],
+                            "metadata_file_key": new_metadata_file_key,
+                            "part": old_submission_row["part"],
+                            "submission_file_key": new_submission_file_key,
+                        }))
+                        await submissions_table.remove(old_submission_row)
+                    await metadata_table.remove(old_metadata_row)
+                await metadata_table.flush()
+                await submissions_table.flush()
+            if not self.skip_submissions:
+                for old_submission_row in submissions_table.get_rows(filters=self.filters):
                     old_submission_file_key = FileKey.must_parse(old_submission_row["submission_file_key"])
                     new_submission_file_keys = await repo.filestore.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
                     assert len(new_submission_file_keys) == 1, f"Expected exactly one new submission file key, got {len(new_submission_file_keys)}"
                     new_submission_file_key = new_submission_file_keys[0]
-                
+                    if new_submission_file_key == old_submission_file_key:
+                        print(f"File key for submission row {old_submission_row} is already of type {self.file_key_type}, skipping.")
+                        continue
                     await submissions_table.insert(TableRow({
                         "source": old_submission_row["source"],
                         "id": old_submission_row["id"],
-                        "metadata_file_key": new_metadata_file_key,
+                        "metadata_file_key": old_submission_row["metadata_file_key"],
                         "part": old_submission_row["part"],
                         "submission_file_key": new_submission_file_key,
                     }))
                     await submissions_table.remove(old_submission_row)
-                await metadata_table.remove(old_metadata_row)
+
 
         return 0
 
