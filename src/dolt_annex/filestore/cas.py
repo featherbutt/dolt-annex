@@ -158,6 +158,10 @@ class ContentAddressableStorage:
         # If all the target key types can be generated this way, we don't need to read the file contents at all.
         generators: List[FileKeyGenerator] = []
         for format in new_key_types:
+            if format is type(old_key):
+                # The new key would just be identical to the old key.
+                alias_keys.append(old_key)
+                continue
             if format.convertable_from(type(old_key)):
                 new_key = format.convert_from(old_key)
                 alias_keys.append(new_key)

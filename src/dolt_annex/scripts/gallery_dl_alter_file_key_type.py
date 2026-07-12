@@ -87,10 +87,10 @@ class AlterFileKeyType(SubCommand):
                     old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
                     new_metadata_file_keys = await repo.filestore.create_aliases(old_metadata_file_key, new_key_types=[TargetFileKeyType])
                     assert len(new_metadata_file_keys) == 1, f"Expected exactly one new metadata file key, got {len(new_metadata_file_keys)}"
-                    new_metadata_file_key = new_metadata_file_keys[0]
-                    if new_metadata_file_key == old_metadata_file_key:
+                    if new_metadata_file_keys[0] == old_metadata_file_key:
                         print(f"File key for metadata row {old_metadata_row} is already of type {self.file_key_type}, skipping.")
                         continue
+                    new_metadata_file_key = new_metadata_file_keys[0]
                     await metadata_table.insert(TableRow({
                         "source": old_metadata_row["source"],
                         "id": old_metadata_row["id"],
@@ -123,10 +123,10 @@ class AlterFileKeyType(SubCommand):
                     old_submission_file_key = FileKey.must_parse(old_submission_row["submission_file_key"])
                     new_submission_file_keys = await repo.filestore.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
                     assert len(new_submission_file_keys) == 1, f"Expected exactly one new submission file key, got {len(new_submission_file_keys)}"
-                    new_submission_file_key = new_submission_file_keys[0]
-                    if new_submission_file_key == old_submission_file_key:
+                    if new_submission_file_keys[0] == old_submission_file_key:
                         print(f"File key for submission row {old_submission_row} is already of type {self.file_key_type}, skipping.")
                         continue
+                    new_submission_file_key = new_submission_file_keys[0]
                     await submissions_table.insert(TableRow({
                         "source": old_submission_row["source"],
                         "id": old_submission_row["id"],
