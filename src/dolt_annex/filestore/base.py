@@ -130,7 +130,7 @@ class FileStore(abc.ABC):
             return YesNoMaybe.YES
         return YesNoMaybe.NO
 
-    def flush(self) -> MaybeAwaitable[None]:
+    async def flush(self) -> None:
         """Flush any pending operations to the filestore."""
 
     @abstractmethod

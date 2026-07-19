@@ -44,6 +44,10 @@ class SftpWrappedFileStore(SftpFileStore):
 
     remote_file_store: FileStore
 
+    @override
+    async def flush(self):
+        await self.remote_file_store.flush()
+
 class SimpleSftpFilestoreModel(FileStoreModel):
 
     @override
@@ -194,6 +198,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     if not isinstance(cas.file_store, SftpFileStore):
         wrong_sha256_key = Sha256E.from_bytes(b"wrong bytes")
         await cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key)
+        await maybe_await(cas.file_store.flush())
         with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
             await cas.verify_file(wrong_sha256_key)
 

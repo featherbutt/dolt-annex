@@ -8,6 +8,7 @@ import random
 
 import pytest_asyncio
 
+from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
@@ -53,6 +54,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
         file_bytes = random.randbytes(1024*i)
         file_key = await local_filestore.put_file_bytes(file_bytes)
         file_keys.append(file_key)
+    await maybe_await(local_filestore.file_store.flush())
     return file_keys
 
 file_key = Sha256E.from_bytes(b"existing data")
@@ -118,6 +120,7 @@ async def test_async_move(
             to_repo,
             FILTERS,
         )
+        await maybe_await(to_repo.filestore.file_store.flush())
         # Check that files have been moved
         for file_key in added_file_keys:
             await to_repo.filestore.verify_file(file_key)

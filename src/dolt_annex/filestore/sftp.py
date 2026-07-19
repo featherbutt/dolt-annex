@@ -88,7 +88,7 @@ class SftpFileStore(FileStore):
         return FileInfo(size=stat_result.size)
     
     @override
-    def flush(self):
+    async def flush(self):
         pass
 
     def get_key_path(self, key: FileKey) -> Path:

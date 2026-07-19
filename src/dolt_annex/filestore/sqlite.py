@@ -25,7 +25,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import logging
 import pathlib
-from typing import Awaitable, Tuple
+from typing import Awaitable, Self, Tuple
 from typing_extensions import override
 
 import sqlite3
@@ -53,32 +53,54 @@ CREATE TABLE sqlar(
 
 SQLAR_DB_FILENAME = "annex.sqlar"
 
+MAX_BATCH_SIZE = 2 * 1024 * 1024  # 2 MB
+
+# TODO: In the event of power loss, can we ensure the db will be in a consistent state?
 
 class SQLite(FileStore):
     """
     This filestore uses SQLite Archive files (https://www.sqlite.org/sqlar.html) to store files.
     """
 
+    db: sqlite3.Connection
+    pending: dict[FileKey, bytes]
+    pending_size: int
+
     def __init__(self, db: sqlite3.Connection):
         self.db = db
+        self.pending = {}
+        self.pending_size = 0
 
     @override
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         async with data_source as in_fd:
             data = await in_fd.read()
         file_key = await file_key_producer
+        # TODO: We could have two different pending lists for rows that should overwrite.
         if overwrite_existing:
             self.db.execute(
                 "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
-                (str(file_key), len(data), data),
+                (str(file_key), len(data), data)
             )
         else:
-            self.db.execute(
-                "INSERT OR IGNORE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
-                (str(file_key), len(data), data),
-            )
-        self.db.commit()
+            self.pending[file_key] = data
+            self.pending_size += len(data)
+            if self.pending_size >= MAX_BATCH_SIZE:
+                logger.info("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
+                await self.flush()
+                
         return file_key
+    
+    async def flush(self):
+        self.db.executemany(
+            "INSERT OR IGNORE INTO sqlar(name, mode, mtime, sz, data) VALUES (?, NULL, NULL, ?, ?)",
+            ((str(file_key), len(data), data) for file_key, data in self.pending.items())
+        )
+        self.db.commit()
+        self.pending.clear()
+        self.pending_size = 0
+
+        
 
     @override
     @await_or_enter
@@ -114,12 +136,15 @@ class SQLite(FileStore):
 
     @override
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
-        self.db.execute(
-            "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) "
-            "SELECT ?, mode, mtime, sz, data FROM sqlar WHERE name = ?",
-            (str(new_key), str(old_key)),
-        )
-        self.db.commit()
+        if old_key in self.pending:
+            await self.put_file_bytes(self.pending[old_key], new_key)
+        else:
+            self.db.execute(
+                "INSERT OR REPLACE INTO sqlar(name, mode, mtime, sz, data) "
+                "SELECT ?, mode, mtime, sz, data FROM sqlar WHERE name = ?",
+                (str(new_key), str(old_key)),
+            )
+            self.db.commit()
 
     async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         if prefix:
@@ -144,16 +169,12 @@ class SQLite(FileStore):
         """
         self.db.execute("DELETE FROM sqlar WHERE name = ?", (str(key),))
 
-class SQLiteModel(FileStoreModel):
-
-    root: pathlib.Path
-
-    @override
+    @classmethod
     @asynccontextmanager
-    async def open(self, config: Config) -> AsyncGenerator[SQLite]:
+    async def new(cls: type[Self], root: pathlib.Path) -> AsyncGenerator[Self, None]:
         """Open a SQLite Archive, creating and initializing it if it does not exist."""
-        self.root.mkdir(parents=True, exist_ok=True)
-        db_path = self.root / SQLAR_DB_FILENAME
+        root.mkdir(parents=True, exist_ok=True)
+        db_path = root / SQLAR_DB_FILENAME
         db = sqlite3.connect(db_path)
         try:
             existing = db.execute(
@@ -165,6 +186,19 @@ class SQLiteModel(FileStoreModel):
             else:
                 # Validate that the table has the expected sqlar columns.
                 db.execute("SELECT name, mode, mtime, sz, data FROM sqlar LIMIT 1")
-            yield SQLite(db=db)
+            sqliteFS = cls(db=db)
+            yield sqliteFS
+            await sqliteFS.flush()
         finally:
             db.close()
+        
+
+class SQLiteModel(FileStoreModel):
+
+    root: pathlib.Path
+
+    @override
+    @asynccontextmanager
+    async def open(self, config: Config) -> AsyncGenerator[SQLite]:
+        async with SQLite.new(self.root) as sqlite:
+            yield sqlite
