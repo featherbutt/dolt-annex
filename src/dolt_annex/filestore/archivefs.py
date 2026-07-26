@@ -129,6 +129,7 @@ class ArchiveFS(FileStore):
         async with data_source as in_fd:
             success, file_key, offset, file_size = await tarfile.addfile(input_fileobj=in_fd, file_key_producer=file_key_producer, exists=self.exists, overwrite_existing=overwrite_existing)
             if not success:
+                self.available_archives.append(tarfile)
                 return file_key
             
             # TODO: We probably don't need to flush immediately after each write,
@@ -136,7 +137,7 @@ class ArchiveFS(FileStore):
 
             tarfile.fd_sync.flush()
             secondary_value = f"{tarfile.path.name}:{offset}:{file_size}"
-            await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
+            await self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key)
 
         self.available_archives.append(tarfile)
         return file_key

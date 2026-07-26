@@ -330,6 +330,7 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
     A corner case: the file already exists in the filestore but under an aliased key.
     This can happen if the set of alternate key types is modified after creation.
     We should not create a new archive entry, and the file should be readable under both keys.
+    Subsequent writes should re-use the archive file.
     """
     async with ArchiveFSModel(
         num_workers=1,
@@ -348,7 +349,9 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
 
         await cas.put_file_bytes(file_bytes, MD5e.from_bytes(file_bytes))
         await archive_filestore.flush()
-        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
+        await archive_filestore.put_file_bytes(b"other_file", Sha256E.from_bytes(b"other_file"))
+
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
         
         for KeyType in [Sha256E, SHA1e, Sha256HSe, MD5e]:
             assert await archive_filestore.get_file_bytes(KeyType.from_bytes(file_bytes)) == file_bytes
