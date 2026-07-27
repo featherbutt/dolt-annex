@@ -90,8 +90,8 @@ async def test_detect_corruption(
             )
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")))
-@pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
+@pytest.mark.parametrize("local_filestore_model", list(all_filestore_type_parameters(pathlib.Path("from"))))
+@pytest.mark.parametrize("remote_filestore_model", list(all_filestore_type_parameters(pathlib.Path("to"))))
 async def test_async_move(
     test_config: Config,
     setup: EnvironmentForTest,
