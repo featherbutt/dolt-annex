@@ -293,6 +293,7 @@ file key: {actual_metadata_key}
 metadata: {str(actual_metadata_bytes, encoding='utf-8')}""")
                 assert actual_part == expected_row.part
 
+@pytest.mark.parametrize("alternate_key_formats",[[MD5HSe]])
 @pytest.mark.asyncio
 async def test_hash_in_metadata(setup: EnvironmentForTest):
     """
