@@ -53,9 +53,17 @@ CREATE TABLE sqlar(
 
 SQLAR_DB_FILENAME = "annex.sqlar"
 
-MAX_BATCH_SIZE = 2 * 1024 * 1024  # 2 MB
+# Setting MAX_BATCH_SIZE to 0 disables batched writes.
+# This is safest and usually the correct behavior,
+# because SQLite writes are rarely the bottleneck.
+# This may be added as a config flag later, but right now 
+# it suffices to change this value when you really need batched writes.
+# TODO: If a process terminates during a batched write, are we
+# guarenteed to be in a consistent state? Do callers to put_file_object
+# assume that the file is persisted to disk after calling?
 
-# TODO: In the event of power loss, can we ensure the db will be in a consistent state?
+# MAX_BATCH_SIZE = 2 * 1024 * 1024  # 2 MB
+MAX_BATCH_SIZE = 0
 
 class SQLite(FileStore):
     """
