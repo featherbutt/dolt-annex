@@ -68,7 +68,6 @@ class ArchiveFS(FileStore):
             self, *,
             file_system: FileSystem,
             secondary: FileStore,
-            workers: asyncio.TaskGroup,
             exit_stack: AsyncExitStack,
             max_archive_size: int,
             append: bool,
@@ -76,7 +75,6 @@ class ArchiveFS(FileStore):
     ):
         self.file_system = file_system
         self.secondary = secondary
-        self.workers = workers
         self.max_archive_size = max_archive_size
 
         self.writable_archives_dir = Path(self.file_system, "writable_archives")
@@ -139,7 +137,11 @@ class ArchiveFS(FileStore):
             secondary_value = f"{tarfile.path.name}:{offset}:{file_size}"
             await self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key)
 
-        self.available_archives.append(tarfile)
+        if await tarfile.fd.tell() > self.max_archive_size:
+            tarfile.close()
+            tarfile.path.rename(self.finalized_archives_dir / tarfile.path.name)
+        else:
+            self.available_archives.append(tarfile)
         return file_key
 
     @await_or_enter
@@ -211,8 +213,7 @@ class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
     secondary: SerializeAsAny[FileStoreModel]
 
-    # The number of parallel workers to use for writing archives.
-    # Each worker has an exclusive lock on a different archive file.
+    # DEPRECATED
     num_workers: int = 4
 
     # The maximum size of each archive file, in bytes.
@@ -228,7 +229,6 @@ class ArchiveFSModel(FileStoreModel):
     async def open(self, config: Config) -> AsyncGenerator[ArchiveFS]:
         async with (
             self.secondary.open(config) as secondary_filestore,
-            asyncio.TaskGroup() as workers,
             AsyncExitStack() as exit_stack
         ):
             if isinstance(self.root, pathlib.Path):
@@ -240,7 +240,6 @@ class ArchiveFSModel(FileStoreModel):
             archive = ArchiveFS(
                 file_system=file_system,
                 secondary=secondary_filestore,
-                workers=workers,
                 exit_stack=exit_stack,
                 max_archive_size=self.max_archive_size,
                 append=self.append,

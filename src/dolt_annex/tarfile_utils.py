@@ -51,16 +51,25 @@ class TarFile:
     fd: WritableFileObject
     fd_sync: BinaryIO
 
+    _closed: bool = False
+
     @classmethod
     @asynccontextmanager
     async def new(cls, lock_manager: LockManager, archive_file_path: Path) -> AsyncGenerator[Self, None]:
         with lock_manager.lock(archive_file_path.name):
             archive_file_path.touch()
             archive_fd_sync = archive_file_path.open_sync('r+b')
-            async with async_open(archive_fd_sync) as archive_fd:
+            async with async_open(archive_fd_sync) as archive_fd:  
                 with tarfile.open(fileobj=archive_fd_sync, mode='w') as archive_tar:
-                    yield cls(path=archive_file_path, tarfile=archive_tar, fd=archive_fd, fd_sync=archive_fd_sync)
-            archive_fd_sync.close()
+                    self = cls(path=archive_file_path, tarfile=archive_tar, fd=archive_fd, fd_sync=archive_fd_sync)
+                    yield self
+            if not self._closed:
+                archive_fd_sync.close()
+
+    def close(self):
+        self.tarfile.close()
+        self.fd_sync.close()
+        self._closed = True
 
     async def addfile(self, input_fileobj: ReadableStream, file_key_producer: Awaitable[FileKey], exists: Callable[[FileKey], Awaitable[bool]], overwrite_existing: bool) -> TarFileEntry:
         """Add the TarInfo object 'tarinfo' to the archive. If 'tarinfo' represents
