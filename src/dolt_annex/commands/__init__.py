@@ -40,7 +40,7 @@ class CommandGroup(Command):
 class BaseApplication(CommandGroup):
     """The top level CLI command"""
     PROGNAME = "dolt-annex"
-    VERSION = "0.8.1"
+    VERSION = "0.9.0"
 
     config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
 
