@@ -60,7 +60,7 @@ class ContentAddressableStorage:
             if not self.content_addressed:
                 raise ContentAddressableStorageError("Cannot compute file key for non-content-addressed filestore")
             file_key = self.file_key_format.from_bytes(file_bytes)
-        await self.put_file_object(async_bytes_io(file_bytes), file_key=awaited(file_key))
+        await self.put_file_object(async_bytes_io(file_bytes), file_key=file_key)
         return file_key
     
     def file_key_generators(self, extension: Optional[str] = None) -> list[FileKeyGenerator]:
@@ -78,12 +78,16 @@ class ContentAddressableStorage:
         hash matches the key, and replace it if the existing content is corrupted.
         """
         file_key_known = isinstance(file_key, FileKey)
+
+        if file_key_known:
+            awaitable_file_key = awaited(file_key)
+        else:
+            awaitable_file_key = file_key
         
-        overwrite_existing = False
         if not self.content_addressed:
-            if file_key_known:
-                file_key = awaited(file_key)
-            return await self.file_store.put_file_object(data_source, file_key_producer=file_key)
+            return await self.file_store.put_file_object(data_source, file_key_producer=awaitable_file_key)
+
+        overwrite_existing = False
 
         if file_key_known and self.filestore_config.verify_existing_files_on_write:
             exists = await maybe_await(self.file_store.exists(file_key))
@@ -98,16 +102,14 @@ class ContentAddressableStorage:
                     logger.info("File with key %s already exists and is valid, skipping write", file_key)
                     return file_key
 
+
         if file_key_known:
-            file_key = awaited(file_key)
-        # We only create key generators if the data source stream is opened.
-        # This means that if the write is a no-op because it already exists in
-        # the destination, we don't compute alias keys.
-        generators: list[FileKeyGenerator] = []
+            generators = [file_key.generator()] + self.file_key_generators()
+        else:
+            generators = self.file_key_generators()
+        
         @asynccontextmanager
         async def open_data_source() -> AsyncGenerator[ReadableStream]:
-            nonlocal generators
-            generators = self.file_key_generators()
             async with data_source as in_fd:
                 yield FileKeyGeneratingReader(in_fd, generators)
 
@@ -118,12 +120,22 @@ class ContentAddressableStorage:
             # If any of the computed keys are already in the filestore, we can abort the write
             # by returning the existing key.
 
-
             nonlocal computed_keys
             nonlocal original_key
-            original_key = await file_key
+            original_key = await awaitable_file_key
             computed_keys = [generator.finalize(extension=original_key["extension"]) for generator in generators]
 
+            # If the file key was known in advance, we hashed it as we read it and can ensure integrity that way.
+            # Otherwise it needs to match one of the supported types of the filestore since we don't have another way to ensure integrity.
+            # TODO: Relax this requirement but providing a way for the file key type to be known in advance.
+            if file_key_known:
+                if not generators[0].finalize().same_bytes(original_key):
+                    raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {original_key} does not match computed keys {computed_keys}")
+            
+            else:
+                if not any(computed_key.same_bytes(original_key) for computed_key in computed_keys):
+                    raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {original_key} does not match computed keys {computed_keys}")
+            
             # We only benefit from this check when there are multiple key types, so exiting early
             # can save us RTTs for remote filestores.
             if len(computed_keys) == 1:
@@ -135,15 +147,13 @@ class ContentAddressableStorage:
             return original_key
  
         file_key = await self.file_store.put_file_object(open_data_source(), file_key_producer=file_key_producer(), overwrite_existing=overwrite_existing)
-        if not any(computed_key.same_bytes(original_key) for computed_key in computed_keys):
-            raise ContentAddressableStorageKeyMismatchError(f"FileKey mismatch: provided key {file_key} does not match computed keys {computed_keys}")
-        
+
         for alias in computed_keys:
             if alias == file_key:
                 continue
             await self.create_alias(old_key=file_key, new_key=alias)
 
-        return file_key
+        return original_key
         
     
     async def create_aliases(self, old_key: FileKey, new_key_types: Optional[list[FileKeyType]] = None) -> List[FileKey]:
