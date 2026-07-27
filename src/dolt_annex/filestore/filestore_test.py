@@ -270,36 +270,34 @@ async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Confi
         num_workers=1,
         root=temp_dir / "archive_root",
         secondary=MemoryFSModel(),
-        max_archive_size=1536
+        max_archive_size=2560
     ).open(test_config) as archive_filestore:
 
         # Every archive entry has a 512 byte header, and data is written in 512 byte blocks.
-        # A max_archive_size of 1536 will fill after the second file is added.
-        # Finalization is not guarenteed to happen immediately, since the task finishes
-        # before finalization, but will happen before the third file is added.
+        # A max_archive_size of 2560 will fill after the third file is added.
 
-        for i in range(3):
+        for i in range(4):
             content = f"file_{i}_".encode()
-            await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
+            await archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content))
 
         # Flush to ensure all writes are complete
-        await maybe_await(archive_filestore.flush())
+        await archive_filestore.flush()
 
-        # There should be exactly 1 finalized archive, containing the first 2 files.
+        # There should be exactly 1 finalized archive, containing the first 3 files.
         # TODO: Inspect archive file contents.
-        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 3)
 
-        # There should be exactly 1 writable archive, containing the third file.
+        # There should be exactly 1 writable archive, containing the fourth file.
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
 
         # Adding another file should write to the new archive file, without affecting the finalized archive.
 
-        content = b"file_4_"
+        content = b"file_5_"
         await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
 
         await maybe_await(archive_filestore.flush())
 
-        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 3)
 
         # There should be exactly 1 writable archive, containing the third and fourth files.
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
