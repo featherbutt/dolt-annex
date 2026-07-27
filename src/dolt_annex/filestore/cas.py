@@ -47,7 +47,7 @@ class ContentAddressableStorage:
         """
         if file_key is None:
             file_key = await self.file_key_format.from_file(file_path)
-        await self.put_file_object(file_path.open(), awaited(file_key))
+        await self.put_file_object(file_path.open(), file_key)
         return file_key
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: Optional[FileKey] = None) -> FileKey:
