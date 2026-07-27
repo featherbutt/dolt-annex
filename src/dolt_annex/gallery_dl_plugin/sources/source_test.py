@@ -13,7 +13,7 @@ from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 import pytest
 
-from dolt_annex.file_keys.base import FileKey
+from dolt_annex.file_keys.base import FileKey, MD5HSe, MD5e
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
 from dolt_annex.gallery_dl_plugin.sources.e621 import E621
@@ -193,9 +193,9 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 post_url=SourceUrl("post", "https://e621.net/posts/14"),
                 id=14,
                 rows=[TableRow(
-                    file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
+                    file_key=MD5HSe(key=b"MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s5802--e54466e742d64eafd4a34413eba4000155e34c800335faeb0ed011a033d9c207.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s8476--57c502491c45f4c6fbd66cf150c120400f23a343e57c592269e0969c6ae8f337.json"),
                 )],
             )
         ],
