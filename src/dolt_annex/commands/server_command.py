@@ -3,19 +3,17 @@
 
 import logging
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.application import Application
+from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.server.ssh import server_context
 
 logger = logging.getLogger(__name__)
-class Server(cli.Application):
+class Server(SubCommand):
     """Starts a sandboxed SFTP server to provide access to the filestore."""
-
-    parent: Application
 
     port = cli.SwitchAttr(
         "--port",
@@ -51,15 +49,14 @@ class Server(cli.Application):
         help="The name of the repo to serve. If not specified, serves the default repo.",
     )
 
-    async def main(self, *args):
+    async def main(self):
         """Entrypoint for server command"""
-        config: Config = self.parent.config
+        config: Config = self.config
 
         async with Repo.open(config, self.repo) as repo:
-            cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
             async with (
                 server_context(
-                    cas=cas,
+                    cas=repo.filestore,
                     host=self.host,
                     port=self.port,
                     authorized_keys=self.authorized_keys,

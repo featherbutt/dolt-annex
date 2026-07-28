@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm
@@ -106,6 +106,6 @@ class InsertRecord(cli.Application):
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)
-            await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
+            await repo.filestore.put_file_bytes(file_bytes, key)
             print(f"Inserted row {self.value} into table '{self.table_name}' in dataset '{self.dataset}'")
         return 0

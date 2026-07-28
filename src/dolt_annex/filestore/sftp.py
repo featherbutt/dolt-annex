@@ -16,13 +16,15 @@ from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
 from dataclasses import dataclass
 import getpass
 import hashlib
+import logging
 from pathlib import Path
-from typing import Self
+import random
+from typing import Awaitable, Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
 from asyncssh.sftp import SFTPError
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
@@ -30,6 +32,7 @@ from dolt_annex.file_keys import FileKey
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wrap_errors
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SftpFileStore(FileStore):
@@ -38,16 +41,22 @@ class SftpFileStore(FileStore):
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Upload a file-like object to the remote."""
-        remote_file_path = self.get_key_path(file_key).as_posix()
-        await self.sftp.makedirs(Path(remote_file_path).parent.as_posix(), exist_ok=True)
+        temp_remote_file_path = f"tmp/{random.randbytes(16).hex()}"
+
+        await self.sftp.makedirs(Path(temp_remote_file_path).parent.as_posix(), exist_ok=True)
         async with (
             data_source as in_fd,
-            self.sftp.open(remote_file_path, 'wb') as out_fd,
+            self.sftp.open(temp_remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        return Result.done()
+        file_key = await file_key_producer
+        real_remote_file_path = self.get_key_path(file_key).as_posix()
+        await self.sftp.makedirs(Path(real_remote_file_path).parent.as_posix(), exist_ok=True)
+
+        await self.sftp.posix_rename(temp_remote_file_path, real_remote_file_path)
+        return file_key
 
     @override
     @await_or_enter
@@ -55,7 +64,9 @@ class SftpFileStore(FileStore):
     async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
-        
+        if await self.sftp.isdir(remote_file_path):
+            remote_file_path = self.get_old_key_path(file_key).as_posix()
+
         if not await self.exists(file_key):
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         
@@ -77,7 +88,7 @@ class SftpFileStore(FileStore):
         return FileInfo(size=stat_result.size)
     
     @override
-    def flush(self):
+    async def flush(self):
         pass
 
     def get_key_path(self, key: FileKey) -> Path:
@@ -90,6 +101,17 @@ class SftpFileStore(FileStore):
         """
         md5 = hashlib.md5(bytes(key)).hexdigest()
         return Path('.') / md5[:3] / md5[3:6] / str(key)
+    
+    def get_old_key_path(self, key: FileKey) -> Path:
+        """
+        Get the relative path for an annex key using the old layout that includes an extra directory
+        with the same name as the key.
+
+        Some older versions of dolt-annex used this layout, so we fall back to it when looking for files.
+        """
+        md5 = hashlib.md5(bytes(key)).hexdigest()
+        return Path('.') / md5[:3] / md5[3:6] / str(key) / str(key)
+
 
     @override
     async def exists(self, file_key: FileKey) -> bool:
@@ -103,7 +125,7 @@ class SftpFileStore(FileStore):
   
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         new_relative_path = self.get_key_path(new_key).as_posix()
         await self.sftp.makedirs(Path(new_relative_path).parent.as_posix(), exist_ok=True)
 
@@ -116,7 +138,6 @@ class SftpFileStore(FileStore):
             oldpath=old_absolute_path,
             newpath=new_absolute_path,
         )
-        return Result.done()
 
     @classmethod
     @asynccontextmanager

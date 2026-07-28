@@ -13,6 +13,7 @@ import logging
 from typing_extensions import Literal, List
 from plumbum import cli
 
+from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.repo import Repo
@@ -25,7 +26,7 @@ from dolt_annex.replicated_db.interface import TableFilter
 
 logger = logging.getLogger(__name__)
 
-class UpdateMetadata(cli.Application):
+class UpdateMetadata(SubCommand):
     batch_size = cli.SwitchAttr(
         "--batch_size",
         int,
@@ -68,8 +69,8 @@ class UpdateMetadata(cli.Application):
         dataset_schema = DatasetSchema.must_load(dataset_name)
 
         async with (
-            Repo.open(self.parent.config, self.repo) as repo,
-            as_acm(DatabaseConnection.open(self.parent.config)) as conn,
+            Repo.open(self.config, self.repo) as repo,
+            as_acm(DatabaseConnection.open(self.config)) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as dataset_repo,
         ):
@@ -77,12 +78,12 @@ class UpdateMetadata(cli.Application):
             submissions_table = dataset_repo.get_table("submissions")
             for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                 old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
-                metadata_bytes = await repo.filestore.get_file_bytes(old_metadata_file_key)
+                metadata_bytes = await repo.filestore.file_store.get_file_bytes(old_metadata_file_key)
                 metadata = json.loads(metadata_bytes)
                 new_metadata = remove_metadata(metadata)
                 category = new_metadata["category"]
                 source = category_to_source[category]
-                new_metadata_file_key, _ = serialize_metadata(new_metadata, source)
+                new_metadata_file_key, _ = serialize_metadata(new_metadata, source, repo)
                 if new_metadata_file_key != old_metadata_file_key:
                     await insert_metadata(new_metadata, source, dataset_repo, repo)
                     for old_submission_row in submissions_table.get_rows(filters=[

@@ -11,6 +11,8 @@ from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.datatypes.config import Config
 from dolt_annex.data import data_dir
+from dolt_annex.filestore.archivefs import ArchiveFSModel
+from dolt_annex.filestore.sqlite import SQLiteModel
 
 def is_wsl():
     """Check if running in Windows Subsystem for Linux"""
@@ -68,8 +70,14 @@ class Init(cli.Application):
             local_repo = RepoModel(
                 name=base_config.local_repo_name,
                 uuid=uuid.uuid4(),
-                filestore=AnnexFSModel(root=Path("./annex")),
+                filestore=ArchiveFSModel(
+                    root=Path("./archivefs/fs"),
+                    secondary=SQLiteModel(
+                        root=Path("./archivefs/db")
+                    )
+                ),
                 key_format=base_config.default_file_key_type,
+                alternate_key_formats=base_config.default_alternate_key_types
             )
             local_repo.save()
         do_init(self.parent.config, init_config)

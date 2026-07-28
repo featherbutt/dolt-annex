@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import abstractmethod
-from typing import ClassVar
+from typing import ClassVar, NewType, Optional
 from typing_extensions import Any, Iterable
 
 from dolt_annex.datatypes.common import TableRow
@@ -15,6 +15,11 @@ type PathSelector = str | SequencePathSelector | UnionPathSelector
 def is_private_field(field: str) -> bool:
     """Whether a field is considered private and should be excluded from imported metadata."""
     return field.startswith("_")
+
+# PostMetadata describes the metadata for a post, which may contain multiple files and has a page count.
+# FileMetadata describes the metadata for a single file, which may be part of a post, and has a page index.
+PostMetadata = NewType("PostMetadata", dict[str, Any])
+FileMetadata = NewType("FileMetadata", dict[str, Any])
 
 class GalleryDLSource:
     """A supported gallery-dl source. Methods describe how to parse and process metadata from that source."""
@@ -50,34 +55,45 @@ class GalleryDLSource:
         - Only change when the submission itself changes (excluding things like view counts)
         """
 
-    def format_file_metadata(self, metadata: dict[str, Any]):
+    def format_file_metadata(self, metadata: FileMetadata):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
 
-    def format_post_metadata(self, metadata: dict[str, Any]):
+    def format_post_metadata(self, metadata: PostMetadata):
         """Format the metadata in a source-specific way. Can be overridden by implementations."""
         mutate_remove_fields(metadata, self.fields_to_remove())
         metadata["_id"] = self.id(metadata)
 
-    def file_metadata(self, metadata: dict[str, Any]) -> Iterable[TableRow]:
+    def file_metadata(self, metadata: FileMetadata) -> Iterable[TableRow]:
         """The table row for 'file' metadata, if any."""
         return []
 
-    def id(self, metadata: dict[str, Any]) -> str:
+    def id(self, metadata: PostMetadata | FileMetadata) -> str:
         """A unique identifier for the post."""
         return str(metadata["id"])
 
-    def page_number(self, metadata: dict[str, Any]) -> int:
+    def page_number(self, metadata: FileMetadata) -> int:
         """
         The page number of the image within the post, if applicable.
         
         Used to distinguish between multiple files from the same post.
         """
         return metadata.get("num", 1)
+
+    @abstractmethod
+    def num_pages(self, metadata: PostMetadata) -> int:
+        """
+        The page number of the image within the post, if applicable.
+        
+        Used to distinguish between multiple files from the same post.
+        """
     
-    def keys_from_metadata(self, metadata: dict[str, Any]) -> Iterable[FileKey | FileKeyPrefix]:
+    def keys_from_metadata(self, metadata: FileMetadata) -> Iterable[FileKey | FileKeyPrefix]:
         return []
+    
+    def file_url_from_metadata(self, metadata: FileMetadata) -> Optional[Iterable[str]]:
+        return None
     
     def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
         """

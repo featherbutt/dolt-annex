@@ -13,55 +13,18 @@ from typing import Optional
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
 import fs.copy
-from typing_extensions import BinaryIO, Final, Self, Literal
+from typing_extensions import BinaryIO, Literal
 
 import fs.move
 import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, Closable, MaybeAwaitable, ReadableStream, maybe_await
-
+from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await
 
 @dataclass
 class FileInfo:
     size: int | None
-
-class ReferenceCountedContextManager[T: Closable]:
-    """
-    A context manager that keeps track of how many active references there are to an object,
-    and only closes the inner object when all references have been released.
-    
-    This is useful for file-like objects that need to be shared across multiple async tasks,
-    and ensures that files are always closed but never closed early.
-
-    Because we do not know if the underlying Closable is synchronous or asynchronous,
-    this class only provides asynchronous context management.
-    """
-
-    inner: Final[T]
-
-    def __init__(self, inner: T) -> None:
-        self.inner = inner
-        self._count = 0
-
-    async def __aenter__(self) -> Self:
-        self._count += 1
-        return self
-
-    async def __aexit__(self, *exc_info) -> None:
-        self._count -= 1
-        if self._count == 0:
-            await self.inner.close()
-
-def ref_count[T: Closable](inner: T) -> ReferenceCountedContextManager[T]:
-    """Create a ReferenceCountedContextManager for the given object."""
-    if isinstance(inner, ReferenceCountedContextManager):
-        return inner
-    else:
-        return ReferenceCountedContextManager(inner)
-
-type RefCountedFile = ReferenceCountedContextManager[ReadableStream]
 
 def async_open(fd: MaybeAwaitable[BinaryIO]) -> AwaitOrEnter[AsyncFileIO]:
     """
@@ -147,7 +110,9 @@ class Path:
     def mkdirs(self, exist_ok: bool = False) -> None:
         self.fs.makedirs(self.path.as_posix(), recreate=exist_ok)
 
-    def rename(self, target: Path) -> None:
+    def rename(self, target: Path, mkdirs: bool = True) -> None:
+        if mkdirs:
+            target.parent.mkdirs(exist_ok=True)
         fs.move.move_file(self.fs, self.path.as_posix(), target.fs, target.path.as_posix())
 
     def upload(self, in_fd: BinaryIO) -> None:
@@ -183,6 +148,8 @@ class Path:
         return Path(self.fs, link_target)
 
     def link(self, target: Path) -> None:
+        if target.exists():
+            return
         try:
             old_syspath = self.fs.getsyspath(self.path.as_posix())
             new_syspath = target.fs.getsyspath(target.path.as_posix())

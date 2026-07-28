@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import sys
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.repo import RepoModel
+from dolt_annex.datatypes.repo import Repo
+from dolt_annex.file_keys.base import FileKey
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +28,21 @@ class Verify(SubCommand):
         help="The repo to verify files in",
         mandatory=True
     )
+
+    all = cli.Flag(
+        "--all",
+        help="If set, verify all files in the repo.",
+        default=False,
+    )
         
     async def main(self, *args) -> int:
-        repo = RepoModel.must_load(self.repo)
-        async with repo.filestore.open(self.config) as filestore:
-            await filestore.verify_all_files()
+        async with Repo.open(self.config, self.repo) as repo:
+            if self.all:
+                await repo.filestore.verify_all_files()
+            else:
+                for file_key in args or sys.stdin.readlines():
+                    queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
+                    await repo.filestore.verify_file(queried_key)
             logger.info("All files verified successfully.")
             
         return 0

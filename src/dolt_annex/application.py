@@ -3,56 +3,18 @@
 
 import logging
 from pathlib import Path
-from typing import List, Tuple
 from typing_extensions import Literal
 
-from plumbum import cli # type: ignore
 from pydantic import ValidationError
 import pyjson5
 
-from dolt_annex.commands import CommandGroup
+from dolt_annex.commands import BaseApplication
 from dolt_annex.datatypes.config import Config
-
-class Env:
-    CONFIG_FILE = "DA_CONFIG"
-    SPAWN_DOLT_SERVER = "DA_SPAWN_DOLT_SERVER"
-    DOLT_SERVER_SOCKET = "DA_DOLT_SERVER_SOCKET"
-    DOLT_DB = "DA_DOLT_DB"
-    DOLT_REMOTE = "DA_DOLT_REMOTE"
-    EMAIL = "DA_EMAIL"
-    NAME = "DA_NAME"
-    ANNEX_COMMIT_MESSAGE = "DA_ANNEX_COMMIT_MESSAGE"
-    AUTO_PUSH = "DA_AUTO_PUSH"
 
 default_config_file_locations = [
     Path("config.json5"),
     Path("config.json"),
 ]
-
-class BaseApplication(CommandGroup):
-    """The top level CLI command"""
-    PROGNAME = "dolt-annex"
-    VERSION = "0.8.1"
-
-    config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
-
-    spawn_dolt_server = cli.Flag("--spawn-dolt-server", envname=Env.SPAWN_DOLT_SERVER,
-                                 help = "If set, spawn a new Dolt server instead of connecting to an existing one.")
-
-    dolt_server_socket = cli.SwitchAttr("--dolt-server-socket", str, envname=Env.DOLT_SERVER_SOCKET,
-                                        help = "The UNIX socket to use for the Dolt server.")
-
-    dolt_db = cli.SwitchAttr("--dolt-db", str, envname=Env.DOLT_DB)
-
-    email = cli.SwitchAttr("--email", str, envname=Env.EMAIL)
-
-    name = cli.SwitchAttr("--name", str, envname=Env.NAME)
-
-    annexcommitmessage = cli.SwitchAttr("--annexcommitmessage", str, envname=Env.ANNEX_COMMIT_MESSAGE)
-
-    config: Config
-
-    log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
 
 class Application(BaseApplication):
     def main(self, *args) -> Literal[0, 1]:
@@ -69,7 +31,7 @@ class Application(BaseApplication):
         for config_path in config_file_locations:
             if config_path.exists():
                 with open(config_path, encoding="utf-8") as fd:
-                    config_json = pyjson5.load(fd)
+                    config_json = pyjson5.load(fd) # type: ignore
                 try:
                     self.config = Config(**config_json)
                 except ValidationError as e:
@@ -78,15 +40,6 @@ class Application(BaseApplication):
                 break
         else:
             self.config = Config()
-
-        self.config.user.name = self.name or self.config.user.name
-        self.config.user.email = self.email or self.config.user.email
-        self.config.dolt.default_commit_message = self.annexcommitmessage or self.config.dolt.default_commit_message
-        self.config.dolt.spawn_dolt_server = self.spawn_dolt_server or self.config.dolt.spawn_dolt_server
-        self.config.dolt.connection.database = self.dolt_db or self.config.dolt.connection.database
-
-        if self.dolt_server_socket:
-            self.config.dolt.connection.server_socket = self.dolt_server_socket
 
         logging.basicConfig(level=self.log_level.upper())
 
@@ -98,17 +51,3 @@ class Application(BaseApplication):
             self.help()
 
         return 0
-
-class ParseArgsEntrypoint(BaseApplication):
-    """
-    An alternate application entrypoint that only parses command line arguments.
-    Returns the remainign positional arguments instead of an error code.
-    """
-    def main(self, *args):
-        return args
-
-def parse_args(args = None) -> Tuple[BaseApplication, List[str]]:
-    if args is None:
-        return ParseArgsEntrypoint.run(exit=False)
-    else:
-        return ParseArgsEntrypoint.run(args, exit=False)

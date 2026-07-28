@@ -7,6 +7,7 @@ import pathlib
 import random
 import tarfile
 import tempfile
+from typing import Optional
 import pytest_asyncio
 from typing_extensions import Generator, AsyncGenerator, override
 import pytest
@@ -19,7 +20,7 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.file_io import Path, async_bytes_io
-from dolt_annex.file_keys import Sha256E, MD5e, SHA1e
+from dolt_annex.file_keys import Sha256E, MD5e, SHA1e, Sha256HSe
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
@@ -42,6 +43,10 @@ class SftpWrappedFileStore(SftpFileStore):
     """
 
     remote_file_store: FileStore
+
+    @override
+    async def flush(self):
+        await self.remote_file_store.flush()
 
 class SimpleSftpFilestoreModel(FileStoreModel):
 
@@ -82,9 +87,10 @@ class SftpWrappedFilestoreModel(FileStoreModel):
         )
         async with self.remote_file_store_model.open(config) as remote_file_store:
             remote_file_cas = ContentAddressableStorage(
+                filestore_config=config.filestore,
                 file_store=remote_file_store,
                 file_key_format=Sha256E,
-                alternate_key_formats=[SHA1e]
+                alternate_key_formats=[SHA1e],
             )
             # setup server, then create server context, then setup client.
             async with (
@@ -106,51 +112,64 @@ class SftpWrappedFilestoreModel(FileStoreModel):
         return f"SftpFileStore({self.remote_file_store_model.type_name()})"
 
 def local_filestore_types():
-    yield MemoryFSModel()
+    yield MemoryFSModel(persistent=False)
     yield LevelDBModel(root=pathlib.Path("leveldb"))
     yield AnnexFSModel(root=fs.memoryfs.MemoryFS())
-    yield UnionFSModel(children=[MemoryFSModel()])
-    yield ArchiveFSModel(num_workers=1, root=pathlib.Path("archive_root"), secondary=MemoryFSModel())
-    yield ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel())
+    yield UnionFSModel(children=[MemoryFSModel(persistent=False)])
+    yield ArchiveFSModel(num_workers=1, root=pathlib.Path("archive_root"), secondary=MemoryFSModel(persistent=False))
+    yield ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel(persistent=False))
     yield SQLiteModel(root=pathlib.Path("sqlite_root"))
 
 
 
 def all_filestore_types() -> Generator[FileStoreModel]:
     yield from local_filestore_types()
-    for fs in local_filestore_types():
-        yield SftpWrappedFilestoreModel(remote_file_store_model=fs)
+    for filestore_model in local_filestore_types():
+        yield SftpWrappedFilestoreModel(remote_file_store_model=filestore_model)
     yield SimpleSftpFilestoreModel()
 
 def all_filestore_type_parameters():
-    for fs in all_filestore_types():
-        yield pytest.param(fs, id=fs.type_name())
+    for filestore_model in all_filestore_types():
+        yield pytest.param(filestore_model, id=filestore_model.type_name())
 
 @pytest_asyncio.fixture(params=all_filestore_type_parameters())
-async def cas(request, test_config) -> AsyncGenerator[ContentAddressableStorage]:
+async def cas(request, test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
     filestore_model: FileStoreModel = request.param
     with (
         tempfile.TemporaryDirectory() as temp_dir,
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(filestore, Sha256E, [SHA1e])
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe], content_addressed=is_content_addressed)
+
+@pytest_asyncio.fixture()
+async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
+    filestore_model: FileStoreModel = ArchiveFSModel(num_workers=1, root=fs.memoryfs.MemoryFS(), secondary=MemoryFSModel(persistent=False))
+    with (
+        tempfile.TemporaryDirectory() as temp_dir,
+        contextlib.chdir(temp_dir)
+    ):
+        async with filestore_model.open(test_config) as filestore:
+            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
+
 
 @pytest.mark.asyncio
-async def test_file_stores(cas: ContentAddressableStorage):
+@pytest.mark.parametrize("extension", [None, "TXT"])
+async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAddressableStorage, extension: Optional[str]):
     file_bytes = b"test"
     # This test uses SHA256 as the main key format, with SHA1 as an alternate,
     # and creates an MD5 file key alias explicitly.
-    md5_key = MD5e.from_bytes(file_bytes)
-    sha1_key = SHA1e.from_bytes(file_bytes)
-    sha256_key = Sha256E.from_bytes(file_bytes)
-    result = await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
-    await result.wait_for_complete()
+    md5_key = MD5e.from_bytes(file_bytes, extension=extension)
+    sha1_key = SHA1e.from_bytes(file_bytes, extension=extension)
+    sha256_key = Sha256E.from_bytes(file_bytes, extension=extension)
+    sha256hs_key = Sha256HSe.from_bytes(file_bytes, extension=extension)
+    await cas.put_file_object(async_bytes_io(file_bytes), file_key=sha256_key)
+
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
-    await cas.file_store.create_alias(sha256_key, md5_key)
+    await cas.create_alias(sha256_key, md5_key)
     await maybe_await(cas.file_store.flush())
-    for key in (sha256_key, md5_key, sha1_key):
+    for key in (sha256_key, md5_key, sha1_key, sha256hs_key):
         assert await maybe_await(cas.file_store.exists(key))
         file_info = await maybe_await(cas.file_store.stat(key))
         assert file_info.size == 4
@@ -159,14 +178,17 @@ async def test_file_stores(cas: ContentAddressableStorage):
             assert file_info.size == 4
             read_bytes = await f.read()
             assert read_bytes == b"test"
-        await cas.file_store.verify_file(key)
+        # Test that the filestore can produce an input stream that can be used in CAS operations
+        await cas.verify_file(key)
+        await second_cas.put_file_object(cas.file_store.with_file_object(key), file_key=key)
+        await second_cas.verify_file(key)
 
     # If iterate_all_files is implemented, test it
     try:
         all_files = [file async for file in cas.file_store.get_files()]
-        assert len(all_files) == 3
+        assert len(all_files) == 4
         sha_files = [file async for file in cas.file_store.get_files(prefix=b"SHA")]
-        assert len(sha_files) == 2
+        assert len(sha_files) == 3
     except NotImplementedError:
         pass
 
@@ -175,20 +197,25 @@ async def test_file_stores(cas: ContentAddressableStorage):
     # So we skip this test for SftpFileStore.
     if not isinstance(cas.file_store, SftpFileStore):
         wrong_sha256_key = Sha256E.from_bytes(b"wrong bytes")
-        result = await maybe_await(cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key))
-        await result.wait_for_complete()
+        await cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key)
+        await maybe_await(cas.file_store.flush())
         with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
-            await cas.file_store.verify_file(wrong_sha256_key)
+            await cas.verify_file(wrong_sha256_key)
 
     # Check that exist for non-existent file returns false
     assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
+
+    # Test that delete removes a file from the filestore, if implemented.
+    if type(cas.file_store).delete is not FileStore.delete:
+        cas.file_store.delete(sha256_key)
+        assert not await maybe_await(cas.file_store.exists(sha256_key))
 
 
 @pytest.mark.asyncio
 async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
     child_filestores = [
-        ArchiveFSModel(num_workers=1, root=temp_dir / "archive_root", secondary=MemoryFSModel()),
-        MemoryFSModel(),
+        ArchiveFSModel(num_workers=1, root=temp_dir / "archive_root", secondary=MemoryFSModel(persistent=False)),
+        MemoryFSModel(persistent=False),
         AnnexFSModel(root=temp_dir / "annex_root"),
     ]
     async with UnionFSModel(children=child_filestores).open(test_config) as union_filestore:
@@ -197,8 +224,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
         for i, child in enumerate(union_filestore.children):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
-            result = await maybe_await(child.put_file_bytes(file_bytes, file_key=file_key))
-            await result.wait_for_complete()
+            await maybe_await(child.put_file_bytes(file_bytes, file_key=file_key))
 
         for i in range(len(union_filestore.children)):
             file_bytes = f"file_in_child_{i}".encode()
@@ -210,8 +236,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
 
         # Creating a child in the parent UnionFS creates the file in the first child filestore
         new_file_key = Sha256E.from_bytes(b"new_file")
-        result = await maybe_await(union_filestore.put_file_bytes(b"new_file", new_file_key))
-        await result.wait_for_complete()
+        await maybe_await(union_filestore.put_file_bytes(b"new_file", new_file_key))
         assert await maybe_await(union_filestore.children[0].exists(new_file_key))
 
         # Creating an alias in the UnionFS creates the alias in the child filestore where the original file exists
@@ -220,8 +245,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
             alias_key = MD5e.from_bytes(file_bytes)
-            result = await maybe_await(union_filestore.create_alias(file_key, alias_key))
-            await result.wait_for_complete()
+            await maybe_await(union_filestore.create_alias(file_key, alias_key))
             assert await maybe_await(child.exists(alias_key))
 
 def assert_tarfile_has_members(tar_file_path: Path, expected_num_members: int):
@@ -246,41 +270,95 @@ async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Confi
         num_workers=1,
         root=temp_dir / "archive_root",
         secondary=MemoryFSModel(),
-        max_archive_size=1536
+        max_archive_size=2560
     ).open(test_config) as archive_filestore:
 
         # Every archive entry has a 512 byte header, and data is written in 512 byte blocks.
-        # A max_archive_size of 1536 will fill after the second file is added.
-        # Finalization is not guarenteed to happen immediately, since the task finishes
-        # before finalization, but will happen before the third file is added.
+        # A max_archive_size of 2560 will fill after the third file is added.
 
-        for i in range(3):
+        for i in range(4):
             content = f"file_{i}_".encode()
-            result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
-            await result.wait_for_complete()
+            await archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content))
 
         # Flush to ensure all writes are complete
-        await maybe_await(archive_filestore.flush())
+        await archive_filestore.flush()
 
-        # There should be exactly 1 finalized archive, containing the first 2 files.
+        # There should be exactly 1 finalized archive, containing the first 3 files.
         # TODO: Inspect archive file contents.
-        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 3)
 
-        # There should be exactly 1 writable archive, containing the third file.
+        # There should be exactly 1 writable archive, containing the fourth file.
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
 
         # Adding another file should write to the new archive file, without affecting the finalized archive.
 
-        content = b"file_4_"
-        result = await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
-        await result.wait_for_complete()
+        content = b"file_5_"
+        await maybe_await(archive_filestore.put_file_bytes(content, Sha256E.from_bytes(content)))
 
         await maybe_await(archive_filestore.flush())
 
-        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 2)
+        assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 3)
 
         # There should be exactly 1 writable archive, containing the third and fourth files.
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
 
+@pytest.mark.asyncio
+async def test_archivefs_duplication(temp_dir: pathlib.Path, test_config: Config):
+    """
+    Test that inserting a duplicate file into an ArchiveFS filestore does not create a new archive entry, that the file can be read back correctly,
+    and that we can continue to write to that archive file.
+    """
+    async with ArchiveFSModel(
+        num_workers=1,
+        root=temp_dir / "archive_root",
+        secondary=MemoryFSModel(),
+    ).open(test_config) as archive_filestore:
+        file_bytes = b"duplicate_file"
+        await archive_filestore.put_file_bytes(file_bytes, Sha256E.from_bytes(file_bytes))
+        await archive_filestore.put_file_bytes(file_bytes, Sha256E.from_bytes(file_bytes))
+        await archive_filestore.put_file_bytes(b"another_file", Sha256E.from_bytes(b"another_file"))
+        await archive_filestore.flush()
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
+        
+        assert await archive_filestore.get_file_bytes(Sha256E.from_bytes(file_bytes)) == file_bytes
+
+@pytest.mark.asyncio
+async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: Config):
+    """
+    A corner case: the file already exists in the filestore but under an aliased key.
+    This can happen if the set of alternate key types is modified after creation.
+    We should not create a new archive entry, and the file should be readable under both keys.
+    Subsequent writes should re-use the archive file.
+    """
+    async with ArchiveFSModel(
+        num_workers=1,
+        root=temp_dir / "archive_root",
+        secondary=MemoryFSModel(),
+    ).open(test_config) as archive_filestore:
+        file_bytes = b"duplicate_file"
+        await archive_filestore.put_file_bytes(file_bytes, Sha256E.from_bytes(file_bytes))
+
+        cas = ContentAddressableStorage(
+            filestore_config=test_config.filestore,
+            file_store=archive_filestore,
+            file_key_format=Sha256E,
+            alternate_key_formats=[SHA1e, Sha256HSe, MD5e],
+        )
+
+        await cas.put_file_bytes(file_bytes, MD5e.from_bytes(file_bytes))
+        await archive_filestore.flush()
+        await archive_filestore.put_file_bytes(b"other_file", Sha256E.from_bytes(b"other_file"))
+
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
+        
+        for KeyType in [Sha256E, SHA1e, Sha256HSe, MD5e]:
+            assert await archive_filestore.get_file_bytes(KeyType.from_bytes(file_bytes)) == file_bytes
+
+
+
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
+

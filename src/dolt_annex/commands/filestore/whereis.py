@@ -2,7 +2,7 @@ from contextlib import AsyncExitStack
 import json
 import sys
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.async_types import maybe_await
 
@@ -27,7 +27,7 @@ class WhereIs(SubCommand):
             repo_models = RepoModel.all()
 
         async with AsyncExitStack() as stack:
-            filestores = [await stack.enter_async_context(repo.filestore.open(self.parent.config)) for repo in repo_models]
+            filestores = [await stack.enter_async_context(repo.filestore.open(self.config)) for repo in repo_models]
             for file_key in args or sys.stdin.readlines():
                 locations = []
                 queried_key = FileKey(bytes(file_key.strip(), encoding='utf-8'))

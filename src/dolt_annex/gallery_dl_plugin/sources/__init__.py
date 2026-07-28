@@ -3,7 +3,6 @@
 
 import copy
 from typing import Any, List
-from xml.etree.ElementTree import PI
 
 from typing_extensions import Dict
 
@@ -16,6 +15,7 @@ from .pixiv import Pixiv
 from .nhentai import NHentai
 from .e621 import E621
 from .subscribestar import SubscribeStar
+from .gelbooru import Gelbooru
 
 sources: List[GalleryDLSource] = [
     Itaku(),
@@ -25,7 +25,8 @@ sources: List[GalleryDLSource] = [
     Inkbunny(),
     NHentai(),
     E621(),
-    SubscribeStar()
+    SubscribeStar(),
+    Gelbooru(),
 ]
 
 category_to_source : Dict[str, GalleryDLSource]= {
@@ -36,7 +37,8 @@ category_to_source : Dict[str, GalleryDLSource]= {
     "inkbunny": Inkbunny(),
     "nhentai": NHentai(),
     "e621": E621(),
-    "subscribestar": SubscribeStar()
+    "subscribestar": SubscribeStar(),
+    "gelbooru": Gelbooru(),
 }
 
 def get_source(category: str, subcategory: str) -> GalleryDLSource:

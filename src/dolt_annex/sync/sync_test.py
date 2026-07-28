@@ -21,20 +21,22 @@ from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressab
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
-from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
+from dolt_annex.filestore.sqlite import SQLiteModel
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
 
 # Try every combination of two and from types.
 def all_filestore_types(prefix: pathlib.Path) -> Generator[FileStoreModel]:
     yield LevelDBModel(root=prefix / "leveldb")
+    yield SQLiteModel(root=prefix / "sqlite")
     yield AnnexFSModel(root=prefix / "annexfs")
-    yield ArchiveFSModel(num_workers=4, root=prefix / "archivefs" / "archives", secondary=LevelDBModel(root=prefix / "archivefs" / "secondary"))
+    yield ArchiveFSModel(num_workers=4, root=prefix / "archivefs" / "archives", secondary=SQLiteModel(root=prefix / "archivefs" / "secondary"))
     yield SftpWrappedFilestoreModel(
         remote_file_store_model=ArchiveFSModel(
             num_workers=4,
             root=prefix / "archivefs" / "archives",
-            secondary=LevelDBModel(root=prefix / "archivefs" / "secondary")
+            secondary=SQLiteModel(root=prefix / "archivefs" / "secondary")
         )
     )
     yield SimpleSftpFilestoreModel()
@@ -48,11 +50,11 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
     # Create random files to move in parallel
     NUM_FILES = 5
     file_keys: list[FileKey] = []
-    for _ in range(NUM_FILES):
-        file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key_result = await local_filestore.put_file_bytes(file_bytes)
-        file_key = await file_key_result.wait_for_complete()
+    for i in range(NUM_FILES):
+        file_bytes = random.randbytes(1024*i)
+        file_key = await local_filestore.put_file_bytes(file_bytes)
         file_keys.append(file_key)
+    await maybe_await(local_filestore.file_store.flush())
     return file_keys
 
 file_key = Sha256E.from_bytes(b"existing data")
@@ -88,8 +90,8 @@ async def test_detect_corruption(
             )
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("local_filestore_model", all_filestore_type_parameters(pathlib.Path("from")))
-@pytest.mark.parametrize("remote_filestore_model", all_filestore_type_parameters(pathlib.Path("to")))
+@pytest.mark.parametrize("local_filestore_model", list(all_filestore_type_parameters(pathlib.Path("from"))))
+@pytest.mark.parametrize("remote_filestore_model", list(all_filestore_type_parameters(pathlib.Path("to"))))
 async def test_async_move(
     test_config: Config,
     setup: EnvironmentForTest,
@@ -118,6 +120,7 @@ async def test_async_move(
             to_repo,
             FILTERS,
         )
+        await maybe_await(to_repo.filestore.file_store.flush())
         # Check that files have been moved
         for file_key in added_file_keys:
             await to_repo.filestore.verify_file(file_key)
@@ -155,8 +158,7 @@ async def test_diff_types(
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key_result = await setup.local_file_store.put_file_bytes(file_bytes)
-        file_key = await file_key_result.wait_for_complete()
+        file_key = await setup.local_repo.filestore.put_file_bytes(file_bytes)
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
@@ -181,8 +183,7 @@ async def test_diff_types(
         # Modify the table row
         await from_table.remove(table_row)
         new_file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key_result = await setup.local_file_store.put_file_bytes(new_file_bytes)
-        new_file_key = await file_key_result.wait_for_complete()
+        new_file_key = await setup.local_repo.filestore.put_file_bytes(new_file_bytes)
         new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
         await from_table.insert(new_table_row)
 

@@ -4,28 +4,18 @@
 import dataclasses
 import json
 import logging
-from pathlib import Path
-import shutil
-from plumbum import cli # type: ignore
+from plumbum import cli
 
-from dolt_annex.application import Application
+from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl, skip_db_path
+from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 
 logger = logging.getLogger(__name__)
 
-class GalleryDL(cli.Application):
+class GalleryDL(SubCommand):
     """Downlad files using gallery-dl and import them into dolt-annex"""
-
-    parent: Application
-
-    batch_size = cli.SwitchAttr(
-        "--batch_size",
-        int,
-        help="The number of files to process at once",
-        default=1000,
-    )
 
     dataset = cli.SwitchAttr(
         "--dataset",
@@ -46,8 +36,18 @@ class GalleryDL(cli.Application):
         default=False,
     )
 
+    skip_download = cli.Flag(
+        "--skip-download",
+        help="If set, don't download the submission data and only process the metadata",
+        default=False,
+    )
+
     async def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
+        gallery_dl_config: GalleryDLConfig = self.config.gallery_dl
+        gallery_dl_config.capture_output = self.capture_output
+        gallery_dl_config.skip_download = self.skip_download
+                                                          
         dataset_name = self.dataset
 
         dataset_schema = DatasetSchema.load(dataset_name)
@@ -57,8 +57,8 @@ class GalleryDL(cli.Application):
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save()
             
-        async with Repo.open(self.parent.config, self.repo) as repo:
-            output = await run_gallery_dl(self.parent.config, repo, self.batch_size, dataset_schema, self.capture_output, *args)
+        async with Repo.open(self.config, self.repo) as repo:
+            output = await run_gallery_dl(self.config, repo, gallery_dl_config, dataset_schema, *args)
         print(json.dumps(dataclasses.asdict(output), indent=2))
         return 0
     

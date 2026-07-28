@@ -9,28 +9,30 @@ with the file key as the key and the file contents as the value.
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 import pathlib
 import tarfile
-from typing import AsyncGenerator, BinaryIO, Generator
+from typing import AsyncGenerator, Awaitable, List, NamedTuple
 import uuid
-from pydantic import InstanceOf
+from pydantic import InstanceOf, SerializeAsAny
 from typing_extensions import override, Tuple
+import logging
 
 from fs.base import FS as FileSystem
-import fs.memoryfs
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await, AsyncContextManager, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_types import AwaitOrEnter, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
 from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
-from dolt_annex.tarfile_utils import addfile, advance_to_end
+from dolt_annex.tarfile_utils import TarFile
 
-from .base import FileInfo, FileStore, FileStoreModel
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel
+
+logger = logging.getLogger(__name__)
 
 class ArchiveFS(FileStore):
     """
@@ -41,10 +43,19 @@ class ArchiveFS(FileStore):
     This reduces the size of values in the secondary filestore.
     """
 
+    class QueueItem(NamedTuple):
+        file_key_producer: Awaitable[FileKey]
+        data_source: AsyncContextManager[ReadableStream]
+        callback: asyncio.Future[FileKey]
+        overwrite_existing: bool
+        
     file_system: FileSystem
     secondary: FileStore
-    files_queue: asyncio.Queue[Tuple[FileKey, AsyncContextManager[ReadableStream], asyncio.Future[None]]]
-    workers: asyncio.TaskGroup
+    
+    # A list of archived files that are open and available for writing.
+    # put_file_object pops files before writing, and pushes them back after writing.
+    available_archives: List[TarFile]
+    exit_stack: AsyncExitStack
     max_archive_size: int
     append: bool
 
@@ -57,14 +68,13 @@ class ArchiveFS(FileStore):
             self, *,
             file_system: FileSystem,
             secondary: FileStore,
-            workers: asyncio.TaskGroup,
-            num_workers: int,
+            exit_stack: AsyncExitStack,
             max_archive_size: int,
-            append: bool
+            append: bool,
+            readonly: bool,
     ):
         self.file_system = file_system
         self.secondary = secondary
-        self.workers = workers
         self.max_archive_size = max_archive_size
 
         self.writable_archives_dir = Path(self.file_system, "writable_archives")
@@ -76,31 +86,20 @@ class ArchiveFS(FileStore):
         self.locks_dir.mkdirs(exist_ok=True)
 
         self.lock_manager = new_lock_manager(self.locks_dir)
-        self.files_queue = asyncio.Queue()
+        self.available_archives = []
+        self.exit_stack = exit_stack
 
         self.append = append
+        self.readonly = readonly
 
-        for _ in range(num_workers):
-            workers.create_task(self._worker_loop())
-
-    @contextmanager
-    def open_archive_file_for_write(self, archive_file_path: Path) -> Generator[Tuple[tarfile.TarFile, BinaryIO], None, None]:
-        with self.lock_manager.lock(archive_file_path.name):
-            archive_file_path.touch()
-            archive_fd_sync = archive_file_path.open_sync('r+b')
-            archive_tar = tarfile.open(fileobj=archive_fd_sync, mode='w')
-            yield archive_tar, archive_fd_sync
-            archive_tar.close()
-            archive_fd_sync.close()
-
-    @contextmanager
-    def get_archive_file_for_write(self) -> Generator[Tuple[tarfile.TarFile, BinaryIO, Path], None, None]:
+    @asynccontextmanager
+    async def get_archive_file_for_write(self) -> AsyncGenerator[TarFile, None]:
         # Attempt to acquire a lock on a "hot" archive file.
         if self.append:
             for archive_file in self.writable_archives_dir.children():
                 try:
-                    with self.open_archive_file_for_write(archive_file) as (archive_tar, archive_fd):
-                        yield archive_tar, archive_fd, archive_file
+                    async with TarFile.new(self.lock_manager, archive_file) as archive:
+                        yield archive
                         return
                 except FailedToAcquireLock:
                     continue
@@ -110,58 +109,40 @@ class ArchiveFS(FileStore):
             new_archive_file_name = f"{uuid.uuid4()}.tar"
             new_archive_file_path = self.writable_archives_dir / new_archive_file_name
             try:
-                with self.open_archive_file_for_write(new_archive_file_path) as (archive_tar, archive_fd):
-                    yield archive_tar, archive_fd, new_archive_file_path
+                async with TarFile.new(self.lock_manager, new_archive_file_path) as archive:
+                    yield archive
                     return
             except FailedToAcquireLock:
                 continue
 
-    async def _worker_loop(self) -> None:
-        while True:
-            with self.get_archive_file_for_write() as (archive_tar, archive_fd_sync, archive_file):
-                async with async_open(archive_fd_sync) as archive_fd:
-                    with archive_tar:
-                        advance_to_end(archive_tar)
-                        while archive_tar.offset < self.max_archive_size:
-                            try:
-                                file_key, data_source, callback = await self.files_queue.get()
-                            except asyncio.QueueShutDown:
-                                return
-                            try:
-                                tar_info = tarfile.TarInfo(name=str(file_key))
-                                tar_info.size = file_key.size
-                                buf = tar_info.tobuf(archive_tar.format, archive_tar.encoding, archive_tar.errors)
-                                offset = archive_tar.offset + len(buf)
-                                async with data_source as in_fd:
-                                    await addfile(archive_tar, tarfile_fd=archive_fd, tarinfo=tar_info, input_fileobj=in_fd)
-                                # TODO: We probably don't need to flush immediately after each write,
-                                # But there's no way to signal a flush for tests.
-                                archive_fd_sync.flush()
-                                secondary_value = f"{archive_file.name}:{offset}:{tar_info.size}"
-                                await maybe_await(self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key))
-                                callback.set_result(None)
-                            except Exception as e:
-                                callback.set_exception(e)
-                            finally:
-                                self.files_queue.task_done()
-
-            # Move the archive file to the finalized directory so that it is no longer used for writing.
-            archive_file.rename(self.finalized_archives_dir / archive_file.name)
-
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
-        if await maybe_await(self.secondary.exists(file_key)):
-            # The file already exists, so we don't need to do anything.
-            # Open the stream in order to close it.
-            try:
-                await self.verify_file(file_key)
-                async with data_source:
-                    return Result.done()
-            except (AssertionError, tarfile.ReadError):
-                pass
-        callback = asyncio.Future[None]()
-        await self.files_queue.put((file_key, data_source, callback))
-        return Result(callback)
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+        if self.readonly:
+            raise FileStoreError("Cannot write to a readonly ArchiveFS filestore.")
+        # get an open achive file if possible, else create a new one.
+        if self.available_archives:
+            tarfile = self.available_archives.pop()
+        else:
+            tarfile = await self.exit_stack.enter_async_context(self.get_archive_file_for_write())
+        async with data_source as in_fd:
+            success, file_key, offset, file_size = await tarfile.addfile(input_fileobj=in_fd, file_key_producer=file_key_producer, exists=self.exists, overwrite_existing=overwrite_existing)
+            if not success:
+                self.available_archives.append(tarfile)
+                return file_key
+            
+            # TODO: We probably don't need to flush immediately after each write,
+            # But there's no way to signal a flush for tests.
+
+            tarfile.fd_sync.flush()
+            secondary_value = f"{tarfile.path.name}:{offset}:{file_size}"
+            await self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key)
+
+        if await tarfile.fd.tell() > self.max_archive_size:
+            tarfile.close()
+            tarfile.path.rename(self.finalized_archives_dir / tarfile.path.name)
+        else:
+            self.available_archives.append(tarfile)
+        return file_key
 
     @await_or_enter
     async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:
@@ -210,26 +191,29 @@ class ArchiveFS(FileStore):
         return file_obj.file_info
 
     @override
-    def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
-        return self.secondary.exists(file_key)
-    
+    async def exists(self, file_key: FileKey) -> bool:
+        return await maybe_await(self.secondary.exists(file_key))
+
     @override
     async def flush(self) -> None:
-        await self.files_queue.join()
         await maybe_await(self.secondary.flush())
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         return await self.secondary.create_alias(old_key, new_key)
 
-
+    @override
+    def delete(self, key: FileKey) -> None:
+        """
+        Remove a file from a filestore. Note that this causes the filestore to "forget" about the file, but does not delete the file from the archive files.
+        """
+        self.secondary.delete(key)
 
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
-    secondary: FileStoreModel
+    secondary: SerializeAsAny[FileStoreModel]
 
-    # The number of parallel workers to use for writing archives.
-    # Each worker has an exclusive lock on a different archive file.
+    # DEPRECATED
     num_workers: int = 4
 
     # The maximum size of each archive file, in bytes.
@@ -238,12 +222,14 @@ class ArchiveFSModel(FileStoreModel):
 
     append: bool = False
 
+    readonly: bool = False
+
     @override
     @asynccontextmanager
     async def open(self, config: Config) -> AsyncGenerator[ArchiveFS]:
         async with (
             self.secondary.open(config) as secondary_filestore,
-            asyncio.TaskGroup() as workers
+            AsyncExitStack() as exit_stack
         ):
             if isinstance(self.root, pathlib.Path):
                 self.root.mkdir(parents=True, exist_ok=True)
@@ -254,15 +240,12 @@ class ArchiveFSModel(FileStoreModel):
             archive = ArchiveFS(
                 file_system=file_system,
                 secondary=secondary_filestore,
-                workers=workers,
-                num_workers=self.num_workers,
+                exit_stack=exit_stack,
                 max_archive_size=self.max_archive_size,
-                append=self.append
+                append=self.append,
+                readonly=self.readonly
             )
-            try:
-                yield archive
-            finally:
-                archive.files_queue.shutdown()
+            yield archive
             
     @override
     def type_name(self) -> str:

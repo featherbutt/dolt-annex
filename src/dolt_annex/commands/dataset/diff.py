@@ -7,15 +7,14 @@ from typing_extensions import List
 from plumbum import cli
 
 from dolt_annex.application import Application
+from dolt_annex.commands import SubCommand
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.datatypes.repo import RepoModel
-class Diff(cli.Application):
+class Diff(SubCommand):
     """Print records that differ between two versions of a dataset."""
-
-    parent: Application
 
     limit = cli.SwitchAttr(
         "--limit",
@@ -66,7 +65,7 @@ class Diff(cli.Application):
 
     async def main(self, *args: list[str]) -> int:
         """Entrypoint for diff command"""
-        base_config: Config = self.parent.config
+        base_config: Config = self.config
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
         with (
@@ -76,8 +75,9 @@ class Diff(cli.Application):
             local_repo_model = RepoModel.must_load(self.from_repo)
             remote_repo_model = RepoModel.must_load(self.to_repo)
             table_schema = dataset_schema.get_table(self.table_name)
-            keys_and_submissions = list(dataset.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, table_schema, self.filters, self.limit))
-            for diff_type, key, to_submission, from_submission in keys_and_submissions:
-                    # TODO: Display removed rows
-                    print(",".join([diff_type, str(key), str(to_submission)]))
+            async with dataset.with_table(self.table_name) as replicated_table:
+                keys_and_submissions = list(replicated_table.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, self.filters, self.limit))
+                for diff_type, key, to_submission, from_submission in keys_and_submissions:
+                        # TODO: Display removed rows
+                        print(",".join([diff_type, str(key), str(to_submission)]))
         return 0

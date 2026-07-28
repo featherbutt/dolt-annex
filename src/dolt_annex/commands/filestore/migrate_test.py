@@ -16,8 +16,8 @@ from dolt_annex.test_util import EnvironmentForTest, run
 @pytest.mark.parametrize("remote_filestore_model", [ArchiveFSModel(root=pathlib.Path('./archive'), secondary=MemoryFSModel())])
 async def test_migrate(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
-    local_file_store = setup.local_file_store.file_store
-    remote_file_store = setup.remote_file_store.file_store
+    local_file_store = setup.local_repo.filestore.file_store
+    remote_file_store = setup.remote_repo.filestore.file_store
 
     key = Sha256E.from_bytes(b"new file content", "txt")
     await run(

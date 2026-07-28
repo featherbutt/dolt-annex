@@ -5,31 +5,33 @@
 Helper functions that gallery-dl postprocessors can use to format data for dolt-annex.
 """
 
-import hashlib
 import json
 import pathlib
 import sys
-from typing import Dict
-from typing_extensions import Any, Optional
+from typing import Dict, Optional
+from typing_extensions import Any
 
 import fs.osfs
+from gallery_dl.util import json_default
+
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
-from gallery_dl.util import json_default
+
 
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.file_keys import Sha256E
 
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
 
-def gallery_dl_post(metadata: dict):
+def gallery_dl_post(metadata: PostMetadata):
     """The entrypoint for 'post' postprocessor hooks (run at the start of a batch of related downloads)"""
     context = _gallery_dl_context.get()
     if context.abort_flag:
@@ -49,7 +51,7 @@ def gallery_dl_post(metadata: dict):
     context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
     context.post_metadata_files_processed += 1
 
-def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
+def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
     metadata_bytes = json.dumps(    
@@ -58,36 +60,41 @@ def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
         sort_keys=True,
         indent=4,
         default=json_default).encode('utf-8') + b'\n'
-    return Sha256E.from_bytes(metadata_bytes, "json"), metadata_bytes
+    return repo.key_format.from_bytes(metadata_bytes, "json"), metadata_bytes
 
 
 async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
-    file_key, metadata_bytes = serialize_metadata(metadata, source)
+    file_key, metadata_bytes = serialize_metadata(metadata, source, repo)
     metadata["_metadata_file_key"] = file_key
 
     table_row = TableRow({"source": source.source_name, "id": metadata["_id"], "file_key": file_key})
 
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
-    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
 
-    await import_bytes(cas, table, table_row, metadata_bytes, "json", Sha256E)
+    await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", repo.key_format)
     return file_key
 
-def gallery_dl_prepare(metadata: dict[str, Any]):
+def gallery_dl_prepare(metadata: FileMetadata):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
     category = metadata["category"]
     subcategory = metadata["subcategory"]
     source = get_source(category, subcategory)
 
     source.format_file_metadata(metadata)
-    check_skip(source, metadata)
+    if check_skip(source, metadata):
+        metadata["_skip"] = 1
 
-def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
+def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     """Check whether we should skip downloading this file."""
     # First, check whether we already have the file in the annex.
-    # TODO: We may want to skip if any known remote has a copy, not just the local remote.
+
     context = _gallery_dl_context.get()
+
+    # First, if the --skip-download flag is set, we skip all downloads.
+    if _gallery_dl_context.get().config.skip_download:
+        return True
+
     repo_dataset = context.repo_dataset
     repo = context.repo
 
@@ -103,27 +110,28 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
     ]
     if submissions_table.has_row(filters):
         # We already have this file, skip it.
-        metadata["_skip"] = 1
-        return
+        return True
 
     # Alternatively, if the source provides a hash in the metadata, we can check to see
     # Whether a file with that hash already exists in the filestore. If it does, we
     # make a task to insert a record into the table, and then skip.
 
-    async def get_files_coro():
+    async def get_files_coro() -> bool:
         has_keys_in_metadata = False
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
-            async for key, _ in repo.filestore.get_files(bytes(key_prefix)):
-                await submissions_table.insert(TableRow({
-                    "source": source.source_name,
-                    "id": metadata["_id"],
-                    "metadata_file_key": metadata["_metadata_file_key"],
-                    "part": page_number,
-                    "submission_file_key": key
-                }))
-                metadata["_skip"] = 1
-                return
+            try:
+                async for key, _ in repo.filestore.file_store.get_files(bytes(key_prefix)):
+                    await submissions_table.insert(TableRow({
+                        "source": source.source_name,
+                        "id": metadata["_id"],
+                        "metadata_file_key": metadata["_metadata_file_key"],
+                        "part": page_number,
+                        "submission_file_key": key
+                    }))
+                    return True
+            except FileStore.GetFilesNotImplementedError:
+                pass
         
         if not has_keys_in_metadata:
             # If the source doesn't contain file hashes, it might contain other information
@@ -133,7 +141,7 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                 TableFilter("id", metadata["_id"])
             ]):
                 metadata_file_key = FileKey.must_parse(row["file_key"])
-                metadata_bytes = await repo.filestore.get_file_bytes(metadata_file_key)
+                metadata_bytes = await repo.filestore.file_store.get_file_bytes(metadata_file_key)
                 existing_metadata = json.loads(metadata_bytes)
                 if source.assume_same_file(metadata, existing_metadata, page_number):
                     submission_file_key = submissions_table.get_row(filters=[
@@ -149,11 +157,10 @@ def check_skip(source: GalleryDLSource, metadata: dict[str, Any]):
                         "part": page_number,
                         "submission_file_key": submission_file_key,
                     }))
-                    metadata["_skip"] = 1
-                    return
+                    return True
+        return False
 
-    context.run(get_files_coro())
-    return
+    return context.run(get_files_coro())
 
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""
@@ -182,26 +189,42 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         "metadata_file_key": metadata["_metadata_file_key"],
         "part": source.page_number(metadata)
     })
-    cas = ContentAddressableStorage(repo.filestore, repo.key_format, repo.alternate_key_formats)
-    context.run(import_file(cas, submissions_table, submission_table_key, temp_path, metadata["extension"]))
+    file_key: Optional[FileKey] = None
+    for key_prefix in source.keys_from_metadata(metadata):
+        if isinstance(key_prefix, FileKey):
+            file_key = key_prefix
+            break
+        
+    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, file_key=file_key))
     context.submission_files_processed += 1
     for metadata_key in source.file_metadata(metadata):
-        context.run(import_file(cas, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json"), "json"))
+        context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json")))
         context.submission_metadata_files_processed += 1
 
-async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, extension: str):
+async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, file_key: Optional[FileKey] = None):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    file_key = await cas.file_key_format.from_file(from_path)
+    if file_key is None:
+        file_key = await cas.file_key_format.from_file(from_path)
     table_key["submission_file_key"] = str(file_key)
 
     await cas.put_file(from_path, file_key)
-    await maybe_await(file_table.insert(table_key))
+    from_path.delete()
+    await file_table.insert(table_key)
+
+async def import_url(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, url: str, file_key: Optional[FileKey] = None):
+    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
+    # TODO: Some sources may require authentication to download files.
+    async with aiohttp.ClientSession() as session:
+        new_file_key = await cas.put_file_object(session.get(url), file_key)
+        if file_key is None:
+            file_key = new_file_key
+    table_key["submission_file_key"] = str(file_key)
+    await file_table.insert(table_key)
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     file_key = file_key_type.from_bytes(file_bytes, extension=extension)
 
-    result = await cas.put_file_bytes(file_bytes, file_key)
-    await result.wait_for_complete()
+    await cas.put_file_bytes(file_bytes, file_key)
         
-    await maybe_await(file_table.insert(table_key))
+    await file_table.insert(table_key)

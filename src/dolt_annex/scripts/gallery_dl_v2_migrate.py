@@ -28,12 +28,6 @@ from dolt_annex.replicated_db.interface import TableFilter
 logger = logging.getLogger(__name__)
 
 class GalleryDLMigrate(SubCommand):
-    batch_size = cli.SwitchAttr(
-        "--batch_size",
-        int,
-        help="The number of database rows to update at once",
-        default=1000,
-    )
 
     old_dataset = cli.SwitchAttr(
         "--old-dataset",

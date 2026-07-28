@@ -10,7 +10,7 @@ import logging
 from typing_extensions import Iterable, Optional, Tuple, List
 
 from dolt_annex.replicated_db.dolt import Dataset, FileTable
-from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.replicated_db.interface import ReplicatedDataset, TableFilter, TableReplica
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import Result
@@ -22,7 +22,7 @@ from dolt_annex.filestore.cas import filestore_copy
 logger = logging.getLogger(__name__)
 
 class SyncOperation:
-    to_table: FileTable
+    to_table: TableReplica
     from_repo: Repo
     to_repo: Repo
     ignore_missing: bool = False
@@ -34,7 +34,7 @@ class SyncOperation:
     def __init__(
             self,
             *,
-            to_table: FileTable,
+            to_table: TableReplica,
             from_repo: Repo,
             to_repo: Repo,
             ignore_missing: bool = False,
@@ -73,7 +73,7 @@ class SyncOperation:
 
         has_more = True
         while has_more:
-            keys_and_submissions = list(self.to_table.dataset.diff_keys(self.from_repo.uuid, self.to_repo.uuid, self.to_table.schema, where, batch_size))
+            keys_and_submissions = list(self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size))
             has_more = await self.move_submissions_and_keys(keys_and_submissions)
             # Await here so that the next diff sees the updated state
             await self.work_queue.join()
@@ -89,11 +89,11 @@ class SyncOperation:
                 case "added": 
                     await self.work_queue.put((key, to_table_row))
                 case "removed":
-                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
                     await self.to_table.remove(from_table_key)
                 case "modified":
                     await self.work_queue.put((key, to_table_row))
-                    from_table_key = { column: from_table_row[column] for column in self.to_table.schema.key_columns }
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
                     await self.to_table.remove(from_table_key)
                 case _:
                     raise ValueError(f"Unknown diff type {diff_type}")
@@ -109,13 +109,12 @@ class SyncOperation:
             # We still record that we have a copy of it for this dataset.
             await self.to_table.insert(table_row)
             return Result.done()
-        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.exists(key)):
+        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.file_store.exists(key)):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return Result.done()
-        result = await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
+        await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
         # We must wait for the copy to complete before updating the dataset.
         async def update_table_on_complete() -> None:
-            await result.wait_for_complete()
             await self.to_table.insert(table_row)
         return Result(asyncio.create_task(update_table_on_complete()))
 
@@ -124,7 +123,7 @@ class SyncOperation:
     async def context_manager(
             cls,
             *,
-            to_table: FileTable,
+            to_table: TableReplica,
             from_repo: Repo,
             to_repo: Repo,
             ignore_missing: bool = False,
@@ -154,7 +153,7 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
 
-async def move_dataset(dataset: Dataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
+async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
     if moved_files is None:
         moved_files = []
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.

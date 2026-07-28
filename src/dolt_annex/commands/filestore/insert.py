@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from plumbum import cli # type: ignore
+from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.async_types import maybe_await
@@ -49,11 +49,7 @@ class Insert(SubCommand):
 
         file_key_type = get_file_key_type(self.file_key_type)
         file_bytes = self.file_bytes.encode('utf-8')
-        if self.extension == "":
-            extension = None
-        else:
-            extension = self.extension
-        key = file_key_type.from_bytes(file_bytes, extension)
+        key = file_key_type.from_bytes(file_bytes, self.extension)
 
         async with Repo.open(base_config, self.repo) as repo:
             await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))

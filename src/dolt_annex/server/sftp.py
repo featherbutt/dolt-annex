@@ -1,37 +1,93 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from asyncio import Future
+import asyncio
+from io import BytesIO
 import logging
 import os
-import pathlib
 import tempfile
 from typing import cast
-from typing_extensions import Any, Optional, override
+from typing_extensions import Any, Buffer, Optional, override
 
 import asyncssh
 from asyncssh.misc import MaybeAwait
 import fs.osfs
 from fs.base import FS as FileSystem
 
-from dolt_annex.datatypes.async_types import maybe_await, ReadableFileObject
-from dolt_annex.datatypes.file_io import Path
+from dolt_annex.datatypes.async_types import ReadableStream, maybe_await, ReadableFileObject
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 logger = logging.getLogger(__name__)
 
+class NewFileWriter:
+    path: bytes
+    queue: asyncio.Queue[bytes]
+    file_key: asyncio.Future[FileKey]
+    done: asyncio.Event
+
+    def __init__(self, path: bytes):
+        self.path = path
+        self.queue = asyncio.Queue()
+        self.file_key = asyncio.get_event_loop().create_future()
+        self.done = asyncio.Event()
+
+    async def write(self, data: bytes) -> int:
+        await self.queue.put(data)
+        return len(data)
+    
+    async def read(self, size: int = -1) -> bytes:
+        if size == -1:
+            # This is a special case where the client is trying to read the entire file at once.
+            data = BytesIO()
+            while True:
+                data_segment = await self.queue.get()
+                if data_segment == b"":
+                    break
+                data.write(data_segment)
+            return data.getvalue()
+            
+        return await self.queue.get()
+    
+    async def close(self) -> None:
+        await self.queue.put(b"")
+        # If the filename is a key, this is an older client: we don't need to wait for
+        # a rename to know the file key.
+        name = self.path.rsplit(b'/')[-1]
+        file_key = FileKey.try_parse(name)
+        if file_key is not None:
+            self.file_key.set_result(file_key)
+            await self.done.wait()
+            
+
+    async def __aenter__(self) -> ReadableStream:
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+        await self.close()
+
+    async def readinto(self, buffer: Buffer) -> int:
+        raise NotImplementedError("readinto is not implemented for NewFileWriter")
+    
 class SFTPServer(asyncssh.SFTPServer):
 
+    cas: ContentAddressableStorage
     temp_dir: tempfile.TemporaryDirectory
     temp_file_system: FileSystem
+    file_receivers: asyncio.TaskGroup
+    work_channel: asyncio.Queue[NewFileWriter]
+    type FilePath = bytes
+    new_files: dict[FilePath, NewFileWriter]
 
     def __init__(self, chan: asyncssh.SSHServerChannel, cas: ContentAddressableStorage):
         self.cas = cas
         self.temp_dir = tempfile.TemporaryDirectory()
         self.temp_file_system = fs.osfs.OSFS(self.temp_dir.name)
+        self.work_channel = asyncio.Queue[NewFileWriter]()
+        self.new_files = {}
         super().__init__(chan, chroot=os.path.realpath(self.temp_dir.name).encode('utf-8'))
+
 
     def exit(self) -> None:
         self.temp_file_system.close()
@@ -74,24 +130,24 @@ class SFTPServer(asyncssh.SFTPServer):
         raise asyncssh.SFTPOpUnsupported("long name formatting is not supported")
 
     @override
-    async def open(self, path: bytes, pflags: int, attrs: asyncssh.SFTPAttrs) -> ReadableFileObject:
+    async def open(self, path: bytes, pflags: int, attrs: asyncssh.SFTPAttrs) -> object:
         logger.info("Opening file: %s", path)
 
-        if not (pflags & (asyncssh.FXF_READ | asyncssh.FXF_CREAT)):
+        if not (pflags & (asyncssh.constants.FXF_READ | asyncssh.constants.FXF_CREAT)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
-        key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
-        if pflags & asyncssh.FXF_CREAT:
-            return await self.create_file(key)
+        if pflags & asyncssh.constants.FXF_CREAT:
+            return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
+            key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
             return await self.open_file_for_read(key)
         
 
     @override
     async def open56(self, path: bytes, desired_access: int, flags: int,
-               attrs: asyncssh.SFTPAttrs) -> ReadableFileObject:
+               attrs: asyncssh.SFTPAttrs) -> object:
         """Open a file to serve to a remote client (SFTPv5 and later)
 
            :param path:
@@ -114,22 +170,27 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         logger.info("Opening file: %s", path)
 
-        if not (flags & (asyncssh.FXF_OPEN_EXISTING | asyncssh.FXF_CREATE_NEW)):
+        if not (flags & (asyncssh.constants.FXF_OPEN_EXISTING | asyncssh.constants.FXF_CREATE_NEW)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
         
         # Supported operations are limited to read and create
-        key = self.cas.file_key_format(path.rsplit(b'/')[-1])
-        if flags & asyncssh.FXF_CREATE_NEW:
-            return await self.create_file(key)
+        if flags & asyncssh.constants.FXF_CREATE_NEW:
+            return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
+            key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
             return await self.open_file_for_read(key)
         
-    async def create_file(self, key: FileKey) -> NewFileHandle:
-        if await maybe_await(self.cas.file_store.exists(key)):
-            raise asyncssh.SFTPOpUnsupported(f"File {key} already exists, and overwriting existing files is not supported")
-
-        return await NewFileHandle.create(self.temp_file_system, self.cas, key)
+    async def create_file(self, path: bytes) -> NewFileWriter:
+        file_writer = NewFileWriter(path)
+        name = path.rsplit(b'/')[-1]
+        file_key = FileKey.try_parse(name)
+        if file_key is None:
+            # If the file name isn't a valid key, then we expect to receive the key
+            # via a rename after the file is closed.
+            self.new_files[path] = file_writer
+        asyncio.create_task(self.handle_new_file(file_writer))
+        return file_writer
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
         return await self.cas.file_store.get_file_object(key)
@@ -144,35 +205,13 @@ class SFTPServer(asyncssh.SFTPServer):
 
     @override
     async def write(self, file_obj: object, offset: int, data: bytes) -> int:
-        file_obj = cast(NewFileHandle, file_obj)
-        await file_obj.seek(offset)
+        file_obj = cast(NewFileWriter, file_obj)
         return await file_obj.write(data)
     
     @override
     async def close(self, file_obj: Any) -> None:
-        if not isinstance(file_obj, NewFileHandle):
-            await maybe_await(file_obj.close())
-            return
-        
-        await file_obj.writefile.seek(0)
-
-        actual_key = await self.cas.file_key_format.from_fo(file_obj.writefile, file_obj.suffix)
-        if actual_key != file_obj.key:
-            raise ValueError(f"Supplied key {file_obj.key} does not match the computed key {actual_key}")
-        
-        # Close the file handle
-        await file_obj.close()
-
-        # Move the file to the annex location
-        # When calling, indicate whether file is being moved, deleted, or neither.
-        result = await maybe_await(self.cas.file_store.put_file(Path(self.temp_file_system, pathlib.Path(file_obj.name).name), file_key=file_obj.key))
-        
-        # Delete the temporary file unless put_file moved it.
-        def delete_temp_file(_: Future[None]) -> None:
-            if os.path.exists(file_obj.name):
-                os.remove(file_obj.name)
-        result.future.add_done_callback(delete_temp_file)
-        await result.wait_for_complete()
+        await maybe_await(file_obj.close())
+        return
 
     @override
     async def stat(self, path: bytes) -> asyncssh.SFTPAttrs:
@@ -192,20 +231,20 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        if key := self.cas.file_key_format.try_parse(path.rsplit(b'/')[-1]):
+        if key := FileKey.try_parse(path.rsplit(b'/')[-1]):
             # If the last part is a valid key, assume it's a file
             if not await maybe_await(self.cas.file_store.exists(key)):
                 raise asyncssh.SFTPNoSuchFile(f"Key {key} does not exist on this filestore.")
             file_info = await maybe_await(self.cas.file_store.stat(key))
             if file_info:
                 return asyncssh.SFTPAttrs(
-                    type=asyncssh.FILEXFER_TYPE_REGULAR,
+                    type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
                     size=file_info.size,
                 )
             raise asyncssh.SFTPNoSuchFile(f"Key {key} does not exist on this filestore.")
            
         # Otherwise assume it's a directory
-        return asyncssh.SFTPAttrs(asyncssh.FILEXFER_TYPE_DIRECTORY)
+        return asyncssh.SFTPAttrs(asyncssh.constants.FILEXFER_TYPE_DIRECTORY)
     
     @override
     async def fstat(self, file_obj: Any) -> asyncssh.SFTPAttrs:
@@ -226,7 +265,7 @@ class SFTPServer(asyncssh.SFTPServer):
         else:
             file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(
-            type=asyncssh.FILEXFER_TYPE_REGULAR,
+            type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
             size=file_info.size,
         )
 
@@ -306,7 +345,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
 
-        raise asyncssh.SFTPOpUnsupported("setstat is not supported")
+        raise asyncssh.SFTPOpUnsupported("fsetstat is not supported")
 
     @override
     def scandir(self, path: bytes):
@@ -359,7 +398,7 @@ class SFTPServer(asyncssh.SFTPServer):
         return
 
     @override
-    def rename(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def rename(self, oldpath: bytes, newpath: bytes) -> None:
         """Rename a file, directory, or link
 
            This method renames a file, directory, or link.
@@ -382,7 +421,12 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
 
-        raise asyncssh.SFTPOpUnsupported("rename is not supported")
+        received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        new_file_writer = self.new_files[oldpath]
+        new_file_writer.file_key.set_result(received_file_key)
+        del self.new_files[oldpath]
+        await new_file_writer.done.wait()
+
 
     @override
     def readlink(self, path: bytes) -> MaybeAwait[bytes]:
@@ -414,11 +458,10 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        result = await self.cas.file_store.create_alias(
+        await self.cas.create_alias(
             self.cas.file_key_format(key=oldpath.rsplit(b'/')[-1]),
             self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
         )
-        await result.wait_for_complete()
 
     @override
     def link(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
@@ -452,7 +495,7 @@ class SFTPServer(asyncssh.SFTPServer):
         raise asyncssh.SFTPOpUnsupported('Byte range locks not supported')
 
     @override
-    def posix_rename(self, oldpath: bytes, newpath: bytes) -> MaybeAwait[None]:
+    async def posix_rename(self, oldpath: bytes, newpath: bytes) -> None:
         """Rename a file, directory, or link with POSIX semantics
 
            This method renames a file, directory, or link, removing
@@ -468,8 +511,11 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-
-        raise asyncssh.SFTPOpUnsupported("posix_rename is not supported")
+        received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        new_file_writer = self.new_files[oldpath]
+        new_file_writer.file_key.set_result(received_file_key)
+        del self.new_files[oldpath]
+        await new_file_writer.done.wait()
 
     @override
     def statvfs(self, path: bytes):
@@ -517,3 +563,7 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         # TODO: Consider whether fsync should be supported
         pass
+
+    async def handle_new_file(self, file_writer: NewFileWriter):
+        await self.cas.put_file_object(file_writer, file_key=file_writer.file_key)
+        file_writer.done.set()

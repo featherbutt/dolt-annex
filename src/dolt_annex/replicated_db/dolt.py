@@ -8,8 +8,7 @@ import logging
 import os
 import random
 import time
-from typing import Generator, Self
-from uuid import UUID
+from typing import Generator, Self, override
 from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable, Any
 
 from dolt_annex.replicated_db.interface import TableFilter
@@ -114,45 +113,11 @@ class Dataset(interface.ReplicatedDataset):
         self.name = schema.name
         self.schema = schema
 
-    def initialize_dataset_source(self, dataset_schema: DatasetSchema, repo_uuid: UUID):
+    def initialize_dataset_source(self, repo: Repo.Id):
         """
         Ensures that the Dolt repo contains the necessary branches for this dataset.
         """
-        self.dolt.maybe_create_branch(f"{repo_uuid}-{dataset_schema.name}", dataset_schema.empty_table_ref)
-
-        
-    def diff_keys(self, in_ref: UUID, not_in_ref: UUID, file_key_table: FileTableSchema, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
-        refs = [in_ref, not_in_ref]
-        refs.sort()
-        union_branch_name = f"union-{refs[0]}-{refs[1]}-{self.name}"
-        
-        in_ref_branch = f"{in_ref}-{self.name}"
-        not_in_ref_branch = f"{not_in_ref}-{self.name}"
-
-        dolt = self.dolt
-
-        self.initialize_dataset_source(self.schema, in_ref)
-        self.initialize_dataset_source(self.schema, not_in_ref)
-
-        # Create the union branch if it doesn't exist
-        # What if in_ref_branch hasn't been created yet? We need an approach that abstracts this away.
-        # Don't pass branch names around as strings, pass them as first class objects.
-        with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
-            dolt.merge(in_ref_branch)
-            dolt.merge(not_in_ref_branch)
-            query = diff_query(file_key_table, filters)
-            if limit is not None:
-                query += " LIMIT %s"
-                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
-            else:
-                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
-            # TODO: Wrap this in a helper function
-            for (diff_type, annex_key, *key_parts) in query_results:
-                to_key_parts = key_parts[:len(key_parts)//2]
-                from_key_parts = key_parts[len(key_parts)//2:]
-                to_table_row = {key: value for key, value in zip(file_key_table.all_columns(), to_key_parts)}
-                from_table_row = {key: value for key, value in zip(file_key_table.all_columns(), from_key_parts)}
-                yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
+        self.conn.dolt.maybe_create_branch(f"{repo}-{self.schema.name}", self.schema.empty_table_ref)
 
     @asynccontextmanager
     async def with_repo(self, repo: Repo.Id):
@@ -162,22 +127,79 @@ class Dataset(interface.ReplicatedDataset):
         finally:
             await repo_dataset.flush()
 
-    def with_table(self, table_name: str) -> AsyncContextManager:
+    @asynccontextmanager
+    async def with_table(self, table_name: str):
+        yield ReplicatedTable(self.schema.get_table(table_name), self)
+
+    
+@dataclass
+class ReplicatedTable(interface.ReplicatedTable):
+    schema: FileTableSchema
+    dataset: Dataset
+
+    def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
+        refs = [in_repo, not_in_repo]
+        refs.sort()
+        union_branch_name = f"union-{refs[0]}-{refs[1]}-{self.dataset.name}"
+        
+        in_ref_branch = f"{in_repo}-{self.dataset.name}"
+        not_in_ref_branch = f"{not_in_repo}-{self.dataset.name}"
+
+        dolt = self.dataset.conn.dolt
+
+        self.dataset.initialize_dataset_source(in_repo)
+        self.dataset.initialize_dataset_source(not_in_repo)
+
+        # Create the union branch if it doesn't exist
+        # What if in_ref_branch hasn't been created yet? We need an approach that abstracts this away.
+        # Don't pass branch names around as strings, pass them as first class objects.
+        with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
+            dolt.merge(in_ref_branch)
+            dolt.merge(not_in_ref_branch)
+            query = diff_query(self.schema, filters)
+            if limit is not None:
+                query += " LIMIT %s"
+                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
+            else:
+                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
+            # TODO: Wrap this in a helper function
+            for (diff_type, annex_key, *key_parts) in query_results:
+                to_key_parts = key_parts[:len(key_parts)//2]
+                from_key_parts = key_parts[len(key_parts)//2:]
+                to_table_row = {key: value for key, value in zip(self.schema.all_columns(), to_key_parts)}
+                from_table_row = {key: value for key, value in zip(self.schema.all_columns(), from_key_parts)}
+                yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
+
+    def with_repo(self, repo: Repo.Id) -> AsyncContextManager:
         raise NotImplementedError
 
 class RepoDataset(interface.DatasetReplica):
     """
     The dataset as it exists on a specific repo. Every row in this dataset corresponds to a file on that repo.
     """
-    dataset: Dataset
-    repo: UUID
+    _dataset: Dataset
+    repo: Repo.Id
     tables: Dict[str, FileTable]
 
-    def __init__(self, dataset: Dataset, repo: UUID):
-        self.dataset = dataset
+    @property
+    @override
+    def dataset(self) -> Dataset:
+        return self._dataset
+
+    def __init__(self, dataset: Dataset, repo: Repo.Id):
+        self._dataset = dataset
         self.repo = repo
-        self.tables = {table.name: FileTable(self, table, dataset.schema.empty_table_ref) for table in dataset.schema.tables}
-        dataset.initialize_dataset_source(self.dataset.schema, repo)
+        self.tables = {table.name: FileTable(repo, dataset, table, dataset.schema.empty_table_ref) for table in dataset.schema.tables}
+        self.dataset.initialize_dataset_source(self.repo)
+
+    @classmethod
+    @asynccontextmanager
+    async def new(cls, dataset: Dataset, repo: Repo.Id):
+        instance = cls(dataset, repo)
+        try:
+            yield instance
+        finally:
+            await instance.flush()
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]
@@ -191,7 +213,9 @@ class RepoDataset(interface.DatasetReplica):
 
 class FileTable(interface.TableReplica):
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
-    repo_dataset: RepoDataset
+    repo_id: Repo.Id
+    dataset: Dataset
+    table: interface.ReplicatedTable
     urls: Dict[str, List[str]]
     sources: Dict[FileKey, List[str]]
     # TODO: Instead of a list of pending inserts and removes, maintain a mapping of
@@ -210,9 +234,11 @@ class FileTable(interface.TableReplica):
     schema: FileTableSchema
     branch_start_point: str
 
-    def __init__(self, repo_dataset: RepoDataset, schema: FileTableSchema, branch_start_point: str):
-        self.repo_dataset = repo_dataset
+    def __init__(self, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema, branch_start_point: str):
+        self.repo_id = repo_id
+        self.dataset = dataset
         self.schema = schema
+        self.table = ReplicatedTable(schema, dataset)
         self.flush_hooks = []
         self.added_rows = []
         self.removed_rows = []
@@ -221,13 +247,14 @@ class FileTable(interface.TableReplica):
         self.time = time.time()
         self.branch_start_point = branch_start_point
 
-    @property
-    def uuid(self) -> UUID:
-        return self.repo_dataset.repo
-
-    @property
-    def dataset(self) -> Dataset:
-        return self.repo_dataset.dataset
+    @classmethod
+    @asynccontextmanager
+    async def new(cls, repo: Repo.Id, dataset: Dataset, schema: FileTableSchema, branch_start_point: str):
+        instance = cls(repo, dataset, schema, branch_start_point)
+        try:
+            yield instance
+        finally:
+            await instance.flush()
     
     @property
     def dolt(self) -> DoltSqlServer:
@@ -254,7 +281,7 @@ class FileTable(interface.TableReplica):
     async def flush(self):
         """Flush the cache to the Dolt database and execute callbacks (typically for importing files into filestores)."""
         
-        branch = f"{self.uuid}-{self.dataset.name}"
+        branch = f"{self.repo_id}-{self.dataset.name}"
         added_rows = [[row[key] for key in self.schema.all_columns()] for row in self.added_rows]
         removed_rows = [[row[key] for key in self.schema.key_columns] for row in self.removed_rows]
         with self.dolt.maybe_create_branch(branch, self.branch_start_point):
@@ -287,7 +314,7 @@ class FileTable(interface.TableReplica):
     def get_rows(self, *, columns: Iterable[str] = (), filters: Iterable[TableFilter] = ()) -> Iterable[TableRow]:
         if not columns:
             columns = self.schema.all_columns()
-        query_sql = f"SELECT {', '.join(columns)} FROM `{self.dolt.db_name}/{self.uuid}-{self.dataset.name}`.{self.schema.name}"
+        query_sql = f"SELECT {', '.join(columns)} FROM `{self.dolt.db_name}/{self.repo_id}-{self.dataset.name}`.{self.schema.name}"
         if filters:
             query_sql += " WHERE " + " AND ".join([f"{f.column_name} = %s" for f in filters])
             params = tuple(f.column_value for f in filters)

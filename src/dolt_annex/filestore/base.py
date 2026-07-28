@@ -9,10 +9,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Awaitable, Tuple
+import logging
 
-from dolt_annex.datatypes.async_types import MaybeAwaitable, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
-from dolt_annex.datatypes.async_utils import Result
+from dolt_annex.datatypes.async_types import MaybeAwaitable, awaited, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.common import YesNoMaybe
 from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
@@ -20,6 +20,8 @@ from dolt_annex.file_keys import FileKey
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
+
+logger = logging.getLogger(__name__)
 
 class FileStoreError(Exception):
     pass
@@ -64,27 +66,27 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
 
 class FileStore(abc.ABC):
 
-    def put_file(self, file_path: Path, file_key: FileKey) -> MaybeAwaitable[Result[None]]:
+    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
         """
-        Upload an on-disk file to the repo. If the repo is local, this is allowed to move the file.
+        Insert an on-disk file to the repo. If the repo is local, this is allowed to move the file.
         """
-        return self.copy_file(file_path, file_key)
+        await self.copy_file(file_path, file_key)
 
-    async def copy_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
+    async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
         """
-        Upload an on-disk file to the remote. If the repo is local, this must copy the file.
+        Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        return await maybe_await(self.put_file_object(file_path.open(), file_key))
+        await maybe_await(self.put_file_object(file_path.open(), awaited(file_key)))
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
-        Upload an in-memory file to the remote.
+        Insert an in-memory file to the remote.
         """
-        return await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key=file_key))
+        await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=awaited(file_key)))
     
     @abstractmethod
-    def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> MaybeAwaitable[Result[None]]:
-        """Upload a file-like object to the remote."""
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+        """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     @abstractmethod
     def get_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
@@ -128,11 +130,11 @@ class FileStore(abc.ABC):
             return YesNoMaybe.YES
         return YesNoMaybe.NO
 
-    def flush(self) -> MaybeAwaitable[None]:
+    async def flush(self) -> None:
         """Flush any pending operations to the filestore."""
 
     @abstractmethod
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         """
         Insert a new key that references the same content as an existing key.
 
@@ -140,41 +142,33 @@ class FileStore(abc.ABC):
         For most filestores, this is inefficient; subclasses should override this method to
         avoid transferring data over the network and duplicating storage.
         """
-        return await maybe_await(self.put_file_object(self.get_file_object(old_key), new_key))
+        logger.info(f"alias {old_key} -> {new_key}")
+        await self.put_file_object(self.get_file_object(old_key), awaited(new_key))
     
-    async def verify_file(self, file_key: FileKey) -> None:
-        """
-        Assert that a file has the correct bytes by recomputing its key.
-        """
-        # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
-        if str(file_key)[-1] == '.':
-            return
-        async with self.with_file_object(file_key) as in_fd:
-            actual_key = await type(file_key).from_fo(in_fd, extension=file_key.extension)
-            assert actual_key == file_key, f"File key mismatch: {str(file_key)} was recomputed as {str(actual_key)}"
+    class GetFilesNotImplementedError(NotImplementedError):
+        pass
 
     def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
         """
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.
         """
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
+        raise FileStore.GetFilesNotImplementedError(f"{self.__class__.__name__} does not implement get_files.")
     
-    async def verify_all_files(self) -> None:
+    def delete(self, key: FileKey) -> None:
         """
-        Verify that all files in the filestore have the correct bytes by recomputing their keys.
+        Remove a file from a filestore if supported. Is not guarenteed to free space, and may not play well with aliases.
         """
-        async for file_key, in_fd in self.get_files():
-            async with in_fd as in_fd_opened:
-                actual_key = await type(file_key).from_fo(in_fd_opened, extension=file_key.extension)
-                assert actual_key == file_key
+        pass
 
-async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384):
+async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384) -> int:
+    bytes_copied = 0
     while True:
         buf = await src.read(buffer_size)
         if not buf:
-            break
+            return bytes_copied
         await dst.write(buf)
+        bytes_copied += len(buf)
 
 class FileStoreModel(AbstractBaseModel):
     """

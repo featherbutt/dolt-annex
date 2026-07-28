@@ -15,10 +15,9 @@ async def test_gallery_dl(tmp_path, setup):
         args=["dolt-annex", "init"],
     )
     await run(
-        args=["dolt-annex", "gallery-dl", "https://www.furaffinity.net/view/63142315/"],
+        args=["dolt-annex", "gallery-dl", "https://e621.net/posts/14"],
     )
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions"],
-        expected_output_contains='{"source": "furaffinity.net", "id": 63142315, "metadata_file_key": "SHA256E-s873--6006f690f1cd8b7348ab2fb1c134d204e874ce146dd7b8be0ae0a608c0f2ee73.json", "part": 1, "submission_file_key": "SHA256E-s3204233--28c9485eec3f2e33fa7c0f3c7a5ae62f94e939f3a494e4c5e7dfd16d8c8776c7.png"}'
+        expected_output_contains='{"source": "e621.net", "id": 14, "metadata_file_key": "SHA256E-s8476--57c502491c45f4c6fbd66cf150c120400f23a343e57c592269e0969c6ae8f337.json", "part": 1, "submission_file_key": "MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"}'
     )
-

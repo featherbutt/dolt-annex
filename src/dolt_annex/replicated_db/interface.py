@@ -25,7 +25,7 @@ from dolt_annex.datatypes.async_types import AsyncContextManager, ContextManager
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.base import FileKey
 
 @dataclass
@@ -63,25 +63,45 @@ class ReplicatedDataset(ABC):
 
 class ReplicatedTable(ABC):
     @abstractmethod
-    def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow]]:
+    def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
         """
         Return an iterable containing all the rows in this table that appear in one repo but not the other.
         """
 
     @abstractmethod
-    async def with_repo(self, repo: Repo.Id) -> AsyncContextManager[TableReplica]:
+    def with_repo(self, repo: Repo.Id) -> AsyncContextManager[TableReplica]:
         """
         Return the replica of this table from a specific repo.
         """
 
 class DatasetReplica(ABC):
+    """
+    A DatasetReplica represents a specific copy of a ReplicatedDataset in a specific repo.
+    """
+
+    @property
+    @abstractmethod
+    def dataset(self) -> ReplicatedDataset:
+        """
+        Return the ReplicatedDataset that this replica belongs to.
+        """
+
     @abstractmethod
     def get_table(self, table_name: str) -> TableReplica:
         """
         Open a replica of this table from a specific repo.
         """
 
+    @abstractmethod
+    def get_tables(self) -> Iterable[TableReplica]:
+        """
+        Return an iterable of all the table replicas in this dataset replica.
+        """
+
 class TableReplica(ABC):
+    schema: FileTableSchema
+    table: ReplicatedTable
+
     def has_row(self, filters: Iterable[TableFilter] = ()) -> bool:
         """
         Return whether this replica contains a row for the provided key.
@@ -108,6 +128,14 @@ class TableReplica(ABC):
     async def insert(self, table_row: TableRow):
         """
         Inserts a row into the table. This row is not guarenteed to be persisted until the ReplicatedDatabase is closed,
+        or until flush() is called.
+        """
+
+
+    @abstractmethod
+    async def remove(self, table_row: TableRow):
+        """
+        Removes a row from the table. This row is not guarenteed to be persisted until the ReplicatedDatabase is closed,
         or until flush() is called.
         """
 

@@ -6,23 +6,22 @@ gallery-dl integration for dolt-annex.
 """
 
 import asyncio
-from collections.abc import Awaitable
 import contextlib
 import contextvars
 from dataclasses import dataclass
 import io
-import queue
 import shutil
 import sys
 from pathlib import Path
 
 from dolt_annex.datatypes.async_utils import as_acm
+from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 import gallery_dl
 
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset, RepoDataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 
 config_path = Path(__file__).parent / "gallery_dl_config.json"
 skip_db_path = Path(__file__).parent / "skip.sqlite3"
@@ -31,6 +30,7 @@ gdl_args = [ "gallery-dl", "--config", str(config_path) ]
 
 @dataclass
 class GalleryDLContext:
+    config: GalleryDLConfig
     repo: Repo
     repo_dataset: RepoDataset
     event_loop: asyncio.AbstractEventLoop
@@ -78,7 +78,7 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_schema: DatasetSchema, capture_output: bool, *args) -> GalleryDLOutput:
+async def run_gallery_dl(config: Config, repo: Repo, gallery_dl_config: GalleryDLConfig, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
@@ -96,6 +96,7 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
         # thread-safe queue.Queue to communicate tasks back to the async loop.
         loop = asyncio.get_running_loop()
         gallery_dl_context = GalleryDLContext(
+            config=gallery_dl_config,
             repo=repo,
             repo_dataset=repo_dataset,
             event_loop=loop
@@ -105,7 +106,7 @@ async def run_gallery_dl(config: Config, repo: Repo, batch_size: int, dataset_sc
                 contextlib.ExitStack() as stack,
                 with_gallery_dl_context(gallery_dl_context),
             ):
-                if capture_output:
+                if gallery_dl_config.capture_output:
                     stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
                     stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
 

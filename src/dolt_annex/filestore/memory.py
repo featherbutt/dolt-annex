@@ -7,11 +7,11 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
-from typing import Tuple
+from typing import Awaitable, Tuple
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
@@ -32,27 +32,29 @@ class MemoryFS(FileStore):
             self.files = files
 
     @override
-    async def put_file(self, file_path: Path, file_key: FileKey) -> Result[None]:
+    async def put_file(self, file_path: Path, file_key: FileKey):
         """Move an on-disk file to the annex."""
         async with file_path.open() as f:
             self.files[bytes(file_key)] = await f.read()
-        return Result.done()
              
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key: FileKey) -> Result[None]:
+    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
-            self.files[bytes(file_key)] = await in_fd.read()
-        return Result.done()
+            value = await in_fd.read()
+            file_key = await file_key_producer
+            if overwrite_existing or bytes(file_key) not in self.files:
+                self.files[bytes(file_key)] = value
+            return file_key
 
-    def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> Result[None]:
+    @override
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Upload an in-memory file to the remote.
 
         If file_key is not provided, it will be computed.
         """
         self.files[bytes(file_key)] = file_bytes
-        return Result.done()
 
     @override
     @await_or_enter
@@ -82,13 +84,18 @@ class MemoryFS(FileStore):
         return bytes(file_key) in self.files
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
         self.files[bytes(new_key)] = self.files[bytes(old_key)]
-        return Result.done()
+    
+    @override
+    def delete(self, key: FileKey) -> None:
+        del self.files[bytes(key)]
 
 class MemoryFSModel(FileStoreModel):
 
+    # Whether the filestore should persist files after being closed.
+    persistent: bool = True
     files: dict[bytes, bytes] = {}
 
     def create(self, config: Config) -> MemoryFS:
-        return MemoryFS(files=self.files)
+        return MemoryFS(files=self.files if self.persistent else self.files.copy())

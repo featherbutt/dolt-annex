@@ -13,7 +13,7 @@ from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 import pytest
 
-from dolt_annex.file_keys.base import FileKey
+from dolt_annex.file_keys.base import FileKey, MD5HSe, MD5e
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
 from dolt_annex.gallery_dl_plugin.sources.e621 import E621
@@ -193,9 +193,9 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 post_url=SourceUrl("post", "https://e621.net/posts/14"),
                 id=14,
                 rows=[TableRow(
-                    file_key=Sha256E(key=b"SHA256E-s96998--8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08.jpg"),
+                    file_key=MD5HSe(key=b"MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s5802--e54466e742d64eafd4a34413eba4000155e34c800335faeb0ed011a033d9c207.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s8476--57c502491c45f4c6fbd66cf150c120400f23a343e57c592269e0969c6ae8f337.json"),
                 )],
             )
         ],
@@ -207,6 +207,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     Pixiv,
+    Furaffinity, # Flaky due to cloudflare
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
@@ -259,7 +260,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
 
     for test in tests[site].import_tests:
 
-        output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, test.post_url.url)
+        output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, test.post_url.url)
 
         assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
@@ -284,7 +285,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
                 assert actual_source  == site.source_name
                 assert actual_id == test.id
                 if actual_metadata_key != expected_row.metadata_file_key:
-                    actual_metadata_bytes = await setup.local_repo.filestore.get_file_bytes(actual_metadata_key)
+                    actual_metadata_bytes = await setup.local_repo.filestore.file_store.get_file_bytes(actual_metadata_key)
                     pytest.fail(
 f"""metadata has unexpected file key.
 
@@ -293,6 +294,7 @@ file key: {actual_metadata_key}
 metadata: {str(actual_metadata_bytes, encoding='utf-8')}""")
                 assert actual_part == expected_row.part
 
+@pytest.mark.parametrize("alternate_key_formats",[[MD5HSe]])
 @pytest.mark.asyncio
 async def test_hash_in_metadata(setup: EnvironmentForTest):
     """
@@ -307,12 +309,12 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
     dataset_schema = make_default_schema("gallery-dl")
     # download https://inkbunny.net/s/3783696
     # download https://e621.net/posts/6086319 and confirm it gets skipped
-    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://inkbunny.net/s/3783696")
+    output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, "https://inkbunny.net/s/3783696")
 
     assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
     assert output.submission_files_processed == 2, f"Expected to process 1 submission file, but processed {output.submission_files_processed}"
 
-    output = await run_gallery_dl(setup.config, setup.local_repo, BATCH_SIZE, dataset_schema, False, "https://e621.net/posts/6086319")
+    output = await run_gallery_dl(setup.config, setup.local_repo, setup.config.gallery_dl, dataset_schema, "https://e621.net/posts/6086319")
 
     assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
     assert output.submission_files_processed == 0, f"Expected to process 0 submission files, but processed {output.submission_files_processed}"
