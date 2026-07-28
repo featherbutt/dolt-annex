@@ -52,6 +52,14 @@ class NewFileWriter:
     
     async def close(self) -> None:
         await self.queue.put(b"")
+        # If the filename is a key, this is an older client: we don't need to wait for
+        # a rename to know the file key.
+        name = self.path.rsplit(b'/')[-1]
+        file_key = FileKey.try_parse(name)
+        if file_key is not None:
+            self.file_key.set_result(file_key)
+            await self.done.wait()
+            
 
     async def __aenter__(self) -> ReadableStream:
         return self
@@ -175,7 +183,12 @@ class SFTPServer(asyncssh.SFTPServer):
         
     async def create_file(self, path: bytes) -> NewFileWriter:
         file_writer = NewFileWriter(path)
-        self.new_files[path] = file_writer
+        name = path.rsplit(b'/')[-1]
+        file_key = FileKey.try_parse(name)
+        if file_key is None:
+            # If the file name isn't a valid key, then we expect to receive the key
+            # via a rename after the file is closed.
+            self.new_files[path] = file_writer
         asyncio.create_task(self.handle_new_file(file_writer))
         return file_writer
     
