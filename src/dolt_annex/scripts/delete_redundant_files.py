@@ -98,7 +98,7 @@ class DeleteRedundantFiles(SubCommand):
                 file_key = FileKey.must_parse(file_key_string)
                 for repo_name, repo in repos.items():
                     # TODO: exists and verify require multiple round trip times. Make a combined function that only requires a single probe
-                    if not repo.filestore.file_store.exists(file_key):
+                    if not await repo.filestore.file_store.exists(file_key):
                         logger.info(f"key {file_key} does not exist on repo {repo_name}")
                         can_remove = False
                         break

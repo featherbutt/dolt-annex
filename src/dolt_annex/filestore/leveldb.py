@@ -68,7 +68,7 @@ class LevelDB(FileStore):
         return FileInfo(size=len(file_obj.data))
     
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         return self.db.get(bytes(file_key)) is not None
 
     @override

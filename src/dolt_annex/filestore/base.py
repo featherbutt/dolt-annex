@@ -76,13 +76,13 @@ class FileStore(abc.ABC):
         """
         Copy an on-disk file to the remote. If the repo is local, this must copy the file.
         """
-        await maybe_await(self.put_file_object(file_path.open(), awaited(file_key)))
+        await self.put_file_object(file_path.open(), awaited(file_key))
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Insert an in-memory file to the remote.
         """
-        await maybe_await(self.put_file_object(async_bytes_io(file_bytes), file_key_producer=awaited(file_key)))
+        await self.put_file_object(async_bytes_io(file_bytes), file_key_producer=awaited(file_key))
     
     @abstractmethod
     async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
@@ -104,7 +104,7 @@ class FileStore(abc.ABC):
             return await fd.read()
 
     @abstractmethod
-    def exists(self, file_key: FileKey) -> MaybeAwaitable[bool]:
+    async def exists(self, file_key: FileKey) -> bool:
         """
         Returns whether the key exists in the filestore.
         """

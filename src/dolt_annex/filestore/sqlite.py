@@ -121,7 +121,7 @@ class SQLite(FileStore):
         yield AsyncBytesIO(row[0])
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         row = self.db.execute(
             "SELECT 1 FROM sqlar WHERE name = ?", (str(file_key),)
         ).fetchone()

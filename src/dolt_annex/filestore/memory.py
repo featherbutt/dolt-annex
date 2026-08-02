@@ -80,7 +80,7 @@ class MemoryFS(FileStore):
         return FileInfo(size=len(file_obj.data))
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         return bytes(file_key) in self.files
 
     @override
