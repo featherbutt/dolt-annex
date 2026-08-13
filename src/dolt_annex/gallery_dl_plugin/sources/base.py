@@ -93,7 +93,7 @@ class GalleryDLSource:
         return []
     
     def file_url_from_metadata(self, metadata: FileMetadata) -> Optional[Iterable[str]]:
-        return None
+        return [metadata["_url"]]
     
     def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
         """
