@@ -6,14 +6,13 @@ Helper functions that gallery-dl postprocessors can use to format data for dolt-
 """
 
 import json
-import pathlib
 import sys
-from typing import Dict, Optional
+from typing import Dict
 from typing_extensions import Any
 
-import fs.osfs
 from gallery_dl.util import json_default
 
+from dolt_annex.datatypes.file_io import Pipe, SyncPipeWriter
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
@@ -24,8 +23,6 @@ from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
 
 
 from dolt_annex.datatypes import TableRow
-from dolt_annex.datatypes.file_io import Path
-from dolt_annex.datatypes.async_types import maybe_await
 
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
@@ -46,8 +43,6 @@ def gallery_dl_post(metadata: PostMetadata):
     context = _gallery_dl_context.get()
     repo_dataset: RepoDataset = context.repo_dataset
 
-
-    # remove subcategory
     context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
     context.post_metadata_files_processed += 1
 
@@ -81,9 +76,39 @@ def gallery_dl_prepare(metadata: FileMetadata):
     subcategory = metadata["subcategory"]
     source = get_source(category, subcategory)
 
+    context = _gallery_dl_context.get()
+    repo_dataset = context.repo_dataset
+    repo = context.repo
+
+    submissions_table = repo_dataset.get_table("submissions")
+
     source.format_file_metadata(metadata)
     if check_skip(source, metadata):
         metadata["_skip"] = 1
+    else:
+        insert_row = TableRow({
+            "source": source.source_name,
+            "id": metadata["_id"],
+            "metadata_file_key": metadata["_metadata_file_key"],
+            "part": source.page_number(metadata),
+        })
+        for key in source.keys_from_metadata(metadata):
+            if isinstance(key, FileKey):
+                file_key_generator = type(key).generator(extension=metadata["extension"])
+                break
+        else:
+            file_key_generator = repo.key_format.generator(extension=metadata["extension"])
+        def custom_open(self, mode):
+            pipe = Pipe(context.event_loop)
+            writer = SyncPipeWriter(pipe)
+            async def task():
+                await repo.filestore.put_file_object(pipe.open(), file_key_generator)
+                insert_row["submission_file_key"] = file_key_generator.finalize()
+                await submissions_table.insert(insert_row)
+            context.event_loop.create_task(task())
+            return writer
+        from gallery_dl.path import PathFormat
+        PathFormat.open = custom_open
 
 def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     """Check whether we should skip downloading this file."""
@@ -174,52 +199,13 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
 
     context = _gallery_dl_context.get()
     repo_dataset = context.repo_dataset
-    repo = context.repo
 
-    submissions_table = repo_dataset.get_table("submissions")
-    metadata_table = repo_dataset.get_table("metadata")
-
-    temp_path = pathlib.Path(metadata["_path_metadata"].realpath)
-    file_system = fs.osfs.OSFS(temp_path.parent.as_posix())
-    temp_path = Path(file_system, temp_path.name)
-
-    submission_table_key = TableRow({
-        "source": source.source_name,
-        "id": metadata["_id"],
-        "metadata_file_key": metadata["_metadata_file_key"],
-        "part": source.page_number(metadata)
-    })
-    file_key: Optional[FileKey] = None
-    for key_prefix in source.keys_from_metadata(metadata):
-        if isinstance(key_prefix, FileKey):
-            file_key = key_prefix
-            break
-        
-    context.run(import_file(repo.filestore, submissions_table, submission_table_key, temp_path, file_key=file_key))
     context.submission_files_processed += 1
-    for metadata_key in source.file_metadata(metadata):
-        context.run(import_file(repo.filestore, metadata_table, metadata_key, temp_path.parent / (temp_path.name + ".json")))
-        context.submission_metadata_files_processed += 1
-
-async def import_file(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, from_path: Path, file_key: Optional[FileKey] = None):
-    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    if file_key is None:
-        file_key = await cas.file_key_format.from_file(from_path)
-    table_key["submission_file_key"] = str(file_key)
-
-    await cas.put_file(from_path, file_key)
-    from_path.delete()
-    await file_table.insert(table_key)
-
-async def import_url(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, url: str, file_key: Optional[FileKey] = None):
-    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    # TODO: Some sources may require authentication to download files.
-    async with aiohttp.ClientSession() as session:
-        new_file_key = await cas.put_file_object(session.get(url), file_key)
-        if file_key is None:
-            file_key = new_file_key
-    table_key["submission_file_key"] = str(file_key)
-    await file_table.insert(table_key)
+    for metadata_table_key in source.file_metadata(metadata):
+        # TODO: This doesn't currently work properly for sources that have metadata for each file.
+        # But Itaku is the only such source and it's currently broken anyway.
+        raise NotImplementedError("metadata on files is not currently supported")
+        context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
