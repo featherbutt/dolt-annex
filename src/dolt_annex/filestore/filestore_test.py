@@ -347,6 +347,8 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
 
         await cas.put_file_bytes(file_bytes, MD5e.from_bytes(file_bytes))
         await archive_filestore.flush()
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
+                
         await archive_filestore.put_file_bytes(b"other_file", Sha256E.from_bytes(b"other_file"))
 
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)
