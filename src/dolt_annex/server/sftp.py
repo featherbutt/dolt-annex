@@ -141,7 +141,7 @@ class SFTPServer(asyncssh.SFTPServer):
             return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
-            key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
+            key = FileKey.must_parse(key=path.rsplit(b'/')[-1])
             return await self.open_file_for_read(key)
         
 
@@ -178,7 +178,7 @@ class SFTPServer(asyncssh.SFTPServer):
             return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
-            key = self.cas.file_key_format(key=path.rsplit(b'/')[-1])
+            key = FileKey.must_parse(key=path.rsplit(b'/')[-1])
             return await self.open_file_for_read(key)
         
     async def create_file(self, path: bytes) -> NewFileWriter:
@@ -421,7 +421,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
 
-        received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        received_file_key = FileKey.must_parse(key=newpath.rsplit(b'/')[-1])
         new_file_writer = self.new_files[oldpath]
         new_file_writer.file_key.set_result(received_file_key)
         del self.new_files[oldpath]
@@ -459,8 +459,8 @@ class SFTPServer(asyncssh.SFTPServer):
 
         """
         await self.cas.create_alias(
-            self.cas.file_key_format(key=oldpath.rsplit(b'/')[-1]),
-            self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+            FileKey.must_parse(key=oldpath.rsplit(b'/')[-1]),
+            FileKey.must_parse(key=newpath.rsplit(b'/')[-1])
         )
 
     @override
@@ -511,7 +511,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        received_file_key = self.cas.file_key_format(key=newpath.rsplit(b'/')[-1])
+        received_file_key = FileKey.must_parse(key=newpath.rsplit(b'/')[-1])
         new_file_writer = self.new_files[oldpath]
         new_file_writer.file_key.set_result(received_file_key)
         del self.new_files[oldpath]
