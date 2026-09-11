@@ -324,6 +324,18 @@ class FileTable(interface.TableReplica):
         for result in results:
             yield TableRow({key: value for (key, value) in zip(columns, result)})
 
+    def remove_rows(self, *, filters: Iterable[TableFilter] = ()):
+        """
+        Removes all rows in the table that match the provided filters.
+        """
+        query_sql = f"DELETE FROM `{self.dolt.db_name}/{self.repo_id}-{self.dataset.name}`.{self.schema.name}"
+        if filters:
+            query_sql += " WHERE " + " AND ".join([f"{f.column_name} = %s" for f in filters])
+            params = tuple(f.column_value for f in filters)
+        else:
+            params = ()
+        self.dolt.execute(query_sql, params)
+
     def insert_sql(self) -> str:
         """
         Returns the SQL statement to insert a row into the table.

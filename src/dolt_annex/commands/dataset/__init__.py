@@ -3,7 +3,7 @@
 
 from dolt_annex.commands import CommandGroup, SubCommand
 
-from . import insert_record, read_table, diff
+from . import insert_record, remove_record, remove_records, read_table, diff
 
 class DatasetSubcommand(CommandGroup, SubCommand):
     """
@@ -13,5 +13,7 @@ class DatasetSubcommand(CommandGroup, SubCommand):
     """
 
 DatasetSubcommand.subcommand("insert-record", insert_record.InsertRecord)
+DatasetSubcommand.subcommand("remove-record", remove_record.RemoveRecord)
+DatasetSubcommand.subcommand("remove-records", remove_records.RemoveRecords)
 DatasetSubcommand.subcommand("read-table", read_table.ReadTable)
 DatasetSubcommand.subcommand("diff", diff.Diff)
