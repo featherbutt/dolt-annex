@@ -131,7 +131,7 @@ class SFTPServer(asyncssh.SFTPServer):
 
     @override
     async def open(self, path: bytes, pflags: int, attrs: asyncssh.SFTPAttrs) -> object:
-        logger.info("Opening file: %s", path)
+        logger.debug("Opening file: %s", path)
 
         if not (pflags & (asyncssh.constants.FXF_READ | asyncssh.constants.FXF_CREAT)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")
@@ -168,7 +168,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        logger.info("Opening file: %s", path)
+        logger.debug("Opening file: %s", path)
 
         if not (flags & (asyncssh.constants.FXF_OPEN_EXISTING | asyncssh.constants.FXF_CREATE_NEW)):
             raise asyncssh.SFTPOpUnsupported("Only read and create operations are supported")

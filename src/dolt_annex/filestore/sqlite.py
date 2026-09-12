@@ -94,7 +94,7 @@ class SQLite(FileStore):
             self.pending[file_key] = data
             self.pending_size += len(data)
             if self.pending_size >= MAX_BATCH_SIZE:
-                logger.info("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
+                logger.debug("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
                 await self.flush()
                 
         return file_key

@@ -142,7 +142,7 @@ class FileStore(abc.ABC):
         For most filestores, this is inefficient; subclasses should override this method to
         avoid transferring data over the network and duplicating storage.
         """
-        logger.info(f"alias {old_key} -> {new_key}")
+        logger.debug(f"alias {old_key} -> {new_key}")
         await self.put_file_object(self.get_file_object(old_key), awaited(new_key))
     
     class GetFilesNotImplementedError(NotImplementedError):
