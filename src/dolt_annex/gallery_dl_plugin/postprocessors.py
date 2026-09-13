@@ -104,7 +104,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
                 insert_row["submission_file_key"] = file_key_generator.finalize()
                 await submissions_table.insert(insert_row)
                 await context.collections_submission_tables.insert(insert_row)
-            context.event_loop.create_task(task())
+            context.enqueue_task(task())
             return writer
         from gallery_dl.path import PathFormat
         PathFormat.open = custom_open
