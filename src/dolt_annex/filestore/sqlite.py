@@ -128,7 +128,7 @@ class SQLite(FileStore):
         return row is not None
 
     @override
-    def stat(self, file_key: FileKey) -> FileInfo:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         row = self.db.execute(
             "SELECT sz FROM sqlar WHERE name = ?", (str(file_key),)
         ).fetchone()
@@ -137,7 +137,7 @@ class SQLite(FileStore):
         return FileInfo(size=row[0])
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("SQLite.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))

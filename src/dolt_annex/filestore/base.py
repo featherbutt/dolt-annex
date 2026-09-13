@@ -112,13 +112,13 @@ class FileStore(abc.ABC):
         """
 
     @abstractmethod
-    def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         """
         Returns information about a file-like object previously returned by get_file_object.
         """
 
     @abstractmethod
-    def fstat(self, file_obj: ReadableStream) -> MaybeAwaitable[FileInfo]:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         """
         Returns information about a file-like object previously returned by get_file_object.
         """

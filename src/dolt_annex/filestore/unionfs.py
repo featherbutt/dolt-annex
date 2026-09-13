@@ -87,10 +87,10 @@ class UnionFS(FileStore):
             await maybe_await(child.flush())
 
     @override
-    def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         for child in self.children:
-            if child.exists(file_key):
-                return child.stat(file_key)
+            if await child.exists(file_key):
+                return await child.stat(file_key)
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
     @override

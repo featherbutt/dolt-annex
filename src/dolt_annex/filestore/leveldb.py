@@ -55,14 +55,14 @@ class LevelDB(FileStore):
         yield AsyncBytesIO(file_bytes)
 
     @override
-    def stat(self, file_key: FileKey) -> FileInfo:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         file_bytes = self.db.get(bytes(file_key))
         if file_bytes is None:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         return FileInfo(size=len(file_bytes))
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("LevelDB.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))

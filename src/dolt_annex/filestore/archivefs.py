@@ -185,7 +185,7 @@ class ArchiveFS(FileStore):
             return file_obj.file_info
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, ExistingFileHandle):
             raise TypeError("ArchiveFS.fstat was passed a file object that did not originate from this filestore.")
 
