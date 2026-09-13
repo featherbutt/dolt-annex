@@ -1,6 +1,6 @@
 FROM python:3-slim
 
-ARG DOLT_VERSION=1.59.19
+ARG DOLT_VERSION=2.3.3
 
 RUN apt update -y && \
     apt install -y \
