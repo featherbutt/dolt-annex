@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, AsyncGenerator, Optional
 from uuid import UUID
 import pathlib
 
+from dolt_annex.datatypes.collection import Collection
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.filestore.cas import ContentAddressableStorage
@@ -40,7 +41,7 @@ class Repo:
     """
     A file respository whose filestore is open. May be local or remote.
     """
-    type Id = UUID
+    type Id = Collection.Id
     
     name: str
     uuid: Id
