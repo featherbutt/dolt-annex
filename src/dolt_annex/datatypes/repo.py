@@ -9,13 +9,11 @@ from typing import TYPE_CHECKING, AsyncGenerator, Optional
 from uuid import UUID
 import pathlib
 
-from pydantic import SerializeAsAny
-
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
-from .loader import Loadable
+from .loader import Loadable, Named
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
@@ -26,7 +24,7 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     A description of a file respository. May be local or remote.
     """
     uuid: UUID
-    filestore: SerializeAsAny[FileStoreModel]
+    filestore: Named[FileStoreModel]
     key_format: FileKeyType
     alternate_key_formats: list[FileKeyType] = []
     content_addressed: bool = True

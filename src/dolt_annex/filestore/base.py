@@ -9,12 +9,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
+import pathlib
 from typing import TYPE_CHECKING, Awaitable, Tuple
 import logging
 
 from dolt_annex.datatypes.async_types import MaybeAwaitable, awaited, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
 from dolt_annex.datatypes.common import YesNoMaybe
 from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
+from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
 
@@ -170,7 +172,7 @@ async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384) -
         await dst.write(buf)
         bytes_copied += len(buf)
 
-class FileStoreModel(AbstractBaseModel):
+class FileStoreModel(Loadable, AbstractBaseModel, extension="filestore", config_dir=pathlib.Path("filestores")):
     """
     Subclasses must implement either open() or create().
     """
