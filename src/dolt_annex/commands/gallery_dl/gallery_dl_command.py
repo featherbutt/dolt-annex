@@ -7,6 +7,7 @@ import logging
 from plumbum import cli
 
 from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.collection import Collection
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
@@ -42,11 +43,24 @@ class GalleryDL(SubCommand):
         default=False,
     )
 
+    collection = cli.SwitchAttr(
+        "--collection",
+        str,
+        help="Add all downloaded submissions to the specified collection. Can be repeated",
+        list=True,
+    )
+
     async def main(self, *args) -> int:
         """Entrypoint for gallery-dl command"""
         gallery_dl_config: GalleryDLConfig = self.config.gallery_dl
-        gallery_dl_config.capture_output = self.capture_output
-        gallery_dl_config.skip_download = self.skip_download
+        if self.capture_output:
+            gallery_dl_config.capture_output = self.capture_output
+        if self.skip_download:
+            gallery_dl_config.skip_download = self.skip_download
+        if self.collection:
+            gallery_dl_config.collections.extend(
+                Collection.must_load(c) for c in self.collection
+            )
                                                           
         dataset_name = self.dataset
 

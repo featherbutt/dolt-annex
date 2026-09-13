@@ -5,6 +5,7 @@ from typing_extensions import List
 
 from plumbum import cli
 
+from dolt_annex.datatypes.collection import Collection
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
@@ -22,6 +23,13 @@ class ReadTable(cli.Application):
         "--repo",
         str,
         help="The name of the repo being read from. If not specified, uses the local repo.",
+    )
+
+    collection = cli.SwitchAttr(
+        "--collection",
+        str,
+        help="The name of the collection being read from",
+        excludes=["repo"]
     )
 
     dataset = cli.SwitchAttr(
@@ -66,16 +74,18 @@ class ReadTable(cli.Application):
             print("This command does not take positional arguments")
             return 1
         base_config: Config = self.parent.config
-        if self.repo:
-            repo = RepoModel.must_load(self.repo)
+        if self.collection:
+            repo_id = Collection.must_load(self.collection).uuid
+        elif self.repo:
+            repo_id = RepoModel.must_load(self.repo).uuid
         else:
-            repo = base_config.get_default_repo()
+            repo_id = base_config.get_default_repo().uuid
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
             as_acm(DatabaseConnection.open(base_config)) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as repo_dataset,
+            dataset.with_repo(repo_id) as repo_dataset,
         ):
             table = repo_dataset.get_table(self.table_name)
             for row in table.get_rows(columns=self.columns, filters=self.filters):

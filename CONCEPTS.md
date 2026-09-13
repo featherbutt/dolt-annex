@@ -4,6 +4,14 @@ A dataset is a collection of files and associated metadata, represented as a SQL
 
 Repositories contain copies of datasets. This copy can be total (contains every copy in the dataset) or partial (contains only some of the files in the dataset).
 
+# Collection
+
+A collection is the metadata for a subset of a dataset. Currently, every collection maps to a Dolt branch.
+
+For every pair of Repo and Dataset, there is a collection that represents every file from that dataset that is stored in that repo. However, other collections may exist, and collections do not need to be tied to a specific repo. For a given collection, there is not guaranteed to be a repo that contains every file referenced by the collection.
+
+For example, for a dataset of videos on a video streaming service, a collection might represent a playlist.
+
 # Dolt
 
 Dolt is a version controlled SQL database with Git semantics. Dataset metadata is stored in Dolt as tables. For each dataset, dolt-annex maintains a Dolt branch with a table row for each file that the local repository has a copy of. Dolt-annex also has a branch for each remote repository that it has pushed or pulled that dataset to/from.
@@ -47,3 +55,4 @@ Local repositories exist on the user's computer, and consist of a directory cont
 Remote repositories (sometimes shorted to "remotes") are other copies of dolt-annex data that are accessible via the Internet. Remote repositories are accessed via a URL, but local configuration allows for known remotes to be given simple names instead.
 
 Every repository has a UUID that is generated when the repository is generated. The database uses this UUID to track what dataset records exist in each repository.
+

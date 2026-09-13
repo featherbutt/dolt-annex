@@ -18,13 +18,12 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
-from dolt_annex.replicated_db.interface import TableFilter
-from dolt_annex.replicated_db.dolt import FileTable, RepoDataset
+from dolt_annex.replicated_db.interface import DatasetReplica, TableFilter, TableReplica
 
 
 from dolt_annex.datatypes import TableRow
 
-from dolt_annex.gallery_dl_plugin import _gallery_dl_context
+from dolt_annex.gallery_dl_plugin import GalleryDLContext, _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
 
@@ -40,10 +39,9 @@ def gallery_dl_post(metadata: PostMetadata):
 
     source.format_post_metadata(metadata)
 
-    context = _gallery_dl_context.get()
-    repo_dataset: RepoDataset = context.repo_dataset
+    repo_dataset: DatasetReplica = context.repo_dataset
 
-    context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
+    context.run(insert_metadata(metadata, source, repo_dataset, context.repo, context.collections_metadata_tables))
     context.post_metadata_files_processed += 1
 
 def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
@@ -58,7 +56,7 @@ def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: 
     return repo.key_format.from_bytes(metadata_bytes, "json"), metadata_bytes
 
 
-async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: RepoDataset, repo: Repo):
+async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: DatasetReplica, repo: Repo, collections: GalleryDLContext.CollectionTables):
     file_key, metadata_bytes = serialize_metadata(metadata, source, repo)
     metadata["_metadata_file_key"] = file_key
 
@@ -67,7 +65,7 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, rep
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
 
-    await import_bytes(repo.filestore, table, table_row, metadata_bytes, "json", repo.key_format)
+    await import_bytes(repo.filestore, table, collections, table_row, metadata_bytes, "json", repo.key_format)
     return file_key
 
 def gallery_dl_prepare(metadata: FileMetadata):
@@ -105,6 +103,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
                 await repo.filestore.put_file_object(pipe.open(), file_key_generator)
                 insert_row["submission_file_key"] = file_key_generator.finalize()
                 await submissions_table.insert(insert_row)
+                await context.collections_submission_tables.insert(insert_row)
             context.event_loop.create_task(task())
             return writer
         from gallery_dl.path import PathFormat
@@ -133,8 +132,9 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
         TableFilter("metadata_file_key", metadata["_metadata_file_key"]),
         TableFilter("part", page_number),
     ]
-    if submissions_table.has_row(filters):
+    if (row := submissions_table.get_row(filters=filters)):
         # We already have this file, skip it.
+        context.run(context.collections_submission_tables.insert(row))
         return True
 
     # Alternatively, if the source provides a hash in the metadata, we can check to see
@@ -147,13 +147,15 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
             has_keys_in_metadata = True
             try:
                 async for key, _ in repo.filestore.file_store.get_files(bytes(key_prefix)):
-                    await submissions_table.insert(TableRow({
+                    row = TableRow({
                         "source": source.source_name,
                         "id": metadata["_id"],
                         "metadata_file_key": metadata["_metadata_file_key"],
                         "part": page_number,
                         "submission_file_key": key
-                    }))
+                    })
+                    await submissions_table.insert(row)
+                    await context.collections_submission_tables.insert(row)
                     return True
             except FileStore.GetFilesNotImplementedError:
                 pass
@@ -175,13 +177,15 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
                         TableFilter("metadata_file_key", metadata_file_key),
                         TableFilter("part", page_number),
                     ])
-                    await submissions_table.insert(TableRow({
+                    row = TableRow({
                         "source": source.source_name,
                         "id": metadata["_id"],
                         "metadata_file_key": metadata["_metadata_file_key"],
                         "part": page_number,
                         "submission_file_key": submission_file_key,
-                    }))
+                    })
+                    await submissions_table.insert(row)
+                    await context.collections_submission_tables.insert(row)
                     return True
         return False
 
@@ -205,12 +209,13 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         # TODO: This doesn't currently work properly for sources that have metadata for each file.
         # But Itaku is the only such source and it's currently broken anyway.
         raise NotImplementedError("metadata on files is not currently supported")
-        context.run(insert_metadata(metadata, source, repo_dataset, context.repo))
+        context.run(insert_metadata(metadata, source, repo_dataset, context.repo, context.collections_metadata_tables))
 
-async def import_bytes(cas: ContentAddressableStorage, file_table: FileTable, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
+async def import_bytes(cas: ContentAddressableStorage, file_table: TableReplica, collections: GalleryDLContext.CollectionTables, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
     file_key = file_key_type.from_bytes(file_bytes, extension=extension)
 
     await cas.put_file_bytes(file_bytes, file_key)
         
     await file_table.insert(table_key)
+    await collections.insert(table_key)
