@@ -187,15 +187,16 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                     SourceUrl("tag", "https://e621.net/posts?tags=incendax+order%3Aid"),
                 ],
             ),
+
         ],
         import_tests=[
             ImportTest(
-                post_url=SourceUrl("post", "https://e621.net/posts/14"),
-                id=14,
+                post_url=SourceUrl("post", "https://e621.net/posts/3165771"),
+                id=3165771,
                 rows=[TableRow(
-                    file_key=MD5HSe(key=b"MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"),
+                    file_key=MD5HSe(key=b"MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s8476--d40350c8e851022e511d1111403cd81759cbe1e44f925143b69f3a23e5bc02b1.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s3677--9362fd8198301e5df8dc571a32b6a09a13e0953aef4b139662ae678f04e2318c.json"),
                 )],
             )
         ],
