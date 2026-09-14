@@ -4,8 +4,8 @@ version = "0.9.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
-    { path = "dolt_annex/gallrey_dl_plugin/gallery_dl_config.json", format = ["sdist", "wheel"] },
-    { path = "dolt_annex/gallrey_dl_plugin/skip.sqlite3", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallery_dl_plugin/gallery_dl_config.json", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallery_dl_plugin/skip.sqlite3", format = ["sdist", "wheel"] },
     { path = "dolt_annex/data/", format = ["sdist", "wheel"] }
 ]
 
@@ -16,7 +16,7 @@ plumbum = "^1.9.0"
 pymysql = "^1.1.2"
 types-pymysql = "^1.1.0.20250916"
 requests = "^2.32.5"
-gallery-dl = {git = "https://codeberg.org/featherbutt/gallery-dl/", rev = "4977f754894dc3571db7afbfd40cab09c7dca156" }
+gallery-dl = {git = "https://codeberg.org/mkif/gallery-dl/" }
 tzdata = "^2025.2"
 pydantic = "^2.12.3"
 asyncssh = "^2.21.1"
