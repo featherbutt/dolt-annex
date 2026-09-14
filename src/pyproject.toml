@@ -4,8 +4,8 @@ version = "0.9.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
-    { path = "dolt_annex/gallry_dl/gallery_dl_config.json", format = ["sdist", "wheel"] },
-    { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallrey_dl_plugin/gallery_dl_config.json", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallrey_dl_plugin/skip.sqlite3", format = ["sdist", "wheel"] },
     { path = "dolt_annex/data/", format = ["sdist", "wheel"] }
 ]
 
