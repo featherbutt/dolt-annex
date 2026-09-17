@@ -27,7 +27,7 @@ class SyncOperation:
     ignore_missing: bool = False
 
     work_queue: asyncio.Queue[Optional[Tuple[FileKey, TableRow]]]
-    files_moved: List[FileKey]
+    files_moved: int
     pending_exceptions: List[Exception]
 
     # Track files that are currently being copied so that we don't copy them multiple times concurrently.
@@ -47,7 +47,7 @@ class SyncOperation:
         self.to_repo = to_repo
         self.ignore_missing = ignore_missing
         self.work_queue = asyncio.Queue(maxsize=queue_size or 0)
-        self.files_moved = []
+        self.files_moved = 0
         self.pending_exceptions = []
         self.in_flight_keys = {}
     async def worker_loop(self) -> None:
@@ -65,7 +65,7 @@ class SyncOperation:
                     key,
                     table_row,
                 )
-                self.files_moved.append(key)
+                self.files_moved += 1
             except (FileNotFoundError, FileStoreError) as e:
                 self.pending_exceptions.append(e)
             finally:
@@ -159,12 +159,11 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
 
-async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
-    if moved_files is None:
-        moved_files = []
+async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, ignore_missing = False) -> int:
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
+    files_moved = 0
     async with dataset.with_repo(to_repo.uuid) as dest_repo_dataset:
         for to_table in dest_repo_dataset.get_tables():
             async with SyncOperation.context_manager(
@@ -174,6 +173,7 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
                 ignore_missing=ignore_missing,
             ) as sync_op:
                 await sync_op.move(where, limit)
+                files_moved += sync_op.files_moved
     # TODO: This only returns the files moved in the last table.
-    return sync_op.files_moved
+    return files_moved
 
