@@ -3,7 +3,7 @@
 
 from typing_extensions import override
 
-from .base import GalleryDLSource
+from .base import GalleryDLSource, PathSelector
 
 class Pixiv(GalleryDLSource, source_name = "pixiv.net"):
     """Support for pixiv.net"""
@@ -13,8 +13,11 @@ class Pixiv(GalleryDLSource, source_name = "pixiv.net"):
         return ["artworks", "user", "tags", "work", "search"]
     
     @override
-    def fields_to_remove(self) -> list[str | list[str]]:
+    def fields_to_remove(self) -> PathSelector:
         return [
+            "http",
+            "num",
+            "request",
             "total_view",
             "total_bookmarks",
             "is_bookmarked",
@@ -27,7 +30,10 @@ class Pixiv(GalleryDLSource, source_name = "pixiv.net"):
             "profile_publicity",
             "workspace",
             "restriction_attributes",
-            ["user", "is_followed"],
-            ["user", "is_access_blocking_user"],
+            ("user", "is_followed"),
+            ("user", "is_access_blocking_user"),
+            ("user", "profile_image_urls"),
             "search",
+            "suffix",
+            "filename",
         ]

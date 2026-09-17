@@ -32,6 +32,7 @@ class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
             "last_file_update_datetime_usertime",
             "create_datetime_usertime",
             ( "pools", [
+                "count",
                 "submission_left_file_name",
                 "submission_left_submission_id",
                 "submission_left_thumb_huge_x",
