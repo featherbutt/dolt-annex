@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import re
+from typing import Iterable
 from typing_extensions import Any, override
 
-from .base import GalleryDLSource, UnionPathSelector, mutate_remove_fields
+from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
+
+from .base import FileMetadata, GalleryDLSource, UnionPathSelector, mutate_remove_fields
 
 CDN_URL = re.compile("https://(\\w+)\\.ib\\.metapix\\.net/(\\S*)")
 
@@ -13,7 +16,7 @@ class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
 
     @override
     def supported_subcategories(self) -> list[str]:
-        return ["post", "user", "search"]
+        return ["post", "user", "search", "unread"]
     
     @override
     def fields_to_remove(self) -> UnionPathSelector:
@@ -95,4 +98,11 @@ class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
             if match:
                 metadata[key] = f"https://tx.ib.metapix.net/{match.group(2)}"
 
+    def keys_from_metadata(self, metadata: FileMetadata) -> Iterable[FileKey | FileKeyPrefix]:
+        return []
+
     format_file_metadata = format_post_metadata
+
+    @override
+    def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
+        return left["last_file_update_datetime"] == right["last_file_update_datetime"]
