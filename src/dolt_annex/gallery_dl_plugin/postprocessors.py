@@ -14,7 +14,7 @@ from gallery_dl.util import json_default
 
 from dolt_annex.datatypes.file_io import Pipe, SyncPipeWriter
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.file_keys.base import FileKey
+from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
@@ -45,6 +45,7 @@ def gallery_dl_post(metadata: PostMetadata):
     context.post_metadata_files_processed += 1
 
 def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
+    source.format_post_metadata(metadata)
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
     metadata_bytes = json.dumps(    
@@ -53,10 +54,10 @@ def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: 
         sort_keys=True,
         indent=4,
         default=json_default).encode('utf-8') + b'\n'
-    return repo.key_format.from_bytes(metadata_bytes, "json"), metadata_bytes
+    return Sha256E.from_bytes(metadata_bytes, "json"), metadata_bytes
 
 
-async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: DatasetReplica, repo: Repo, collections: GalleryDLContext.CollectionTables):
+async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: DatasetReplica, repo: Repo, collections: GalleryDLContext.CollectionTables = GalleryDLContext.CollectionTables([])):
     file_key, metadata_bytes = serialize_metadata(metadata, source, repo)
     metadata["_metadata_file_key"] = file_key
 
@@ -171,22 +172,23 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
                 metadata_bytes = await repo.filestore.file_store.get_file_bytes(metadata_file_key)
                 existing_metadata = json.loads(metadata_bytes)
                 if source.assume_same_file(metadata, existing_metadata, page_number):
-                    submission_file_key = submissions_table.get_row(filters=[
+                    submission_row = submissions_table.get_row(filters=[
                         TableFilter("source", source.source_name),
                         TableFilter("id", metadata["_id"]),
                         TableFilter("metadata_file_key", metadata_file_key),
                         TableFilter("part", page_number),
                     ])
-                    row = TableRow({
-                        "source": source.source_name,
-                        "id": metadata["_id"],
-                        "metadata_file_key": metadata["_metadata_file_key"],
-                        "part": page_number,
-                        "submission_file_key": submission_file_key,
-                    })
-                    await submissions_table.insert(row)
-                    await context.collections_submission_tables.insert(row)
-                    return True
+                    if submission_row is not None:
+                        row = TableRow({
+                            "source": source.source_name,
+                            "id": metadata["_id"],
+                            "metadata_file_key": metadata["_metadata_file_key"],
+                            "part": page_number,
+                            "submission_file_key": submission_row["submission_file_key"],
+                        })
+                        await submissions_table.insert(row)
+                        await context.collections_submission_tables.insert(row)
+                        return True
         return False
 
     return context.run(get_files_coro())
