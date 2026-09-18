@@ -962,14 +962,16 @@ reference = "6ba132f"
 resolved_reference = "6ba132f39a1cb73e6e8231935afb3231147a3d03"
 
 [[package]]
-name = "gallery_dl"
-version = "1.32.1.dev0"
+name = "gallery-dl"
+version = "1.32.12"
 description = "Command-line program to download image galleries and collections from several image hosting sites"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "gallery_dl-1.32.12-py3-none-any.whl", hash = "sha256:387db048644a51764f45a269cdc7ecde35a736472816d585af3a157f7a831662"},
+    {file = "gallery_dl-1.32.12.tar.gz", hash = "sha256:27b12b76d968f703c5116ec5152850a01e7a844b1cdd74c3e98c93c5dcd2d3a5"},
+]
 
 [package.dependencies]
 requests = ">=2.11.0"
@@ -977,12 +979,6 @@ requests = ">=2.11.0"
 [package.extras]
 extra = ["jinja2", "pyyaml", "requests[socks]", "secretstorage ; sys_platform == \"linux\"", "toml ; python_version < \"3.11\"", "truststore ; python_version >= \"3.10\"", "yt-dlp[default]"]
 video = ["yt-dlp"]
-
-[package.source]
-type = "git"
-url = "https://github.com/featherbutt/gallery-dl"
-reference = "3b9cee7ec6a704b570b004b31518e107be98f3ba"
-resolved_reference = "3b9cee7ec6a704b570b004b31518e107be98f3ba"
 
 [[package]]
 name = "idna"
@@ -2207,4 +2203,4 @@ leveldb = ["plyvel"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.13"
-content-hash = "e7a287bc97fde74df91d925f3a12c8b62928a51e8c59f49fe091d9efce0e290b"
+content-hash = "0593989791e5841d8525b9884eeea57b37d9fa4e0ca5b9afc8ad6e6302d59161"
