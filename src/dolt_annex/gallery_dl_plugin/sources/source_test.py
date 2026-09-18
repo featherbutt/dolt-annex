@@ -173,7 +173,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s71612--67f7f28a088200063e4bd41773595ae02d692c4ea9934ea46aa1cb79972b524a.webp"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s451--b1265b12f01612e68674061c2e8e8a48464b96f4f23609b4011d64e940d5151c.json")
+                    metadata_file_key=Sha256E(key=b"SHA256E-s492--7e0c087ff9a79bc0ef2f834797ff0a83469104944eff51322666287353cfd224.json")
                 )],
             )
         ],
