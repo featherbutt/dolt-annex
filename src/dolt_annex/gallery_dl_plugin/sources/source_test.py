@@ -196,7 +196,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=MD5HSe(key=b"MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s3677--d1563adff625dc2c770ac706bba1d8dc3ac2bb06e2a60d891354064b9b35be98.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s3677--d43ff1b9d22eb56dc345a415f2c6f7de6afe4a39f8a3c1f97686f5ff5512bd03.json"),
                 )],
             )
         ],
@@ -208,7 +208,6 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     Pixiv,
-    Furaffinity, # Flaky due to cloudflare
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
