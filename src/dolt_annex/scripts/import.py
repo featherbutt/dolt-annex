@@ -54,10 +54,6 @@ class Import(cli.Application):
 
     parent: CommandGroup
 
-    force = cli.Flag(
-        "--force",
-    )
-
     batch_size = cli.SwitchAttr(
         "--batch_size",
         int,
@@ -117,9 +113,6 @@ class Import(cli.Application):
     async def main(self, *files_or_directories: str):
         base_config: Config = self.parent.config
 
-        if not self.force:
-            raise ValueError("import is leftover from an older version of dolt-annex and you likely don't"
-                             "need to use it. Use the --force flag to override this.")
         if not self.copy and not self.move and not self.symlink:
             raise ValueError("Must specify --copy, --move, or --symlink")
         
@@ -142,11 +135,11 @@ class Import(cli.Application):
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):
             importer = get_importer(*self.importer.split())
-            await do_import(repo_dataset, repo.filestore, import_config, importer, files_or_directories)
+            await do_import(repo_dataset, repo, repo.filestore, import_config, importer, files_or_directories)
 
         return 0
 
-async def do_import(repo_dataset: RepoDataset, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(repo_dataset: RepoDataset, repo: Repo, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in repo_dataset.tables.items():
         key_paths[table_name] = {}
@@ -188,12 +181,13 @@ async def do_import(repo_dataset: RepoDataset, file_store: ContentAddressableSto
                 path = path.readlink()
         if importer and importer.skip(path):
             return
-        logger.debug("Importing file %s", path)
+        logger.info("Importing file %s", path)
         key = await import_config.file_key_type.from_file(path, importer.extension(path))
 
         if importer:
             key_columns = await importer.key_columns(path)
             if key_columns:
+                key_columns["submission_file_key"] = bytes(key)
                 table_name = importer.table_name(path)
                 table = repo_dataset.get_table(table_name)
                 await table.insert(key_columns)
