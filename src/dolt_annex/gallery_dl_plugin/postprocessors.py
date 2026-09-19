@@ -66,7 +66,7 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, rep
     table = repo_dataset.get_table("metadata")
     # return matadata file key on insertion
 
-    await import_bytes(repo.filestore, table, collections, table_row, metadata_bytes, "json", repo.key_format)
+    await import_bytes(repo.filestore, table, collections, table_row, metadata_bytes, "json", Sha256E)
     return file_key
 
 def gallery_dl_prepare(metadata: FileMetadata):
@@ -96,7 +96,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
                 file_key_generator = type(key).generator(extension=metadata["extension"])
                 break
         else:
-            file_key_generator = repo.key_format.generator(extension=metadata["extension"])
+            file_key_generator = Sha256E.generator(extension=metadata["extension"])
         def custom_open(self, mode):
             pipe = Pipe(context.event_loop)
             writer = SyncPipeWriter(pipe)

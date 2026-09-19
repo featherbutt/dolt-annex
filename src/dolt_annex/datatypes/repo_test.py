@@ -15,7 +15,6 @@ def test_repo_with_named_filestore():
     repo_with_named_filestore = RepoModel(
         uuid=uuid.uuid4(),
         filestore="test_filestore",
-        key_format=Sha256HSe,
     )
 
     assert repo_with_named_filestore.filestore.name == "test_filestore"

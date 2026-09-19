@@ -6,10 +6,13 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, AsyncGenerator, Optional
+from warnings import deprecated
+from typing_extensions import Annotated
 from uuid import UUID
 import pathlib
 
 from dolt_annex.datatypes.collection import Collection
+from dolt_annex.file_keys.base import Sha256E
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.filestore.cas import ContentAddressableStorage
@@ -26,7 +29,7 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     """
     uuid: UUID
     filestore: Named[FileStoreModel]
-    key_format: FileKeyType
+    key_format: Annotated[FileKeyType, deprecated('Repo.key_format is deprecated and will be removed in a future version')] = Sha256E
     alternate_key_formats: list[FileKeyType] = []
     content_addressed: bool = True
 
@@ -62,7 +65,6 @@ class Repo:
                 name=name,
                 uuid=repo_model.uuid,
                 filestore=cas,
-                key_format=repo_model.key_format,
                 alternate_key_formats=repo_model.alternate_key_formats,
                 content_addressed=repo_model.content_addressed,
             )

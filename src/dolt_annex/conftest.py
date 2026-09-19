@@ -76,7 +76,6 @@ def local_repo_model(
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
-        key_format=key_format,
         alternate_key_formats=alternate_key_formats,
         filestore=local_filestore_model,
         content_addressed=is_content_addressed
@@ -93,7 +92,6 @@ def remote_repo_model(
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
-        key_format=key_format,
         alternate_key_formats=alternate_key_formats,
         filestore= remote_filestore_model,
         content_addressed=is_content_addressed
@@ -124,9 +122,9 @@ def init_dolt(dolt):
 @contextlib.asynccontextmanager
 async def create_test_filestore(config: Config, repo_model: RepoModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
     async with repo_model.filestore.open(config) as filestore:
-        cas = ContentAddressableStorage(config.filestore, filestore, repo_model.key_format, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
+        cas = ContentAddressableStorage(config.filestore, filestore, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
         for file_content in files:
-            await cas.put_file_bytes(file_content, repo_model.key_format.generator())
+            await cas.put_file_bytes(file_content, Sha256E.generator())
         yield cas
 
 @pytest.fixture(autouse=True)
@@ -150,7 +148,6 @@ def local_repo(local_repo_model: RepoModel, local_filestore: ContentAddressableS
         name=local_repo_model.name,
         uuid=local_repo_model.uuid,
         filestore=local_filestore,
-        key_format=local_repo_model.key_format,
         alternate_key_formats=local_repo_model.alternate_key_formats,
     )
 
@@ -160,7 +157,6 @@ def remote_repo(remote_repo_model: RepoModel, remote_filestore: ContentAddressab
         name=remote_repo_model.name,
         uuid=remote_repo_model.uuid,
         filestore=remote_filestore,
-        key_format=remote_repo_model.key_format,
         alternate_key_formats=remote_repo_model.alternate_key_formats,
     )
 

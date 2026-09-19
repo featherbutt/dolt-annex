@@ -26,7 +26,6 @@ async def test_delete_redundant_files(tmp_path, setup: EnvironmentForTest):
         name="test_remote_1",
         uuid=uuid.uuid4(),
         filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
-        key_format=Sha256E,
         alternate_key_formats=[],
     )
 
@@ -34,7 +33,6 @@ async def test_delete_redundant_files(tmp_path, setup: EnvironmentForTest):
         name="test_remote_2",
         uuid=uuid.uuid4(),
         filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
-        key_format=Sha256E,
         alternate_key_formats=[],
     )
 
