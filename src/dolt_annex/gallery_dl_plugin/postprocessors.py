@@ -215,9 +215,7 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: TableReplica, collections: GalleryDLContext.CollectionTables, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    file_key = file_key_type.from_bytes(file_bytes, extension=extension)
-
-    await cas.put_file_bytes(file_bytes, file_key)
+    await cas.put_file_bytes(file_bytes, file_key_type.generator(extension=extension))
         
     await file_table.insert(table_key)
     await collections.insert(table_key)

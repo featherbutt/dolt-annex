@@ -57,7 +57,7 @@ class Repo:
             name = config.local_repo_name
         repo_model = RepoModel.must_load(name)
         async with repo_model.filestore.open(config) as filestore:
-            cas = ContentAddressableStorage(config.filestore, filestore, repo_model.key_format, repo_model.alternate_key_formats, repo_model.content_addressed)
+            cas = ContentAddressableStorage(config.filestore, filestore, repo_model.alternate_key_formats, repo_model.content_addressed)
             yield cls(
                 name=name,
                 uuid=repo_model.uuid,

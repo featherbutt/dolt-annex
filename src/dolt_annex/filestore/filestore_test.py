@@ -89,8 +89,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
             remote_file_cas = ContentAddressableStorage(
                 filestore_config=config.filestore,
                 file_store=remote_file_store,
-                file_key_format=Sha256E,
-                alternate_key_formats=[SHA1e],
+                supported_key_formats=[Sha256E, SHA1e],
             )
             # setup server, then create server context, then setup client.
             async with (
@@ -156,7 +155,7 @@ async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGe
 async def test_put_other_key_type(cas: ContentAddressableStorage):
     # A key type that isn't listed in the alternate_key_formats should still be accepted by the filestore, we just
     # won't generate aliases of that type automatically.
-    assert MD5e not in cas.alternate_key_formats
+    assert MD5e not in cas.supported_key_formats
     file_bytes = b"test"
     md5_key = MD5e.from_bytes(file_bytes)
     await cas.put_file_object(async_bytes_io(file_bytes), file_key=md5_key)
@@ -355,11 +354,10 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
         cas = ContentAddressableStorage(
             filestore_config=test_config.filestore,
             file_store=archive_filestore,
-            file_key_format=Sha256E,
-            alternate_key_formats=[SHA1e, Sha256HSe, MD5e],
+            supported_key_formats=[Sha256E, SHA1e, Sha256HSe, MD5e],
         )
 
-        await cas.put_file_bytes(file_bytes, MD5e.from_bytes(file_bytes))
+        await cas.put_file_bytes(file_bytes, MD5e.generator())
         await archive_filestore.flush()
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
                 

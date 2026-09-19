@@ -126,7 +126,7 @@ async def create_test_filestore(config: Config, repo_model: RepoModel, files: It
     async with repo_model.filestore.open(config) as filestore:
         cas = ContentAddressableStorage(config.filestore, filestore, repo_model.key_format, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
         for file_content in files:
-            await cas.put_file_bytes(file_content)
+            await cas.put_file_bytes(file_content, repo_model.key_format.generator())
         yield cas
 
 @pytest.fixture(autouse=True)

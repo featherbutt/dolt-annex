@@ -10,8 +10,7 @@ from dolt_annex.test_util import EnvironmentForTest, run
 async def test_export(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
 
-    key = Sha256E.from_bytes(b"new file content", "txt")
-    await setup.local_repo.filestore.put_file_bytes(b"new file content", key)
+    key = await setup.local_repo.filestore.put_file_bytes(b"new file content", Sha256E.generator(extension="txt"))
     await run(
         args=["dolt-annex", "filestore", "export-file", str(key)],
         expected_output_contains="new file content"
@@ -21,8 +20,7 @@ async def test_export(tmp_path, setup: EnvironmentForTest):
 async def test_filekey_from_stdin(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
 
-    key = Sha256E.from_bytes(b"new file content", "txt")
-    await setup.local_repo.filestore.put_file_bytes(b"new file content", key)
+    key = await setup.local_repo.filestore.put_file_bytes(b"new file content", Sha256E.generator(extension="txt"))
     await run(
         args=["dolt-annex", "filestore", "export-file"],
         stdin=str(key) + "\n",

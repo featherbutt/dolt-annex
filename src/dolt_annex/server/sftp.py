@@ -16,7 +16,6 @@ from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.async_types import ReadableStream, maybe_await, ReadableFileObject
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.file_handles import NewFileHandle
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
 logger = logging.getLogger(__name__)
@@ -260,10 +259,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        if isinstance(file_obj, NewFileHandle):
-            file_info = await file_obj.file_info
-        else:
-            file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
+        file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
         return asyncssh.SFTPAttrs(
             type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
             size=file_info.size,

@@ -174,6 +174,8 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
             ) as sync_op:
                 await sync_op.move(where, limit)
                 files_moved += sync_op.files_moved
+    # After moving, rebase the source dataset to reflect the changes? So that future changes diff correctly.
+    # Make a test for this.
     # TODO: This only returns the files moved in the last table.
     return files_moved
 
