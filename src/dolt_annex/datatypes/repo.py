@@ -49,7 +49,6 @@ class Repo:
     name: str
     uuid: Id
     filestore: ContentAddressableStorage
-    key_format: FileKeyType
     alternate_key_formats: list[FileKeyType] = field(default_factory=list)
     content_addressed: bool = True
 
