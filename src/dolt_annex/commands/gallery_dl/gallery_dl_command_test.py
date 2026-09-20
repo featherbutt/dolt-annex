@@ -25,11 +25,11 @@ async def test_gallery_dl(tmp_path, setup):
     )
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions"],
-        expected_output_contains='{"source": "e621.net", "id": 3165771, "metadata_file_key": "SHA256E-s3677--d43ff1b9d22eb56dc345a415f2c6f7de6afe4a39f8a3c1f97686f5ff5512bd03.json", "part": 1, "submission_file_key": "MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"}'
+        expected_output_contains='{"source": "e621.net", "id": 3165771, "metadata_file_key": "SHA256E-s3626--62e59babe4bf1bc3afbcc3e9a1cd4b7787ee1a33691634d5d39a5e07aa3ac942.json", "part": 1, "submission_file_key": "MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"}'
     )
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions", "--collection", "favorites"],
-        expected_output_contains='{"source": "e621.net", "id": 3165771, "metadata_file_key": "SHA256E-s3677--d43ff1b9d22eb56dc345a415f2c6f7de6afe4a39f8a3c1f97686f5ff5512bd03.json", "part": 1, "submission_file_key": "MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"}'
+        expected_output_contains='{"source": "e621.net", "id": 3165771, "metadata_file_key": "SHA256E-s3626--62e59babe4bf1bc3afbcc3e9a1cd4b7787ee1a33691634d5d39a5e07aa3ac942.json", "part": 1, "submission_file_key": "MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"}'
     )
     await run(
         args=["dolt-annex", "dataset", "read-table", "--dataset", "gallery-dl", "--table-name", "submissions", "--collection", "empty"],

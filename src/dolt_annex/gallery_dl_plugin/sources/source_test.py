@@ -196,7 +196,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=MD5HSe(key=b"MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s3677--d43ff1b9d22eb56dc345a415f2c6f7de6afe4a39f8a3c1f97686f5ff5512bd03.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s3626--62e59babe4bf1bc3afbcc3e9a1cd4b7787ee1a33691634d5d39a5e07aa3ac942.json"),
                 )],
             )
         ],

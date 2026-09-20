@@ -27,6 +27,7 @@ class E621(GalleryDLSource, source_name = "e621.net"):
             "flags",
             "search_tags",
             "vote",
+            "updated_at",
         ]
 
     @override
