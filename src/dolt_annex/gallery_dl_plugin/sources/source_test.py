@@ -173,7 +173,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                 rows=[TableRow(
                     file_key=Sha256E(key=b"SHA256E-s71612--67f7f28a088200063e4bd41773595ae02d692c4ea9934ea46aa1cb79972b524a.webp"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s451--b1265b12f01612e68674061c2e8e8a48464b96f4f23609b4011d64e940d5151c.json")
+                    metadata_file_key=Sha256E(key=b"SHA256E-s492--7e0c087ff9a79bc0ef2f834797ff0a83469104944eff51322666287353cfd224.json")
                 )],
             )
         ],
@@ -187,15 +187,16 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
                     SourceUrl("tag", "https://e621.net/posts?tags=incendax+order%3Aid"),
                 ],
             ),
+
         ],
         import_tests=[
             ImportTest(
-                post_url=SourceUrl("post", "https://e621.net/posts/14"),
-                id=14,
+                post_url=SourceUrl("post", "https://e621.net/posts/3165771"),
+                id=3165771,
                 rows=[TableRow(
-                    file_key=MD5HSe(key=b"MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"),
+                    file_key=MD5HSe(key=b"MD5_HSe-e08ee9f696b0c992be729298d0d6a58b--s4369998.png"),
                     part=1,
-                    metadata_file_key=Sha256E(key=b"SHA256E-s8476--57c502491c45f4c6fbd66cf150c120400f23a343e57c592269e0969c6ae8f337.json"),
+                    metadata_file_key=Sha256E(key=b"SHA256E-s3626--62e59babe4bf1bc3afbcc3e9a1cd4b7787ee1a33691634d5d39a5e07aa3ac942.json"),
                 )],
             )
         ],
@@ -207,7 +208,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     Pixiv,
-    Furaffinity, # Flaky due to cloudflare
+    Furaffinity, # CI fails due to Cloudflare, but may work when run locally
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:

@@ -100,12 +100,12 @@ class InsertRecord(cli.Application):
                 extension = None
             else:
                 extension = self.extension
-            key = file_key_type.from_bytes(file_bytes, extension)
             
             table = repo_dataset.get_table(self.table_name)
+            key = await repo.filestore.put_file_bytes(file_bytes, file_key_type.generator(extension=extension))
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)
-            await repo.filestore.put_file_bytes(file_bytes, key)
+            
             print(f"Inserted row {self.value} into table '{self.table_name}' in dataset '{self.dataset}'")
         return 0

@@ -14,9 +14,8 @@ from dolt_annex.test_util import EnvironmentForTest, run
 @pytest.mark.asyncio
 async def test_copy(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
-    key = await setup.local_repo.filestore.put_file_bytes(b"new file content")
+    key = await setup.local_repo.filestore.put_file_bytes(b"new file content", Sha256E.generator())
 
-    await setup.local_repo.filestore.put_file_bytes(b"new file content", key)
     await run(
         args=["dolt-annex", "filestore", "copy", "--from", setup.local_repo.name, "--to", setup.remote_repo.name, str(key)],
     )
@@ -26,9 +25,8 @@ async def test_copy(tmp_path, setup: EnvironmentForTest):
 @pytest.mark.asyncio
 async def test_copy_all(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
-    key = await setup.local_repo.filestore.put_file_bytes(b"new file content")
+    key = await setup.local_repo.filestore.put_file_bytes(b"new file content", Sha256E.generator())
 
-    await setup.local_repo.filestore.put_file_bytes(b"new file content", key)
     await run(
         args=["dolt-annex", "filestore", "copy", "--from", setup.local_repo.name, "--to", setup.remote_repo.name, "--all"],
     )

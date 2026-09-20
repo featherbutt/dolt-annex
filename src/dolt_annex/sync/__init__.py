@@ -7,13 +7,12 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import logging
+from typing import Dict
 from typing_extensions import Iterable, Optional, Tuple, List
 
-from dolt_annex.replicated_db.dolt import Dataset, FileTable
 from dolt_annex.replicated_db.interface import ReplicatedDataset, TableFilter, TableReplica
 from dolt_annex.datatypes import TableRow
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.datatypes.async_utils import Result
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
@@ -28,8 +27,11 @@ class SyncOperation:
     ignore_missing: bool = False
 
     work_queue: asyncio.Queue[Optional[Tuple[FileKey, TableRow]]]
-    files_moved: List[FileKey]
+    files_moved: int
     pending_exceptions: List[Exception]
+
+    # Track files that are currently being copied so that we don't copy them multiple times concurrently.
+    in_flight_keys: Dict[FileKey, asyncio.Future]
 
     def __init__(
             self,
@@ -45,8 +47,9 @@ class SyncOperation:
         self.to_repo = to_repo
         self.ignore_missing = ignore_missing
         self.work_queue = asyncio.Queue(maxsize=queue_size or 0)
-        self.files_moved = []
+        self.files_moved = 0
         self.pending_exceptions = []
+        self.in_flight_keys = {}
     async def worker_loop(self) -> None:
         while True:
             try:
@@ -58,12 +61,11 @@ class SyncOperation:
                 break
             key, table_row = item
             try:
-                result = await self.move_submission_and_key(
+                await self.move_submission_and_key(
                     key,
                     table_row,
                 )
-                await result.wait_for_complete()
-                self.files_moved.append(key)
+                self.files_moved += 1
             except (FileNotFoundError, FileStoreError) as e:
                 self.pending_exceptions.append(e)
             finally:
@@ -100,7 +102,7 @@ class SyncOperation:
                     
         return has_more
     
-    async def move_submission_and_key(self, key: FileKey, table_row: TableRow) -> Result[None]:
+    async def move_submission_and_key(self, key: FileKey, table_row: TableRow):
         logger.info("moving %s: %s", table_row, key)
 
         if await maybe_await(self.to_repo.filestore.exists(key)):
@@ -108,15 +110,19 @@ class SyncOperation:
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.to_table.insert(table_row)
-            return Result.done()
+            return
         if self.ignore_missing and not await maybe_await(self.from_repo.filestore.file_store.exists(key)):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
-            return Result.done()
-        await filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key)
-        # We must wait for the copy to complete before updating the dataset.
-        async def update_table_on_complete() -> None:
-            await self.to_table.insert(table_row)
-        return Result(asyncio.create_task(update_table_on_complete()))
+            return
+        if key in self.in_flight_keys:
+            task = self.in_flight_keys[key]
+        else:
+            task = asyncio.create_task(filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key))
+            self.in_flight_keys[key] = task
+        await task
+        await self.to_table.insert(table_row)
+        del self.in_flight_keys[key]
+
 
     @classmethod
     @asynccontextmanager
@@ -153,12 +159,11 @@ class FileModifiedError(Exception):
         self.key = key
         super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
 
-async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, moved_files: Optional[List[FileKey]] = None, ignore_missing = False) -> List[FileKey]:
-    if moved_files is None:
-        moved_files = []
+async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, ignore_missing = False) -> int:
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
+    files_moved = 0
     async with dataset.with_repo(to_repo.uuid) as dest_repo_dataset:
         for to_table in dest_repo_dataset.get_tables():
             async with SyncOperation.context_manager(
@@ -168,6 +173,9 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
                 ignore_missing=ignore_missing,
             ) as sync_op:
                 await sync_op.move(where, limit)
+                files_moved += sync_op.files_moved
+    # After moving, rebase the source dataset to reflect the changes? So that future changes diff correctly.
+    # Make a test for this.
     # TODO: This only returns the files moved in the last table.
-    return sync_op.files_moved
+    return files_moved
 

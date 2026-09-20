@@ -36,3 +36,7 @@ class Furaffinity(GalleryDLSource, source_name = "furaffinity.net"):
             tags.remove("Keywords")
     
     format_file_metadata = format_post_metadata
+
+    @override
+    def assume_same_file(self, left: dict[str, Any], right: dict[str, Any], page_number: int) -> bool:
+        return left["filename"] == right["filename"]

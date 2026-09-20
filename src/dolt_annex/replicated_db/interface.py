@@ -125,6 +125,12 @@ class TableReplica(ABC):
         """
 
     @abstractmethod
+    def remove_rows(self, *, filters: Iterable[TableFilter] = ()):
+        """
+        Removes all rows in the table that match the provided filters.
+        """
+
+    @abstractmethod
     async def insert(self, table_row: TableRow):
         """
         Inserts a row into the table. This row is not guarenteed to be persisted until the ReplicatedDatabase is closed,

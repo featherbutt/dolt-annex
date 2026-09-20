@@ -3,9 +3,11 @@ import types
 from typing_extensions import Optional
 
 from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.collection import Collection
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.filestore.base import FileStoreModel
     
 class Creator[T: Loadable]:
     loadable_type: type[T]
@@ -21,6 +23,8 @@ class Creator[T: Loadable]:
 LoadableTypes: dict[str, type[Loadable]] = {
     "repo": RepoModel,
     "dataset": DatasetSchema,
+    "filestore": FileStoreModel,
+    "collection": Collection,
 }
 
 class Create(SubCommand):

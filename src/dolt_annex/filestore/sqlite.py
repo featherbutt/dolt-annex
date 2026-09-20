@@ -94,7 +94,7 @@ class SQLite(FileStore):
             self.pending[file_key] = data
             self.pending_size += len(data)
             if self.pending_size >= MAX_BATCH_SIZE:
-                logger.info("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
+                logger.debug("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
                 await self.flush()
                 
         return file_key
@@ -121,14 +121,14 @@ class SQLite(FileStore):
         yield AsyncBytesIO(row[0])
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         row = self.db.execute(
             "SELECT 1 FROM sqlar WHERE name = ?", (str(file_key),)
         ).fetchone()
         return row is not None
 
     @override
-    def stat(self, file_key: FileKey) -> FileInfo:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         row = self.db.execute(
             "SELECT sz FROM sqlar WHERE name = ?", (str(file_key),)
         ).fetchone()
@@ -137,7 +137,7 @@ class SQLite(FileStore):
         return FileInfo(size=row[0])
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("SQLite.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))

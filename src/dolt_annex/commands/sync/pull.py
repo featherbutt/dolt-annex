@@ -97,6 +97,6 @@ class Pull(cli.Application):
                 DatabaseConnection.open(self.parent.config) as conn,
                 conn.open_dataset(dataset_schema) as dataset,
             ):
-                pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, None, self.ignore_missing)
-                print(f"Pulled {len(pulled_files)} files from remote {remote_name}")
+                pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, self.ignore_missing)
+                print(f"Pulled {pulled_files} files from remote {remote_name}")
         return 0

@@ -103,7 +103,7 @@ class AnnexFS(FileStore):
         return Path(self.file_system) / md5[:3] / md5[3:6] / str(key) / str(key)
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         return self.get_key_path(file_key).exists()
 
     @override

@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from asyncio import Future
-from collections.abc import Iterable
+import asyncio
+from collections.abc import AsyncGenerator, Iterable
+from contextlib import asynccontextmanager
 import contextvars
 from dataclasses import dataclass
 from io import BytesIO
@@ -20,7 +22,7 @@ import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, maybe_await
+from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, ReadableStream, maybe_await
 
 @dataclass
 class FileInfo:
@@ -189,3 +191,70 @@ class Path:
 
     def children(self) -> Iterable[Path]:
         return (self / child for child in self.fs.listdir(self.path.as_posix()))
+
+
+class Pipe:
+    queue: asyncio.Queue[bytes]
+    event_loop: asyncio.AbstractEventLoop
+    done: asyncio.Event
+    size: int
+
+    def __init__(self, loop: asyncio.AbstractEventLoop):
+        self.queue = asyncio.Queue()
+        self.event_loop = loop
+        self.done = asyncio.Event()
+        self.size = 0
+
+    async def read(self, size: int = -1) -> bytes:
+        if size == -1:
+            # This is a special case where the client is trying to read the entire file at once.
+            data = BytesIO()
+            while True:
+                data_segment = await self.queue.get()
+                if data_segment == b"":
+                    break
+                data.write(data_segment)
+            return data.getvalue()
+            
+        return await self.queue.get()
+
+    async def write(self, data: bytes) -> int:
+        await self.queue.put(data)
+        self.size += len(data)
+        return len(data)
+
+    @asynccontextmanager
+    async def open(self) -> AsyncGenerator[ReadableStream, None]:
+        yield self
+    
+class SyncPipeWriter:
+    """
+    A file-like object that can be written to synchronously.
+    """
+    pipe: Pipe
+
+    def __init__(self, pipe: Pipe):
+        self.pipe = pipe
+
+    def write(self, s: SizedBuffer, /) -> int:
+        return asyncio.run_coroutine_threadsafe(self.pipe.write(s), self.pipe.event_loop).result()
+
+    def tell(self) -> int:
+        return self.pipe.size
+    
+    def close(self) -> None:
+        asyncio.run_coroutine_threadsafe(self.async_close(), self.pipe.event_loop).result()
+
+    async def async_close(self) -> None:
+        await self.pipe.write(b"")
+        self.pipe.done.set()
+
+
+    def __enter__(self) -> "SyncPipeWriter":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
+    async def readinto(self, buffer: Buffer) -> int:
+        raise NotImplementedError("readinto is not implemented for SyncPipeWriter")

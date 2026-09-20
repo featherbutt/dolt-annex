@@ -85,6 +85,7 @@ class UpdateMetadata(SubCommand):
                 source = category_to_source[category]
                 new_metadata_file_key, _ = serialize_metadata(new_metadata, source, repo)
                 if new_metadata_file_key != old_metadata_file_key:
+                    # TODO: Update collections too
                     await insert_metadata(new_metadata, source, dataset_repo, repo)
                     for old_submission_row in submissions_table.get_rows(filters=[
                         TableFilter("source", old_metadata_row["source"]),

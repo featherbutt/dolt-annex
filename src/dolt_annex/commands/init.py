@@ -76,7 +76,6 @@ class Init(cli.Application):
                         root=Path("./archivefs/db")
                     )
                 ),
-                key_format=base_config.default_file_key_type,
                 alternate_key_formats=base_config.default_alternate_key_types
             )
             local_repo.save()

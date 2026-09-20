@@ -70,17 +70,17 @@ class MemoryFS(FileStore):
                 yield FileKey.must_parse(file_key), async_bytes_io(value)
         
     @override
-    def stat(self, file_key: FileKey) -> FileInfo:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         return FileInfo(size=len(self.files[bytes(file_key)]))
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, AsyncBytesIO):
             raise TypeError("MemoryFS.fstat was passed a file object that did not originate from this filestore.")
         return FileInfo(size=len(file_obj.data))
 
     @override
-    def exists(self, file_key: FileKey) -> bool:
+    async def exists(self, file_key: FileKey) -> bool:
         return bytes(file_key) in self.files
 
     @override

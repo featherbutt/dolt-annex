@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 from collections.abc import Buffer, Set
+from contextlib import asynccontextmanager
 import hashlib
-from typing import Any, Callable, ClassVar, Dict, List, Type, overload, override
+from typing import Any, AsyncGenerator, Callable, ClassVar, Dict, List, Type, overload, override
 import parse
 from typing_extensions import Optional, Protocol, Self
 
-from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, SizedBuffer
+from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, SizedBuffer
 from dolt_annex.datatypes.file_io import Path
 
 type FileKeyPrefix = bytes
@@ -273,6 +274,12 @@ class FileKeyGeneratingReader(ReadableStream):
     
     async def close(self) -> None:
         return await self._inner.close()
+    
+    @classmethod
+    @asynccontextmanager
+    async def new(cls: type[Self], data_source: AsyncContextManager[ReadableStream], generators: list[FileKeyGenerator]) -> AsyncGenerator[Self]:
+        async with data_source as in_fd:
+            yield cls(in_fd, generators)
     
 class LowercaseExtensionMixin(FileKeyMixinBase):
     @classmethod

@@ -99,6 +99,6 @@ class Push(cli.Application):
                 DatabaseConnection.open(self.parent.config) as conn,
                 conn.open_dataset(dataset_schema) as dataset,
             ):
-                pushed_files = await move_dataset(dataset, local_repo, remote_repo, self.filters, self.limit, None, self.ignore_missing)
-                print(f"Pushed {len(pushed_files)} files to remote {remote_name}")
+                pushed_files = await move_dataset(dataset, local_repo, remote_repo, self.filters, self.limit, self.ignore_missing)
+                print(f"Pushed {pushed_files} files to remote {remote_name}")
         return 0

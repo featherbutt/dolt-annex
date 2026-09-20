@@ -10,7 +10,7 @@ from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 
-from .base import FileInfo, FileStore, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
 
 class UnionFS(FileStore):
     """
@@ -38,7 +38,7 @@ class UnionFS(FileStore):
                 async with child.get_file_object(file_key) as file_obj:
                     yield file_obj
                     return
-            except FileNotFoundError:
+            except (FileNotFoundError, FileStoreError):
                 continue
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
@@ -87,10 +87,10 @@ class UnionFS(FileStore):
             await maybe_await(child.flush())
 
     @override
-    def stat(self, file_key: FileKey) -> MaybeAwaitable[FileInfo]:
+    async def stat(self, file_key: FileKey) -> FileInfo:
         for child in self.children:
-            if child.exists(file_key):
-                return child.stat(file_key)
+            if await child.exists(file_key):
+                return await child.stat(file_key)
         raise FileNotFoundError(f"File with key {file_key} not found in annex.")
 
     @override

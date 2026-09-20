@@ -4,7 +4,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator, List
-from typing_extensions import Optional
+from typing_extensions import Annotated, Optional, deprecated
 
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
@@ -12,7 +12,7 @@ from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
-from dolt_annex.file_keys.base import MD5HSe, Sha1HSe, Sha256HSe
+from dolt_annex.file_keys.base import MD5HSe, Sha1HSe, Sha256E, Sha256HSe
 
 class UserConfig(StrictBaseModel):
     email: str
@@ -51,8 +51,8 @@ class Config(StrictBaseModel):
     gallery_dl: GalleryDLConfig = GalleryDLConfig()
     local_repo_name: str = "__local__"
     default_annex_remote: str = "origin"
-    default_file_key_type: FileKeyType = Sha256HSe
-    default_alternate_key_types: List[FileKeyType] = [Sha1HSe, MD5HSe]
+    default_file_key_type: Annotated[FileKeyType, deprecated('Config.default_file_key_type is deprecated and will be removed in a future version')] = Sha256HSe
+    default_alternate_key_types: List[FileKeyType] = [Sha256E, Sha256HSe, Sha1HSe, MD5HSe]
 
     def get_default_repo(self) -> RepoModel:
         return RepoModel.must_load(self.local_repo_name)

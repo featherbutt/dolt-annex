@@ -14,7 +14,7 @@ import pathlib
 import tarfile
 from typing import AsyncGenerator, Awaitable, List, NamedTuple
 import uuid
-from pydantic import InstanceOf, SerializeAsAny
+from pydantic import InstanceOf
 from typing_extensions import override, Tuple
 import logging
 
@@ -25,6 +25,7 @@ from dolt_annex.datatypes.async_types import AwaitOrEnter, maybe_await, AsyncCon
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
+from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
@@ -184,7 +185,7 @@ class ArchiveFS(FileStore):
             return file_obj.file_info
 
     @override
-    def fstat(self, file_obj: ReadableStream) -> FileInfo:
+    async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         if not isinstance(file_obj, ExistingFileHandle):
             raise TypeError("ArchiveFS.fstat was passed a file object that did not originate from this filestore.")
 
@@ -211,7 +212,7 @@ class ArchiveFS(FileStore):
 
 class ArchiveFSModel(FileStoreModel):
     root: pathlib.Path | InstanceOf[FileSystem]
-    secondary: SerializeAsAny[FileStoreModel]
+    secondary: Named[FileStoreModel]
 
     # DEPRECATED
     num_workers: int = 4

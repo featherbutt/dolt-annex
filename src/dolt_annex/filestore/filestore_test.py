@@ -89,8 +89,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
             remote_file_cas = ContentAddressableStorage(
                 filestore_config=config.filestore,
                 file_store=remote_file_store,
-                file_key_format=Sha256E,
-                alternate_key_formats=[SHA1e],
+                supported_key_formats=[Sha256E, SHA1e],
             )
             # setup server, then create server context, then setup client.
             async with (
@@ -140,7 +139,7 @@ async def cas(request, test_config: Config, is_content_addressed: bool) -> Async
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe], content_addressed=is_content_addressed)
+            yield ContentAddressableStorage(test_config.filestore, filestore, [Sha256E, SHA1e, Sha256HSe], content_addressed=is_content_addressed)
 
 @pytest_asyncio.fixture()
 async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
@@ -150,8 +149,22 @@ async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGe
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
+            yield ContentAddressableStorage(test_config.filestore, filestore, [Sha256E, SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
 
+@pytest.mark.asyncio
+async def test_put_other_key_type(cas: ContentAddressableStorage):
+    # A key type that isn't listed in the alternate_key_formats should still be accepted by the filestore, we just
+    # won't generate aliases of that type automatically.
+    assert MD5e not in cas.supported_key_formats
+    file_bytes = b"test"
+    md5_key = MD5e.from_bytes(file_bytes)
+    await cas.put_file_object(async_bytes_io(file_bytes), file_key=md5_key)
+    assert await maybe_await(cas.file_store.exists(md5_key))
+    async with cas.file_store.with_file_object(md5_key) as f:
+        file_info = await maybe_await(cas.file_store.fstat(f))
+        assert file_info.size == 4
+        read_bytes = await f.read()
+        assert read_bytes == file_bytes
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("extension", [None, "TXT"])
@@ -341,12 +354,13 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
         cas = ContentAddressableStorage(
             filestore_config=test_config.filestore,
             file_store=archive_filestore,
-            file_key_format=Sha256E,
-            alternate_key_formats=[SHA1e, Sha256HSe, MD5e],
+            supported_key_formats=[Sha256E, SHA1e, Sha256HSe, MD5e],
         )
 
-        await cas.put_file_bytes(file_bytes, MD5e.from_bytes(file_bytes))
+        await cas.put_file_bytes(file_bytes, MD5e.generator())
         await archive_filestore.flush()
+        assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
+                
         await archive_filestore.put_file_bytes(b"other_file", Sha256E.from_bytes(b"other_file"))
 
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 2)

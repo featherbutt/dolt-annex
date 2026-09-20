@@ -52,7 +52,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
     file_keys: list[FileKey] = []
     for i in range(NUM_FILES):
         file_bytes = random.randbytes(1024*i)
-        file_key = await local_filestore.put_file_bytes(file_bytes)
+        file_key = await local_filestore.put_file_bytes(file_bytes, Sha256E.generator())
         file_keys.append(file_key)
     await maybe_await(local_filestore.file_store.flush())
     return file_keys
@@ -158,7 +158,7 @@ async def test_diff_types(
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key = await setup.local_repo.filestore.put_file_bytes(file_bytes)
+        file_key = await setup.local_repo.filestore.put_file_bytes(file_bytes, Sha256E.generator())
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
@@ -183,7 +183,7 @@ async def test_diff_types(
         # Modify the table row
         await from_table.remove(table_row)
         new_file_bytes = random.randbytes(1024**2) # 1 MB
-        new_file_key = await setup.local_repo.filestore.put_file_bytes(new_file_bytes)
+        new_file_key = await setup.local_repo.filestore.put_file_bytes(new_file_bytes, Sha256E.generator())
         new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
         await from_table.insert(new_table_row)
 

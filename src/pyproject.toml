@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "dolt_annex"
-version = "0.9.0"
+version = "0.10.0"
 description = ""
 authors = ["Featherbutt <admin@featherbutt.com>"]
 include = [
-    { path = "dolt_annex/gallry_dl/gallery_dl_config.json", format = ["sdist", "wheel"] },
-    { path = "dolt_annex/gallry_dl/skip.sqlite3", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallery_dl_plugin/gallery_dl_config.json", format = ["sdist", "wheel"] },
+    { path = "dolt_annex/gallery_dl_plugin/skip.sqlite3", format = ["sdist", "wheel"] },
     { path = "dolt_annex/data/", format = ["sdist", "wheel"] }
 ]
 
@@ -16,7 +16,6 @@ plumbum = "^1.9.0"
 pymysql = "^1.1.2"
 types-pymysql = "^1.1.0.20250916"
 requests = "^2.32.5"
-gallery-dl = {git = "https://codeberg.org/featherbutt/gallery-dl/", rev = "4977f754894dc3571db7afbfd40cab09c7dca156" }
 tzdata = "^2025.2"
 pydantic = "^2.12.3"
 asyncssh = "^2.21.1"
@@ -30,6 +29,7 @@ filelock = "^3.20.3"
 ruff = "^0.15.4"
 aiohttp = {extras = ["speedups"], version = "^3.14.1"}
 parse = "^1.22.1"
+gallery-dl = "^1.32.12"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
