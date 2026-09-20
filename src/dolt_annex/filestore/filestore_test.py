@@ -139,7 +139,7 @@ async def cas(request, test_config: Config, is_content_addressed: bool) -> Async
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe], content_addressed=is_content_addressed)
+            yield ContentAddressableStorage(test_config.filestore, filestore, [Sha256E, SHA1e, Sha256HSe], content_addressed=is_content_addressed)
 
 @pytest_asyncio.fixture()
 async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGenerator[ContentAddressableStorage]:
@@ -149,7 +149,7 @@ async def second_cas(test_config: Config, is_content_addressed: bool) -> AsyncGe
         contextlib.chdir(temp_dir)
     ):
         async with filestore_model.open(test_config) as filestore:
-            yield ContentAddressableStorage(test_config.filestore, filestore, Sha256E, [SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
+            yield ContentAddressableStorage(test_config.filestore, filestore, [Sha256E, SHA1e, Sha256HSe, MD5e], content_addressed=is_content_addressed)
 
 @pytest.mark.asyncio
 async def test_put_other_key_type(cas: ContentAddressableStorage):
