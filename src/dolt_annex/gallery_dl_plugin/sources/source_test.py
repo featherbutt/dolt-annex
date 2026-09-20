@@ -208,6 +208,7 @@ tests: dict[type[GalleryDLSource], SourceTests] = {
 # Sources that require authentication are skipped in CI
 skipped_sources = [
     Pixiv,
+    Furaffinity, # CI fails due to Cloudflare, but may work when run locally
 ]
 
 def get_metadata(url: str, test_id: str, subcategory: Optional[str] = None) -> dict:
