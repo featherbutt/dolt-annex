@@ -116,12 +116,14 @@ class SyncOperation:
             return
         if key in self.in_flight_keys:
             task = self.in_flight_keys[key]
+            await task
+            await self.to_table.insert(table_row)
         else:
             task = asyncio.create_task(filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key))
             self.in_flight_keys[key] = task
-        await task
-        await self.to_table.insert(table_row)
-        del self.in_flight_keys[key]
+            await task
+            await self.to_table.insert(table_row)
+            del self.in_flight_keys[key]
 
 
     @classmethod
