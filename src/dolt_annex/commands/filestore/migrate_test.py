@@ -7,7 +7,6 @@ import pytest
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
-from dolt_annex.filestore.cas import maybe_await
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.test_util import EnvironmentForTest, run
 
@@ -25,20 +24,20 @@ async def test_migrate(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted file with key"
     )
 
-    assert not await maybe_await(remote_file_store.exists(key))
+    assert not await remote_file_store.exists(key)
 
     await run(
         args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo.name, "--to", setup.remote_repo.name],
     )
 
-    assert await maybe_await(local_file_store.exists(key))
-    assert await maybe_await(remote_file_store.exists(key))
+    assert await local_file_store.exists(key)
+    assert await remote_file_store.exists(key)
 
     await run(
         args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo.name, "--to", setup.remote_repo.name, "--remove-if-exists"],
     )
 
-    assert not await maybe_await(local_file_store.exists(key))
+    assert not await local_file_store.exists(key)
     
     async with remote_file_store.with_file_object(key) as file_obj:
         content = await file_obj.read()

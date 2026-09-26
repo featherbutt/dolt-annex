@@ -3,7 +3,6 @@ import logging
 
 from plumbum import cli
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.async_types import maybe_await
 
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import get_file_key_type
@@ -36,7 +35,7 @@ class MakeAlias(SubCommand):
                 key_types = repo.alternate_key_formats
             for file_key in args or sys.stdin.readlines():
                 queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
-                if not await maybe_await(repo.filestore.exists(queried_key)):
+                if not await repo.filestore.exists(queried_key):
                     print(f"File with key {queried_key} not found in annex, skipping.", file=sys.stderr)
                     continue
                 

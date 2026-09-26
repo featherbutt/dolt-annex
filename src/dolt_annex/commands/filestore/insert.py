@@ -4,7 +4,6 @@
 from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import get_file_key_type
@@ -52,7 +51,7 @@ class Insert(SubCommand):
         key = file_key_type.from_bytes(file_bytes, self.extension)
 
         async with Repo.open(base_config, self.repo) as repo:
-            await maybe_await(repo.filestore.put_file_bytes(file_bytes, key))
+            await repo.filestore.put_file_bytes(file_bytes, key)
         print(f"Inserted file with key {key} into filestore of repo '{repo.name}'")
 
         return 0

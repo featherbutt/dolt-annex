@@ -232,9 +232,9 @@ class SFTPServer(asyncssh.SFTPServer):
         """
         if key := FileKey.try_parse(path.rsplit(b'/')[-1]):
             # If the last part is a valid key, assume it's a file
-            if not await maybe_await(self.cas.file_store.exists(key)):
+            if not await self.cas.file_store.exists(key):
                 raise asyncssh.SFTPNoSuchFile(f"Key {key} does not exist on this filestore.")
-            file_info = await maybe_await(self.cas.file_store.stat(key))
+            file_info = await self.cas.file_store.stat(key)
             if file_info:
                 return asyncssh.SFTPAttrs(
                     type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
@@ -259,7 +259,7 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
-        file_info = await maybe_await(self.cas.file_store.fstat(file_obj))
+        file_info = await self.cas.file_store.fstat(file_obj)
         return asyncssh.SFTPAttrs(
             type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
             size=file_info.size,

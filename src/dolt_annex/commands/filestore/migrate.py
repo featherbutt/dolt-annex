@@ -8,13 +8,11 @@ import fs.info
 from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes import repo
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFS
 from dolt_annex.filestore.archivefs import ArchiveFS
-from dolt_annex.filestore.cas import ContentAddressableStorageKeyMismatchError, filestore_copy
+from dolt_annex.filestore.cas import filestore_copy
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +100,7 @@ class Migrate(SubCommand):
                             logger.info("%s is corrupt in the source store, skipping", file_key)
                             can_remove_dir = False
                         continue
-                    if await maybe_await(to_repo.filestore.file_store.exists(file_key)):
+                    if await to_repo.filestore.file_store.exists(file_key):
                         await to_repo.filestore.verify_file(file_key)
                         if self.create_aliases_if_exists:
                             await to_repo.filestore.create_aliases(file_key)

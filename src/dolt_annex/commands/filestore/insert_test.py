@@ -4,7 +4,6 @@
 import pytest
 
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.filestore.cas import maybe_await
 from dolt_annex.test_util import EnvironmentForTest, run
 
 @pytest.mark.asyncio
@@ -18,7 +17,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted file with key"
     )
 
-    assert await maybe_await(local_file_store.exists(key))
+    assert await local_file_store.exists(key)
     async with local_file_store.with_file_object(key) as file_obj:
         content = await file_obj.read()
         assert content == b"new file content"

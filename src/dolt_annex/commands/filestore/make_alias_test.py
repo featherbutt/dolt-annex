@@ -1,14 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import pathlib
 import pytest
 
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.file_keys.base import MD5HSe, MD5e, Sha256HSe
-from dolt_annex.filestore.annexfs import AnnexFSModel
-from dolt_annex.filestore.archivefs import ArchiveFSModel
-from dolt_annex.filestore.cas import maybe_await
+from dolt_annex.file_keys.base import MD5HSe, Sha256HSe
 from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
 from dolt_annex.test_util import EnvironmentForTest, run
 
@@ -35,7 +31,7 @@ async def test_migrate(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "filestore", "make-alias", "--key-type", "MD5_HSe", str(key)],
     )
 
-    assert await maybe_await(local_file_store.exists(md5_alias_key))
+    assert await local_file_store.exists(md5_alias_key)
 
     # We want to assert that making an alias with the same hash does not rehash the file contents.
     # To do this, we will corrupt the file contents, and then make an alias. If the file contents are rehashed,
@@ -45,4 +41,4 @@ async def test_migrate(tmp_path, setup: EnvironmentForTest):
     await run(
         args=["dolt-annex", "filestore", "make-alias", "--key-type", "SHA256_HSe", str(key)],
     )
-    assert await maybe_await(local_file_store.exists(sha256_alias_key))
+    assert await local_file_store.exists(sha256_alias_key)
