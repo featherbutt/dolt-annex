@@ -73,20 +73,22 @@ class SyncOperation:
 
     async def move(self, where: List[TableFilter], batch_size: Optional[int] = None) -> None:
 
-        has_more = True
-        while has_more:
+        while True:
             keys_and_submissions = list(self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size))
-            has_more = await self.move_submissions_and_keys(keys_and_submissions)
+            num_results = await self.move_submissions_and_keys(keys_and_submissions)
             # Await here so that the next diff sees the updated state
             await self.work_queue.join()
             if self.pending_exceptions:
                 raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
             await self.to_table.flush()
+            # No more results if we received fewer results than the batch size
+            if batch_size is None or num_results < batch_size:
+                break
 
-    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow, TableRow]]) -> bool:
-        has_more = False
+    async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow, TableRow]]) -> int:
+        count = 0
         for diff_type, key, to_table_row, from_table_row in keys_and_submissions:
-            has_more = True
+            count += 1
             match diff_type:
                 case "added": 
                     await self.work_queue.put((key, to_table_row))
@@ -100,7 +102,7 @@ class SyncOperation:
                 case _:
                     raise ValueError(f"Unknown diff type {diff_type}")
                     
-        return has_more
+        return count
     
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow):
         logger.info("moving %s: %s", table_row, key)
