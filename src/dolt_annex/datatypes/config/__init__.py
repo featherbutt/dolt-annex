@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import AsyncGenerator, List
 from typing_extensions import Annotated, Optional, deprecated
 
+from pydantic import AliasChoices, Field
+
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.filestore_config import FilestoreConfig
@@ -49,15 +51,21 @@ class Config(StrictBaseModel):
     ssh: SshSettings = SshSettings()
     filestore: FilestoreConfig = FilestoreConfig()
     gallery_dl: GalleryDLConfig = GalleryDLConfig()
-    local_repo_name: str = "__local__"
+
+    # We don't use Named[RepoModel] here to avoid preemptively loading the repo.
+    # It's fine for this to be omitted or for the named repo to not exist, if
+    # all commands specify other repos or if we're running the init command.
+    local_repo: RepoModel | str = Field(validation_alias=AliasChoices('local_repo', 'local_repo_name'), default='__local__')
     default_annex_remote: str = "origin"
     default_file_key_type: Annotated[FileKeyType, deprecated('Config.default_file_key_type is deprecated and will be removed in a future version')] = Sha256HSe
     default_alternate_key_types: List[FileKeyType] = [Sha256E, Sha256HSe, Sha1HSe, MD5HSe]
 
     def get_default_repo(self) -> RepoModel:
-        return RepoModel.must_load(self.local_repo_name)
+        if isinstance(self.local_repo, str):
+            return RepoModel.must_load(self.local_repo)
+        return self.local_repo
 
     @asynccontextmanager
     async def open_default_repo(self) -> AsyncGenerator[Repo]:
-        async with Repo.open(self, self.local_repo_name) as filestore:
-            yield filestore
+        async with Repo.open(self, None) as repo:
+            yield repo

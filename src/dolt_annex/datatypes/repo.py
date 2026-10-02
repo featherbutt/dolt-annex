@@ -33,11 +33,11 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     alternate_key_formats: list[FileKeyType] = []
     content_addressed: bool = True
 
-    @classmethod
-    def open(cls, config: Config, name: Optional[str]) -> Self:
+    @staticmethod
+    def open(config: Config, name: Optional[str]) -> RepoModel:
         if name is None:
-            name = config.local_repo_name
-        return cls.must_load(name)
+            return config.get_default_repo()
+        return RepoModel.must_load(name)
 
 @dataclass
 class Repo:
@@ -46,7 +46,7 @@ class Repo:
     """
     type Id = Collection.Id
     
-    name: str
+    name: Optional[str]
     uuid: Id
     filestore: ContentAddressableStorage
     alternate_key_formats: list[FileKeyType] = field(default_factory=list)
@@ -54,16 +54,17 @@ class Repo:
 
     @classmethod
     @asynccontextmanager
-    async def open(cls, config: Config, name: Optional[str]) -> AsyncGenerator[Self]:
+    async def open(cls, config: Config, name: Optional[str] = None) -> AsyncGenerator[Self]:
         if name is None:
-            name = config.local_repo_name
-        repo_model = RepoModel.must_load(name)
-        async with repo_model.filestore.open(config) as filestore:
-            cas = ContentAddressableStorage(config.filestore, filestore, repo_model.alternate_key_formats, repo_model.content_addressed)
+            model = config.get_default_repo()
+        else:
+            model = RepoModel.must_load(name)
+        async with model.filestore.open(config) as filestore:
+            cas = ContentAddressableStorage(config.filestore, filestore, model.alternate_key_formats, model.content_addressed)
             yield cls(
-                name=name,
-                uuid=repo_model.uuid,
+                name=model.name,
+                uuid=model.uuid,
                 filestore=cas,
-                alternate_key_formats=repo_model.alternate_key_formats,
-                content_addressed=repo_model.content_addressed,
+                alternate_key_formats=model.alternate_key_formats,
+                content_addressed=model.content_addressed,
             )

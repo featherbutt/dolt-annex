@@ -39,7 +39,7 @@ def test_example_config():
             ssh_config=pathlib.Path("~/.ssh/config"),
             known_hosts=pathlib.Path("~/.ssh/known_hosts"),
         ),
-        local_repo_name="__local__",
+        local_repo="__local__",
         default_annex_remote="origin",
         default_file_key_type=Sha256E,
     )

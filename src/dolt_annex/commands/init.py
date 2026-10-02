@@ -65,20 +65,25 @@ class Init(cli.Application):
         if base_config.dolt.connection.port is None:
             base_config.dolt.connection.port = 3306
 
-        local_repo = RepoModel.load(base_config.local_repo_name)
-        if local_repo is None:
-            local_repo = RepoModel(
-                name=base_config.local_repo_name,
-                uuid=uuid.uuid4(),
-                filestore=ArchiveFSModel(
-                    root=Path("./archivefs/fs"),
-                    secondary=SQLiteModel(
-                        root=Path("./archivefs/db")
-                    )
-                ),
-                alternate_key_formats=base_config.default_alternate_key_types
-            )
-            local_repo.save()
+        # Create local repo definition if it doesn't exist
+        local_repo_or_name = base_config.local_repo
+        if isinstance(local_repo_or_name, str):
+            local_repo_name = local_repo_or_name
+            local_repo = RepoModel.load(local_repo_name)
+            if local_repo is None:
+                local_repo = RepoModel(
+                    name=local_repo_name,
+                    uuid=uuid.uuid4(),
+                    filestore=ArchiveFSModel(
+                        root=Path("./archivefs/fs"),
+                        secondary=SQLiteModel(
+                            root=Path("./archivefs/db")
+                        )
+                    ),
+                    alternate_key_formats=base_config.default_alternate_key_types + [base_config.default_file_key_type]
+                )
+                local_repo.save()
+        
         do_init(self.parent.config, init_config)
         return 0
 
@@ -101,8 +106,6 @@ def do_init(base_config: Config, init_config: InitConfig):
             if init_config.dolt_url:
                 dolt("remote", "add", init_config.remote_name, init_config.dolt_url)
                 dolt("fetch", init_config.remote_name)
-
-    # TODO: Add .remote file?
 
     # Create config file
     if not Path("config.json").exists():
