@@ -174,7 +174,7 @@ async def test_diff_types(
         # Check that files have been moved
         await to_repo.filestore.verify_file(file_key)
         # Check that db entries have been updated
-        to_table = from_repo_dataset.get_table("test_table")
+        to_table = to_repo_dataset.get_table("test_table")
         rows = list(to_table.get_rows())
         assert len(rows) == 1
         assert rows[0]["path"] == "test_path"
