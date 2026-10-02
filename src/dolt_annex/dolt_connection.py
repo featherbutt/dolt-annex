@@ -128,14 +128,12 @@ class DoltSqlServer:
             self.connection.commit()
     
     def query(self, sql: str, values = ()):
-        cursor = self.connection.cursor()
-        cursor.execute(sql, values)
-        res = cursor.fetchmany()
-        while res:
-            yield from res
-            res = cursor.fetchmany()
-        cursor.execute("COMMIT;")
-        self.connection.commit()
+        with self.connection.cursor(pymysql.cursors.SSCursor) as cursor:
+            cursor.execute(sql, values)
+            while (res := cursor.fetchmany()):
+                yield from res
+            cursor.execute("COMMIT;")
+            self.connection.commit()
 
     def commit_transaction(self):
         cursor = self.connection.cursor()
