@@ -118,7 +118,7 @@ class DoltSqlServer:
             cursor.execute("COMMIT;")
             self.connection.commit()
     
-    def execute(self, sql: str, values, commit = True):
+    def execute(self, sql: str, values = None, commit = True):
         cursor = self.connection.cursor()
         cursor.execute(sql, values)
         cursor.fetchall()
@@ -140,18 +140,16 @@ class DoltSqlServer:
         cursor.execute("COMMIT;")
         self.connection.commit()
 
-    def commit(self, amend: bool = False):
-        cursor = self.connection.cursor()
-        cursor.execute("call DOLT_ADD('.');")
-        logger.debug("dolt commit")
-        try:
-            if amend:
-                cursor.execute("call DOLT_COMMIT('--amend');")
-            else:
-                cursor.execute("call DOLT_COMMIT('-m', 'partial import');")
-        except pymysql.err.OperationalError as e:
-            if "nothing to commit" not in str(e):
-                raise
+    def commit(self, branch: str, amend: bool = False):
+        with self.set_branch(branch):
+            try:
+                if amend:
+                    self.execute("call DOLT_COMMIT('-a', '--amend');")
+                else:
+                    self.execute("call DOLT_COMMIT('-a', '-m', 'partial import');")
+            except pymysql.err.OperationalError as e:
+                if "nothing to commit" not in str(e):
+                    raise
 
     def maybe_create_branch(self, branch: str, start_point: str = "HEAD"):
         """
@@ -216,8 +214,7 @@ class DoltSqlServer:
 
     def merge(self, branch: str):
         """Merge the given branch into the current branch."""
-        with self.set_branch(branch):
-            self.commit(amend=False)
+        self.commit(branch, amend=False)
         cursor = self.connection.cursor()
         try:
             cursor.execute("call DOLT_MERGE(%s);", (branch,))

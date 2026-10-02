@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import annotations
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 import logging
@@ -131,6 +132,25 @@ class Dataset(interface.ReplicatedDataset):
     async def with_table(self, table_name: str):
         yield ReplicatedTable(self.schema.get_table(table_name), self)
 
+    @asynccontextmanager
+    async def merge_context(self, in_repo: Repo.Id, not_in_repo: Repo.Id) -> AsyncGenerator[None]:
+        union_branch_name = f"union-{min(in_repo, not_in_repo)}-{max(in_repo, not_in_repo)}-{self.name}"
+        in_ref_branch = f"{in_repo}-{self.name}"
+        not_in_ref_branch = f"{not_in_repo}-{self.name}"
+
+        dolt = self.conn.dolt
+
+        self.initialize_dataset_source(in_repo)
+        self.initialize_dataset_source(not_in_repo)
+
+        with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
+            try:
+                dolt.merge(in_ref_branch)
+                dolt.merge(not_in_ref_branch)
+                yield
+            finally:
+                dolt.merge(not_in_ref_branch)
+
     
 @dataclass
 class ReplicatedTable(interface.ReplicatedTable):
@@ -138,37 +158,23 @@ class ReplicatedTable(interface.ReplicatedTable):
     dataset: Dataset
 
     def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
-        refs = [in_repo, not_in_repo]
-        refs.sort()
-        union_branch_name = f"union-{refs[0]}-{refs[1]}-{self.dataset.name}"
-        
-        in_ref_branch = f"{in_repo}-{self.dataset.name}"
-        not_in_ref_branch = f"{not_in_repo}-{self.dataset.name}"
-
         dolt = self.dataset.conn.dolt
+        union_branch_name = f"union-{min(in_repo, not_in_repo)}-{max(in_repo, not_in_repo)}-{self.dataset.name}"
+        not_in_ref_branch = f"{not_in_repo}-{self.dataset.name}"
+        query = diff_query(self.schema, filters)
+        if limit is not None:
+            query += " LIMIT %s"
+            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
+        else:
+            query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
+        # TODO: Wrap this in a helper function
+        for (diff_type, annex_key, *key_parts) in query_results:
+            to_key_parts = key_parts[:len(key_parts)//2]
+            from_key_parts = key_parts[len(key_parts)//2:]
+            to_table_row = {key: value for key, value in zip(self.schema.all_columns(), to_key_parts)}
+            from_table_row = {key: value for key, value in zip(self.schema.all_columns(), from_key_parts)}
+            yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
 
-        self.dataset.initialize_dataset_source(in_repo)
-        self.dataset.initialize_dataset_source(not_in_repo)
-
-        # Create the union branch if it doesn't exist
-        # What if in_ref_branch hasn't been created yet? We need an approach that abstracts this away.
-        # Don't pass branch names around as strings, pass them as first class objects.
-        with dolt.maybe_create_branch(union_branch_name, in_ref_branch):
-            dolt.merge(in_ref_branch)
-            dolt.merge(not_in_ref_branch)
-            query = diff_query(self.schema, filters)
-            if limit is not None:
-                query += " LIMIT %s"
-                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name, limit))
-            else:
-                query_results = dolt.query(query, (not_in_ref_branch, union_branch_name))
-            # TODO: Wrap this in a helper function
-            for (diff_type, annex_key, *key_parts) in query_results:
-                to_key_parts = key_parts[:len(key_parts)//2]
-                from_key_parts = key_parts[len(key_parts)//2:]
-                to_table_row = {key: value for key, value in zip(self.schema.all_columns(), to_key_parts)}
-                from_table_row = {key: value for key, value in zip(self.schema.all_columns(), from_key_parts)}
-                yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
 
     def with_repo(self, repo: Repo.Id) -> AsyncContextManager:
         raise NotImplementedError
@@ -191,15 +197,6 @@ class RepoDataset(interface.DatasetReplica):
         self.repo = repo
         self.tables = {table.name: FileTable(repo, dataset, table, dataset.schema.empty_table_ref) for table in dataset.schema.tables}
         self.dataset.initialize_dataset_source(self.repo)
-
-    @classmethod
-    @asynccontextmanager
-    async def new(cls, dataset: Dataset, repo: Repo.Id):
-        instance = cls(dataset, repo)
-        try:
-            yield instance
-        finally:
-            await instance.flush()
 
     def get_table(self, table_name: str) -> FileTable:
         return self.tables[table_name]

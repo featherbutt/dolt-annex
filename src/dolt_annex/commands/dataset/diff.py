@@ -74,8 +74,10 @@ class Diff(SubCommand):
         ):
             local_repo_model = RepoModel.must_load(self.from_repo)
             remote_repo_model = RepoModel.must_load(self.to_repo)
-            table_schema = dataset_schema.get_table(self.table_name)
-            async with dataset.with_table(self.table_name) as replicated_table:
+            async with (
+                 dataset.merge_context(local_repo_model.uuid, remote_repo_model.uuid),
+                 dataset.with_table(self.table_name) as replicated_table,   
+                ):
                 keys_and_submissions = list(replicated_table.diff_keys(local_repo_model.uuid, remote_repo_model.uuid, self.filters, self.limit))
                 for diff_type, key, to_submission, from_submission in keys_and_submissions:
                         # TODO: Display removed rows

@@ -74,7 +74,7 @@ class SyncOperation:
     async def move(self, where: List[TableFilter], batch_size: Optional[int] = None) -> None:
 
         while True:
-            keys_and_submissions = list(self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size))
+            keys_and_submissions = self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size)
             num_results = await self.move_submissions_and_keys(keys_and_submissions)
             # Await here so that the next diff sees the updated state
             await self.work_queue.join()
@@ -84,6 +84,7 @@ class SyncOperation:
             # No more results if we received fewer results than the batch size
             if batch_size is None or num_results < batch_size:
                 break
+        
 
     async def move_submissions_and_keys(self, keys_and_submissions: Iterable[Tuple[str, FileKey, TableRow, TableRow]]) -> int:
         count = 0
@@ -168,7 +169,10 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
     # There may not be A Dolt remote to pull from
     # dataset.pull_from(remote_repo)
     files_moved = 0
-    async with dataset.with_repo(to_repo.uuid) as dest_repo_dataset:
+    async with (
+        dataset.merge_context(from_repo.uuid, to_repo.uuid),
+        dataset.with_repo(to_repo.uuid) as dest_repo_dataset,
+    ):
         for to_table in dest_repo_dataset.get_tables():
             async with SyncOperation.context_manager(
                 to_table = to_table,
@@ -178,8 +182,5 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
             ) as sync_op:
                 await sync_op.move(where, limit)
                 files_moved += sync_op.files_moved
-    # After moving, rebase the source dataset to reflect the changes? So that future changes diff correctly.
-    # Make a test for this.
-    # TODO: This only returns the files moved in the last table.
     return files_moved
 

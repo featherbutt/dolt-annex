@@ -61,7 +61,14 @@ class ReplicatedDataset(ABC):
         Open a specific table in the dataset.
         """
 
+    @abstractmethod
+    def merge_context(self, in_repo: Repo.Id, not_in_repo: Repo.Id) -> AsyncContextManager[None]:
+        """
+        A context that performs preparation and cleanup for a diff or merge.
+        """
+
 class ReplicatedTable(ABC):
+
     @abstractmethod
     def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
         """
