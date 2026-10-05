@@ -30,6 +30,7 @@ ruff = "^0.15.4"
 aiohttp = {extras = ["speedups"], version = "^3.14.1"}
 parse = "^1.22.1"
 gallery-dl = "^1.32.12"
+inquirerpy = "^0.3.4"
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
