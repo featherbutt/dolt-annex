@@ -7,11 +7,13 @@ import logging
 from plumbum import cli
 
 from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.collection import Collection
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
+from dolt_annex.replicated_db.dolt import DatabaseConnection
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +73,12 @@ class GalleryDL(SubCommand):
             dataset_schema = make_default_schema(dataset_name)
             dataset_schema.save()
             
-        async with Repo.open(self.config, self.repo) as repo:
-            output = await run_gallery_dl(self.config, repo, gallery_dl_config, dataset_schema, *args)
+        async with (
+            Repo.open(self.config, self.repo) as repo,
+            as_acm(DatabaseConnection.open(self.config)) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+        ):
+            output = await run_gallery_dl(repo, gallery_dl_config, dataset, *args)
         print(json.dumps(dataclasses.asdict(output), indent=2))
         return 0
     

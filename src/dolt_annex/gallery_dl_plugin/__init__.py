@@ -15,15 +15,13 @@ import sys
 from pathlib import Path
 from typing import List
 
-from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 import gallery_dl
 
-from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.replicated_db.dolt import DatabaseConnection
+from dolt_annex.replicated_db.dolt import Dataset
 from dolt_annex.replicated_db.interface import DatasetReplica, ReplicatedDataset, TableReplica
 
 config_path = Path(__file__).parent / "gallery_dl_config.json"
@@ -140,7 +138,7 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, repo: Repo, gallery_dl_config: GalleryDLConfig, dataset_schema: DatasetSchema, *args) -> GalleryDLOutput:
+async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset: Dataset, *args) -> GalleryDLOutput:
     sys.argv = gdl_args + list(args)
     gallery_dl_stdout = io.StringIO()
     gallery_dl_stderr = io.StringIO()
@@ -151,8 +149,6 @@ async def run_gallery_dl(config: Config, repo: Repo, gallery_dl_config: GalleryD
 
     loop = asyncio.get_running_loop()
     async with (
-        as_acm(DatabaseConnection.open(config)) as conn,
-        as_acm(conn.open_dataset(dataset_schema)) as dataset,
         GalleryDLContext.new(
             dataset=dataset,
             config=gallery_dl_config,
