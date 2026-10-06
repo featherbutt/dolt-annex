@@ -47,7 +47,7 @@ class DatabaseConnection(interface.ReplicatedDatabase):
 
     @classmethod
     @contextmanager
-    def open(cls, base_config: Config) -> Generator[Self]:
+    def open(cls, base_config: Config, database_password: Optional[str] = None) -> Generator[Self]:
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
@@ -59,6 +59,8 @@ class DatabaseConnection(interface.ReplicatedDatabase):
             "autocommit": dolt_config.connection.autocommit,
             **dolt_config.connection.extra_params,
         }
+        if database_password is not None:
+            db_config["password"] = database_password
         if os.name != 'nt' and connection.server_socket:
             db_config["unix_socket"] = connection.server_socket.as_posix()
         elif connection.hostname:

@@ -37,7 +37,7 @@ class ReplicatedDatabase(ABC):
 
     @classmethod
     @abstractmethod
-    def open(cls, base_config: Config) -> ContextManager[Self]:
+    def open(cls, base_config: Config, database_password: Optional[str] = None) -> ContextManager[Self]:
         """
         Open a connection to a replicated database.
         """
