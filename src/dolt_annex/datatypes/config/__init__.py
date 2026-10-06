@@ -26,6 +26,12 @@ class DoltConfig(StrictBaseModel):
     connection: MySQLConnection = MySQLConnection()
     spawn_dolt_server: bool = True
     dolt_dir: Path = Path("dolt")
+    dolt_binary: Optional[Path] = None
+
+default_config_file_locations = [
+    Path("config.json5"),
+    Path("config.json"),
+]
 
 def default_ssh_config_path() -> Optional[Path]:
     path = Path("~/.ssh/config").expanduser()
@@ -63,6 +69,11 @@ class Config(StrictBaseModel):
     def get_default_repo(self) -> RepoModel:
         if isinstance(self.local_repo, str):
             return RepoModel.must_load(self.local_repo)
+        return self.local_repo
+
+    def maybe_get_default_repo(self) -> Optional[RepoModel]:
+        if isinstance(self.local_repo, str):
+            return RepoModel.load(self.local_repo)
         return self.local_repo
 
     @asynccontextmanager

@@ -9,12 +9,7 @@ from pydantic import ValidationError
 import pyjson5
 
 from dolt_annex.commands import BaseApplication
-from dolt_annex.datatypes.config import Config
-
-default_config_file_locations = [
-    Path("config.json5"),
-    Path("config.json"),
-]
+from dolt_annex.datatypes.config import Config, default_config_file_locations
 
 class Application(BaseApplication):
     def main(self, *args) -> Literal[0, 1]:
