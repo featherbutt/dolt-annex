@@ -54,11 +54,14 @@ class Repo:
 
     @classmethod
     @asynccontextmanager
-    async def open(cls, config: Config, name: Optional[str] = None) -> AsyncGenerator[Self]:
-        if name is None:
-            model = config.get_default_repo()
-        else:
-            model = RepoModel.must_load(name)
+    async def open(cls, config: Config, name: Optional[str] | RepoModel = None) -> AsyncGenerator[Self]:
+        match name:
+            case None:
+                model = config.get_default_repo()
+            case RepoModel():
+                model = name
+            case _:
+                model = RepoModel.must_load(name)
         async with model.filestore.open(config) as filestore:
             cas = ContentAddressableStorage(config.filestore, filestore, model.alternate_key_formats, model.content_addressed)
             yield cls(
