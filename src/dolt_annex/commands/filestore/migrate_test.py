@@ -24,13 +24,13 @@ async def test_migrate(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted file with key"
     )
 
+    assert await local_file_store.exists(key)
     assert not await remote_file_store.exists(key)
 
     await run(
         args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo.name, "--to", setup.remote_repo.name],
     )
 
-    assert await local_file_store.exists(key)
     assert await remote_file_store.exists(key)
 
     await run(

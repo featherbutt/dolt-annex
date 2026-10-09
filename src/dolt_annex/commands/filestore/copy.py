@@ -45,9 +45,9 @@ class Copy(SubCommand):
             Repo.open(self.config, self.to_repo) as to_repo,
         ):
             if self.all:
-                async for file_key, data_source in from_repo.filestore.file_store.get_files():
-                    await to_repo.filestore.put_file_object(data_source, file_key=file_key)
-                    logger.info("Copied key %s from repo %s to repo %s", file_key, from_repo.name, to_repo.name)
+                async for data_source in from_repo.filestore.file_store.get_files():
+                    await to_repo.filestore.put_file(data_source)
+                    logger.info("Copied key %s from repo %s to repo %s", data_source.known_key, from_repo.name, to_repo.name)
             else:
                 for key_str in args or sys.stdin.readlines():
                     file_key = FileKey.must_parse(bytes(key_str.strip(), encoding='utf-8'))

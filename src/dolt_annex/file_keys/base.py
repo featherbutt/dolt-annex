@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Buffer, Set
+from collections.abc import Buffer, Sequence, Set
 from contextlib import asynccontextmanager
 import hashlib
 from typing import Any, AsyncGenerator, Callable, ClassVar, Dict, List, Type, overload, override
@@ -11,6 +11,7 @@ import parse
 from typing_extensions import Optional, Protocol, Self
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, SizedBuffer
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.file_io import Path
 
 type FileKeyPrefix = bytes
@@ -245,10 +246,10 @@ class FileKeyGeneratingReader(ReadableStream):
     and computes hash-based FileKeys as data is read.
     """
 
-    _generators: list[FileKeyGenerator]
+    _generators: Sequence[FileKeyGenerator]
     _inner: ReadableStream
 
-    def __init__(self, inner: ReadableStream, generators: list[FileKeyGenerator]) -> None:
+    def __init__(self, inner: ReadableStream, generators: Sequence[FileKeyGenerator]) -> None:
         self._inner = inner
         self._generators = generators
 
@@ -276,8 +277,8 @@ class FileKeyGeneratingReader(ReadableStream):
         return await self._inner.close()
     
     @classmethod
-    @asynccontextmanager
-    async def new(cls: type[Self], data_source: AsyncContextManager[ReadableStream], generators: list[FileKeyGenerator]) -> AsyncGenerator[Self]:
+    @await_or_enter
+    async def new(cls: type[Self], data_source: AsyncContextManager[ReadableStream], generators: Sequence[FileKeyGenerator]) -> AsyncGenerator[Self]:
         async with data_source as in_fd:
             yield cls(in_fd, generators)
     

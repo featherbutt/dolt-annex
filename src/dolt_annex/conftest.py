@@ -25,6 +25,7 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFSModel
+from dolt_annex.datatypes.file_stream import bytes_file_source
 from dolt_annex.test_util import EnvironmentForTest
 
 @pytest.fixture(params=[pytest.param({}, id="")])
@@ -124,7 +125,7 @@ async def create_test_filestore(config: Config, repo_model: RepoModel, files: It
     async with repo_model.filestore.open(config) as filestore:
         cas = ContentAddressableStorage(config.filestore, filestore, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
         for file_content in files:
-            await cas.put_file_bytes(file_content, Sha256E.generator())
+            await cas.put_file(bytes_file_source(file_content, Sha256E))
         yield cas
 
 @pytest.fixture(autouse=True)

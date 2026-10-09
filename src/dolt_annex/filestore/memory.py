@@ -7,6 +7,7 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from typing import Awaitable, Tuple
 from typing_extensions import override
 
@@ -17,32 +18,21 @@ from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKeyPrefix
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source, known_key_source_nocheck
 
 from .base import FileInfo, FileStore, FileStoreModel
 
+@dataclass(kw_only=True)
 class MemoryFS(FileStore):
 
-    files: dict[bytes, bytes]
-
-    def __init__(self, files: dict[bytes, bytes] | None = None) -> None:
-        super().__init__()
-        if files is None:
-            self.files = {}
-        else:
-            self.files = files
+    files: dict[bytes, bytes] = field(default_factory=dict)
 
     @override
-    async def put_file(self, file_path: Path, file_key: FileKey):
-        """Move an on-disk file to the annex."""
-        async with file_path.open() as f:
-            self.files[bytes(file_key)] = await f.read()
-             
-    @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
             value = await in_fd.read()
-            file_key = await file_key_producer
+            file_key = await data_source.file_key()
             if overwrite_existing or bytes(file_key) not in self.files:
                 self.files[bytes(file_key)] = value
             return file_key
@@ -58,16 +48,16 @@ class MemoryFS(FileStore):
 
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         if bytes(file_key) not in self.files:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
         yield AsyncBytesIO(self.files[bytes(file_key)])
 
     @override
-    async def get_files(self, prefix: FileKeyPrefix = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: FileKeyPrefix = b"") -> AsyncGenerator[KnownKeyFileStream]:
         for file_key, value in self.files.items():
             if file_key.startswith(prefix):
-                yield FileKey.must_parse(file_key), async_bytes_io(value)
+                yield known_key_source_nocheck(async_bytes_io(value), FileKey.must_parse(file_key))
         
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:

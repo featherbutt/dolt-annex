@@ -12,16 +12,18 @@ from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.errors import ContentAddressableStorageError
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFS, ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
-from dolt_annex.filestore.cas import ContentAddressableStorage, ContentAddressableStorageKeyMismatchError
+from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.filestore_test import SftpWrappedFilestoreModel, SimpleSftpFilestoreModel
 from dolt_annex.filestore.leveldb import LevelDBModel
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.filestore.sqlite import SQLiteModel
+from dolt_annex.datatypes.file_stream import bytes_file_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.sync import move_dataset
 from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
@@ -52,7 +54,7 @@ async def added_file_keys(local_filestore: ContentAddressableStorage) -> list[Fi
     file_keys: list[FileKey] = []
     for i in range(NUM_FILES):
         file_bytes = random.randbytes(1024*i)
-        file_key = await local_filestore.put_file_bytes(file_bytes, Sha256E.generator())
+        file_key = await local_filestore.put_file(bytes_file_source(file_bytes, Sha256E))
         file_keys.append(file_key)
     await maybe_await(local_filestore.file_store.flush())
     return file_keys
@@ -81,7 +83,7 @@ async def test_detect_corruption(
         )
 
         await from_table.flush()
-        with pytest.RaisesGroup(ContentAddressableStorageKeyMismatchError, flatten_subgroups=True, allow_unwrapped=True):
+        with pytest.RaisesGroup(ContentAddressableStorageError, flatten_subgroups=True, allow_unwrapped=True):
             await move_dataset(
                 dataset,
                 from_repo,
@@ -158,7 +160,7 @@ async def test_diff_types(
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key = await setup.local_repo.filestore.put_file_bytes(file_bytes, Sha256E.generator())
+        file_key = await setup.local_repo.filestore.put_file(bytes_file_source(file_bytes, Sha256E))
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
@@ -183,7 +185,7 @@ async def test_diff_types(
         # Modify the table row
         await from_table.remove(table_row)
         new_file_bytes = random.randbytes(1024**2) # 1 MB
-        new_file_key = await setup.local_repo.filestore.put_file_bytes(new_file_bytes, Sha256E.generator())
+        new_file_key = await setup.local_repo.filestore.put_file(bytes_file_source(new_file_bytes, Sha256E))
         new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
         await from_table.insert(new_table_row)
 

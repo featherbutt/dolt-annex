@@ -6,7 +6,6 @@ from __future__ import annotations
 from asyncio import Future
 import asyncio
 from collections.abc import AsyncGenerator, Iterable
-from contextlib import asynccontextmanager
 import contextvars
 from dataclasses import dataclass
 from io import BytesIO
@@ -23,6 +22,7 @@ from fs.base import FS
 from fs.osfs import OSFS
 
 from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_utils import await_or_enter
 
 @dataclass
 class FileInfo:
@@ -223,7 +223,7 @@ class Pipe:
         self.size += len(data)
         return len(data)
 
-    @asynccontextmanager
+    @await_or_enter
     async def open(self) -> AsyncGenerator[ReadableStream, None]:
         yield self
     

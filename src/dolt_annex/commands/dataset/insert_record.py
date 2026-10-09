@@ -10,6 +10,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.application import Application
 from dolt_annex.file_keys import get_file_key_type
+from dolt_annex.datatypes.file_stream import bytes_file_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 
 class InsertRecord(cli.Application):
@@ -101,7 +102,7 @@ class InsertRecord(cli.Application):
                 extension = self.extension
             
             table = repo_dataset.get_table(self.table_name)
-            key = await repo.filestore.put_file_bytes(file_bytes, file_key_type.generator(extension=extension))
+            key = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)

@@ -7,18 +7,21 @@ from abc import abstractmethod
 import abc
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from functools import wraps
 import inspect
 import pathlib
-from typing import TYPE_CHECKING, Awaitable, Tuple
+from typing import TYPE_CHECKING, Optional
 import logging
+from uuid import UUID
 
-from dolt_annex.datatypes.async_types import MaybeAwaitable, awaited, maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream, AsyncContextManager
+from dolt_annex.datatypes.async_types import maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
 from dolt_annex.datatypes.common import YesNoMaybe
-from dolt_annex.datatypes.file_io import FileInfo, Path, async_bytes_io
+from dolt_annex.datatypes.file_io import FileInfo, async_bytes_io
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source_nocheck
 
 if TYPE_CHECKING:
     from dolt_annex.datatypes.config import Config
@@ -66,37 +69,27 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
             return wrapper
     return decorator
 
+@dataclass(kw_only=True)
 class FileStore(abc.ABC):
 
-    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
-        """
-        Insert an on-disk file to the repo. If the repo is local, this is allowed to move the file.
-        """
-        await self.copy_file(file_path, file_key)
-
-    async def copy_file(self, file_path: Path, file_key: FileKey) -> None:
-        """
-        Copy an on-disk file to the remote. If the repo is local, this must copy the file.
-        """
-        await self.put_file_object(file_path.open(), awaited(file_key))
 
     async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
         """
         Insert an in-memory file to the remote.
         """
-        await self.put_file_object(async_bytes_io(file_bytes), file_key_producer=awaited(file_key))
+        await self.put_file_object(known_key_source_nocheck(async_bytes_io(file_bytes), file_key=file_key))
     
     @abstractmethod
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
+    def with_file_stream(self, file_key: FileKey) -> KeyedFileStream:
+        """Get a file-like stream for a file in the remote by its key."""
+        return known_key_source_nocheck(self.with_file_object(file_key), file_key)
+    
     @abstractmethod
-    def get_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
+    def with_file_object(self, file_key: FileKey) -> AwaitOrEnter[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
-
-    def with_file_object(self, file_key: FileKey) -> AsyncContextManager[ReadableStream]:
-        """Get a file-like object for a file in the remote by its key."""
-        return self.get_file_object(file_key)
 
     async def get_file_bytes(self, file_key: FileKey) -> bytes:
         """
@@ -114,13 +107,13 @@ class FileStore(abc.ABC):
     @abstractmethod
     async def stat(self, file_key: FileKey) -> FileInfo:
         """
-        Returns information about a file-like object previously returned by get_file_object.
+        Returns information about a file-like object previously returned by with_file_object.
         """
 
     @abstractmethod
     async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         """
-        Returns information about a file-like object previously returned by get_file_object.
+        Returns information about a file-like object previously returned by with_file_object.
         """
 
     async def possibly_exists(self, file_key: FileKey) -> YesNoMaybe:
@@ -145,12 +138,13 @@ class FileStore(abc.ABC):
         avoid transferring data over the network and duplicating storage.
         """
         logger.debug(f"alias {old_key} -> {new_key}")
-        await self.put_file_object(self.get_file_object(old_key), awaited(new_key))
+        data_source = known_key_source_nocheck(self.with_file_object(old_key), new_key)
+        await self.put_file_object(data_source, overwrite_existing=False)
     
     class GetFilesNotImplementedError(NotImplementedError):
         pass
 
-    def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         """
         Iterate over all file keys in the filestore. This is primarily intended for testing and debugging
         and it not required to be implemented by all filestores.

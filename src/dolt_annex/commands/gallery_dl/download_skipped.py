@@ -48,7 +48,7 @@ class DownloadSkipped(SubCommand):
             submissions_table = repo_dataset.get_table("submissions")
             for metadata_row in metadata_table.get_rows():
                 metadata_file_key = metadata_row["file_key"]
-                async with repo.filestore.file_store.get_file_object(metadata_file_key) as metadata_fd:
+                async with repo.filestore.file_store.with_file_object(metadata_file_key) as metadata_fd:
                     metadata_json = cast(FileMetadata, json.load(metadata_fd))
                     
                 source = category_to_source[metadata_json["category"]]
@@ -70,7 +70,7 @@ class DownloadSkipped(SubCommand):
                         with requests.get(url, stream=True) as response:
                             response.raise_for_status()
                             # Using raw might not work for deflated text.
-                            repo.filestore.put_file_object(
+                            repo.filestore.put_file(
                                 async_open(response.raw),
                                 # TODO: We need the key before we can write?
                                 # We can if we use the key from the metadata.

@@ -11,14 +11,14 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import pathlib
-from typing import Awaitable, Tuple
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream, maybe_await
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source, known_key_source_nocheck
 
 from .base import FileInfo, FileStore, FileStoreModel
 
@@ -38,17 +38,17 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         async with data_source as in_fd:
             value = await maybe_await(in_fd.read())
-            file_key = await file_key_producer
-            if overwrite_existing or self.db.get(bytes(file_key)) is None:
-                self.db.put(bytes(file_key), value, sync=True)
-            return file_key
+        file_key = await data_source.file_key()
+        if overwrite_existing or self.db.get(bytes(file_key)) is None:
+            self.db.put(bytes(file_key), value, sync=True)
+        return file_key
 
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         file_bytes = self.db.get(bytes(file_key))
         if file_bytes is None:
             raise FileNotFoundError(f"File with key {file_key} not found in annex.")
@@ -72,14 +72,14 @@ class LevelDB(FileStore):
         return self.db.get(bytes(file_key)) is not None
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey):
         return await super().create_alias(old_key, new_key)
 
-    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         for key, value in self.db.iterator(start=prefix):
             if not key.startswith(prefix):
                 break
-            yield FileKey.must_parse(key), async_bytes_io(value)
+            yield known_key_source_nocheck(async_bytes_io(value), FileKey.must_parse(key))
 
     @override
     def delete(self, key: FileKey) -> None:

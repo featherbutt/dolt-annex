@@ -3,14 +3,14 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Awaitable, Tuple
 from typing_extensions import override, Any
 
 from dolt_annex.datatypes.async_utils import await_or_enter
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream
 
-from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, MaybeAwaitable, YesNoMaybe, maybe_await
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, YesNoMaybe, maybe_await
 
 class UnionFS(FileStore):
     """
@@ -25,17 +25,17 @@ class UnionFS(FileStore):
         self.children = children
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         """Upload a file-like object to the remote."""
-        return await self.children[0].put_file_object(data_source, file_key_producer, overwrite_existing=overwrite_existing)
+        return await self.children[0].put_file_object(data_source, overwrite_existing=overwrite_existing)
 
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         for child in self.children:
             try:
-                async with child.get_file_object(file_key) as file_obj:
+                async with child.with_file_object(file_key) as file_obj:
                     yield file_obj
                     return
             except (FileNotFoundError, FileStoreError):
@@ -110,10 +110,10 @@ class UnionFS(FileStore):
         raise FileNotFoundError(f"File with key {old_key} not found in annex.")
 
     @override
-    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         for child in self.children:
-            async for key, stream in child.get_files(prefix):
-                yield key, stream
+            async for known_key_stream in child.get_files(prefix):
+                yield known_key_stream
 
     @override
     def delete(self, key: FileKey):

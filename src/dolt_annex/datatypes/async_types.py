@@ -8,17 +8,22 @@ Definitions here should not depend on any other dolt_annex modules.
 """
 
 from asyncio import Future
-from collections.abc import Awaitable, Buffer
+from collections.abc import Awaitable, Buffer, Callable
 import inspect
 import os
 from types import TracebackType
 from typing import Any, Sized
 from typing_extensions import Protocol
 
-def awaited[T](value: T) -> Awaitable[T]:
-    future = Future[T]()
-    future.set_result(value)
-    return future
+def awaitable[T](value: T) -> Callable[[], Awaitable[T]]:
+    async def wrapper():
+        return value
+    return wrapper
+
+def awaitable_func[T](callback: Callable[[], T]) -> Callable[[], Awaitable[T]]:
+    async def wrapper():
+        return callback()
+    return wrapper
 
 class SizedBuffer(Sized, Buffer, Protocol):
     pass

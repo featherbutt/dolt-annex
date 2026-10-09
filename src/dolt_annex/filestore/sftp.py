@@ -29,19 +29,20 @@ from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_stream import KeyedFileStream
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wrap_errors
 
 logger = logging.getLogger(__name__)
 
-@dataclass
+@dataclass(kw_only=True)
 class SftpFileStore(FileStore):
 
     sftp: asyncssh.SFTPClient
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         """Upload a file-like object to the remote."""
         temp_remote_file_path = f"tmp/{random.randbytes(16).hex()}"
 
@@ -51,7 +52,7 @@ class SftpFileStore(FileStore):
             self.sftp.open(temp_remote_file_path, 'wb') as out_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        file_key = await file_key_producer
+        file_key = await data_source.file_key()
         real_remote_file_path = self.get_key_path(file_key).as_posix()
         await self.sftp.makedirs(Path(real_remote_file_path).parent.as_posix(), exist_ok=True)
 
@@ -61,7 +62,7 @@ class SftpFileStore(FileStore):
     @override
     @await_or_enter
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         """Get a file-like object for a file in the remote by its key."""
         remote_file_path = self.get_key_path(file_key).as_posix()
         if await self.sftp.isdir(remote_file_path):
@@ -165,7 +166,7 @@ class SftpFileStore(FileStore):
         ) as conn:
             async with conn.start_sftp_client() as sftp:
                 await sftp.chdir(connection.path.as_posix())
-                filestore = cls(sftp)
+                filestore = cls(sftp=sftp)
                 yield filestore
         
 class SftpFileStoreModel(FileStoreModel):

@@ -7,6 +7,7 @@ from dolt_annex.commands import CommandGroup, SubCommand
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import get_file_key_type
+from dolt_annex.datatypes.file_stream import bytes_file_source
 
 class Insert(SubCommand):
     """Insert a single record into a filestore. Primarily used for testing."""
@@ -48,10 +49,9 @@ class Insert(SubCommand):
 
         file_key_type = get_file_key_type(self.file_key_type)
         file_bytes = self.file_bytes.encode('utf-8')
-        key = file_key_type.from_bytes(file_bytes, self.extension)
 
         async with Repo.open(base_config, self.repo) as repo:
-            await repo.filestore.put_file_bytes(file_bytes, key)
+            key = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, self.extension))
         print(f"Inserted file with key {key} into filestore of repo '{repo.name}'")
 
         return 0

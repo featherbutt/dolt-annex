@@ -8,20 +8,19 @@ with the file key as the key and the file contents as the value.
 
 from __future__ import annotations
 
-import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 import pathlib
 import tarfile
-from typing import AsyncGenerator, Awaitable, List, NamedTuple
+from typing import AsyncGenerator, List
 import uuid
 from pydantic import InstanceOf
-from typing_extensions import override, Tuple
+from typing_extensions import override
 import logging
 
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, maybe_await, AsyncContextManager, ReadableStream
+from dolt_annex.datatypes.async_types import maybe_await, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open
@@ -29,6 +28,7 @@ from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
+from dolt_annex.datatypes.file_stream import KnownKeyFileStream, KeyedFileStream, known_key_source_nocheck
 from dolt_annex.tarfile_utils import TarFile
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel
@@ -43,12 +43,6 @@ class ArchiveFS(FileStore):
 
     This reduces the size of values in the secondary filestore.
     """
-
-    class QueueItem(NamedTuple):
-        file_key_producer: Awaitable[FileKey]
-        data_source: AsyncContextManager[ReadableStream]
-        callback: asyncio.Future[FileKey]
-        overwrite_existing: bool
         
     file_system: FileSystem
     secondary: FileStore
@@ -117,7 +111,7 @@ class ArchiveFS(FileStore):
                 continue
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         if self.readonly:
             raise FileStoreError("Cannot write to a readonly ArchiveFS filestore.")
         # get an open achive file if possible, else create a new one.
@@ -126,7 +120,7 @@ class ArchiveFS(FileStore):
         else:
             tarfile = await self.exit_stack.enter_async_context(self.get_archive_file_for_write())
         async with data_source as in_fd:
-            success, file_key, offset, file_size = await tarfile.addfile(input_fileobj=in_fd, file_key_producer=file_key_producer, exists=self.exists, overwrite_existing=overwrite_existing)
+            success, file_key, offset, file_size = await tarfile.addfile(input_fileobj=in_fd, file_key_producer=data_source.file_key(), exists=self.exists, overwrite_existing=overwrite_existing)
             if not success:
                 self.available_archives.append(tarfile)
                 return file_key
@@ -166,18 +160,18 @@ class ArchiveFS(FileStore):
     
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ExistingFileHandle]:
         file_bytes = await self.secondary.get_file_bytes(file_key)
         async with self.decode_secondary_value(file_key, file_bytes) as fd:
             yield fd
 
     @override
-    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
-        async for key, value in self.secondary.get_files(prefix):
-            async with value as value_opened:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
+        async for kfs in self.secondary.get_files(prefix):
+            async with kfs as value_opened:
                 value_bytes = await value_opened.read()
-                fd = self.decode_secondary_value(key, value_bytes)
-                yield key, fd
+                fd = self.decode_secondary_value(kfs.known_key, value_bytes)
+                yield known_key_source_nocheck(fd, kfs.known_key)
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:

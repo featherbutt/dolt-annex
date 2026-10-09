@@ -16,20 +16,21 @@ from dataclasses import dataclass
 import hashlib
 import pathlib
 import random
-from typing import AsyncGenerator, Awaitable
+from typing import AsyncGenerator
 from pydantic import InstanceOf
 from typing_extensions import override
 
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
-from dolt_annex.datatypes.async_utils import Result, await_or_enter
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy
 from dolt_annex.filestore.file_handles import ExistingFileHandle
+from dolt_annex.datatypes.file_stream import KeyedFileStream
 
 from .base import FileInfo, FileStore, FileStoreModel
 
@@ -39,14 +40,7 @@ class AnnexFS(FileStore):
     file_system: FileSystem
 
     @override
-    async def put_file(self, file_path: Path, file_key: FileKey) -> None:
-        """Move an on-disk file to the annex."""
-        output_path = self.get_key_path(file_key)
-        output_path.parent.mkdirs(exist_ok=True)
-        file_path.rename(output_path)
-
-    @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         """Copy a file-like object into the annex."""
         output_path = Path(self.file_system) / "tmp" / random.randbytes(16).hex()
         output_path.parent.mkdirs(exist_ok=True)
@@ -55,15 +49,14 @@ class AnnexFS(FileStore):
             data_source as in_fd,
         ):
             await copy(src=in_fd, dst=out_fd)
-        file_key = await file_key_producer
+        file_key = await data_source.file_key()
         # TODO: Handle the case where the file already exists.
         output_path.rename(self.get_key_path(file_key))
         return file_key
 
-
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         annexed_file_path = self.get_key_path(file_key)
         if not annexed_file_path.exists() or annexed_file_path.is_dir():
             # If the file does not exist at the expected path, try the deprecated path.
@@ -107,17 +100,16 @@ class AnnexFS(FileStore):
         return self.get_key_path(file_key).exists()
 
     @override
-    async def create_alias(self, old_key: FileKey, new_key: FileKey) -> Result[None]:
+    async def create_alias(self, old_key: FileKey, new_key: FileKey):
         """
         Insert a new key that references the same content as an existing key.
         """
         if old_key == new_key:
-            return Result.done()
+            return
         old_path = self.get_key_path(old_key)
         new_path = self.get_key_path(new_key)
         new_path.parent.mkdirs(exist_ok=True)
         old_path.link(new_path)
-        return Result.done()
     
     @override
     def delete(self, key: FileKey):

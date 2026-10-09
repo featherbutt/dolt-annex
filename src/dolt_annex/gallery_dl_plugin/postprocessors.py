@@ -17,6 +17,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.datatypes.file_stream import bytes_file_source, file_source
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
 from dolt_annex.replicated_db.interface import DatasetReplica, TableFilter, TableReplica
 
@@ -93,16 +94,16 @@ def gallery_dl_prepare(metadata: FileMetadata):
         })
         for key in source.keys_from_metadata(metadata):
             if isinstance(key, FileKey):
-                file_key_generator = type(key).generator(extension=metadata["extension"])
+                key_type = type(key)
                 break
         else:
-            file_key_generator = Sha256E.generator(extension=metadata["extension"])
+            key_type = Sha256E
         def custom_open(self, mode):
             pipe = Pipe(context.event_loop)
             writer = SyncPipeWriter(pipe)
             async def task():
-                await repo.filestore.put_file_object(pipe.open(), file_key_generator)
-                insert_row["submission_file_key"] = file_key_generator.finalize()
+                submission_file_key = await repo.filestore.put_file(file_source(pipe.open(), key_type, extension=metadata["extension"]))
+                insert_row["submission_file_key"] = submission_file_key
                 await submissions_table.insert(insert_row)
                 await context.collections_submission_tables.insert(insert_row)
             context.enqueue_task(task())
@@ -215,7 +216,7 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
 
 async def import_bytes(cas: ContentAddressableStorage, file_table: TableReplica, collections: GalleryDLContext.CollectionTables, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
     """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    await cas.put_file_bytes(file_bytes, file_key_type.generator(extension=extension))
+    await cas.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
         
     await file_table.insert(table_key)
     await collections.insert(table_key)

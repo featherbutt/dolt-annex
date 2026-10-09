@@ -25,16 +25,17 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import logging
 import pathlib
-from typing import Awaitable, Self, Tuple
+from typing import Self
 from typing_extensions import override
 
 import sqlite3
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source_nocheck
 
 from .base import FileInfo, FileStore, FileStoreModel
 
@@ -80,10 +81,10 @@ class SQLite(FileStore):
         self.pending_size = 0
 
     @override
-    async def put_file_object(self, data_source: AsyncContextManager[ReadableStream], file_key_producer: Awaitable[FileKey], overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
         async with data_source as in_fd:
             data = await in_fd.read()
-        file_key = await file_key_producer
+        file_key = await data_source.file_key()
         # TODO: We could have two different pending lists for rows that should overwrite.
         if overwrite_existing:
             self.db.execute(
@@ -112,7 +113,7 @@ class SQLite(FileStore):
 
     @override
     @await_or_enter
-    async def get_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
+    async def with_file_object(self, file_key: FileKey) -> AsyncGenerator[ReadableFileObject]:
         row = self.db.execute(
             "SELECT data FROM sqlar WHERE name = ?", (str(file_key),)
         ).fetchone()
@@ -154,7 +155,7 @@ class SQLite(FileStore):
             )
             self.db.commit()
 
-    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[Tuple[FileKey, AwaitOrEnter[ReadableStream]]]:
+    async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         if prefix:
             prefix_str = str(prefix, encoding='utf-8')
             prefix_str = (prefix_str
@@ -168,7 +169,7 @@ class SQLite(FileStore):
             params = ()
         rows = self.db.execute(query, params).fetchall()
         for name, data in rows:
-            yield FileKey.must_parse(name), async_bytes_io(data)
+            yield known_key_source_nocheck(async_bytes_io(data), FileKey.must_parse(name))
 
     @override
     def delete(self, key: FileKey) -> None:

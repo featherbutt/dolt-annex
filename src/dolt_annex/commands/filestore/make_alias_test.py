@@ -11,7 +11,7 @@ from dolt_annex.test_util import EnvironmentForTest, run
 @pytest.mark.asyncio
 @pytest.mark.parametrize("key_format", [Sha256E])
 @pytest.mark.parametrize("local_filestore_model", [MemoryFSModel()])
-async def test_migrate(tmp_path, setup: EnvironmentForTest):
+async def test_make_alias(tmp_path, setup: EnvironmentForTest):
     """Run and validate that we can make aliases, and that making aliases only rehashes the file contents when necessary"""
     local_file_store = setup.local_repo.filestore.file_store
     assert isinstance(local_file_store, MemoryFS)

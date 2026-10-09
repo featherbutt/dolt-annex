@@ -15,8 +15,10 @@ import fs.osfs
 from fs.base import FS as FileSystem
 
 from dolt_annex.datatypes.async_types import ReadableStream, maybe_await, ReadableFileObject
+from dolt_annex.datatypes.file_io import AsyncBytesIO
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.datatypes.file_stream import KeyedFileStream
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,9 @@ class NewFileWriter:
 
     async def __aenter__(self) -> ReadableStream:
         return self
+
+    def __await__(self):
+        return self.__aenter__().__await__()
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
         await self.close()
@@ -192,7 +197,7 @@ class SFTPServer(asyncssh.SFTPServer):
         return file_writer
     
     async def open_file_for_read(self, key: FileKey) -> ReadableFileObject:
-        return await self.cas.file_store.get_file_object(key)
+        return await self.cas.file_store.with_file_stream(key)
     
     # The default implementations of read and write assume that file_obj.seek is synchronous.
     # However, the file objects may have async seek methods.
@@ -561,5 +566,8 @@ class SFTPServer(asyncssh.SFTPServer):
         pass
 
     async def handle_new_file(self, file_writer: NewFileWriter):
-        await self.cas.put_file_object(file_writer, file_key=file_writer.file_key)
+        await self.cas.put_file(KeyedFileStream(
+            data_source=file_writer,
+            file_key_producer=lambda: file_writer.file_key
+        ))
         file_writer.done.set()

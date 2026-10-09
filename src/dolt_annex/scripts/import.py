@@ -23,6 +23,7 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore import FileStore
 from dolt_annex.filestore.base import maybe_await
 from dolt_annex.filestore.cas import ContentAddressableStorage
+from dolt_annex.datatypes.file_stream import path_file_source, KeyedFileStream
 from dolt_annex.importers.base import get_importer
 from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 from dolt_annex.datatypes.file_io import Path
@@ -202,10 +203,8 @@ async def move_files(file_store: ContentAddressableStorage, import_config: Impor
     """Move files to the annex"""
     logger.debug("moving annex files")
     for file_path, key in files.items():
-        if import_config.copy:
-            await file_store.copy_file(file_path, key)
-        else:
-            await file_store.put_file(file_path, key)
+        uploader = path_file_source(file_path, import_config.file_key_type, file_path.suffix[1:])
+        await file_store.put_file(uploader)
         if import_config.move:
             # TODO: Add an extra check here that the file was added successfully, then delete the file
             # os.remove(file_path)
