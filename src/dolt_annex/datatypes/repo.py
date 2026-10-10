@@ -63,6 +63,8 @@ class Repo:
             case _:
                 model = RepoModel.must_load(name)
         async with model.filestore.open(config) as filestore:
+            if filestore.uuid is None:
+                filestore.uuid = model.uuid
             cas = ContentAddressableStorage(config.filestore, filestore, model.alternate_key_formats, model.content_addressed)
             yield cls(
                 name=model.name,

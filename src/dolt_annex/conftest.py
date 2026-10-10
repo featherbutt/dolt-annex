@@ -47,12 +47,12 @@ def remote_uuid() -> UUID:
     return UUID("36b60d94-fbdf-476b-9479-f0abc61fa5ba")
 
 @pytest.fixture
-def local_filestore_model() -> FileStoreModel:
-    return MemoryFSModel()
+def local_filestore_model(local_uuid: UUID) -> FileStoreModel:
+    return MemoryFSModel(uuid=local_uuid)
 
 @pytest.fixture
-def remote_filestore_model() -> FileStoreModel:
-    return MemoryFSModel()
+def remote_filestore_model(remote_uuid: UUID) -> FileStoreModel:
+    return MemoryFSModel(uuid=remote_uuid)
 
 @pytest.fixture
 def key_format() -> type[FileKey]:
