@@ -11,6 +11,7 @@ from pydantic import AliasChoices, Field
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.filestore_config import FilestoreConfig
+from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import FileKeyType
@@ -58,10 +59,10 @@ class Config(StrictBaseModel):
     filestore: FilestoreConfig = FilestoreConfig()
     gallery_dl: GalleryDLConfig = GalleryDLConfig()
 
-    # We don't use Named[RepoModel] here to avoid preemptively loading the repo.
+    # str | Named[RepoModel] avoid preemptively loading the repo if it's a string.
     # It's fine for this to be omitted or for the named repo to not exist, if
     # all commands specify other repos or if we're running the init command.
-    local_repo: RepoModel | str = Field(validation_alias=AliasChoices('local_repo', 'local_repo_name'), default='__local__')
+    local_repo: str | Named[RepoModel] = Field(validation_alias=AliasChoices('local_repo', 'local_repo_name'), default='__local__')
     default_annex_remote: str = "origin"
     default_file_key_type: Annotated[FileKeyType, deprecated('Config.default_file_key_type is deprecated and will be removed in a future version')] = Sha256HSe
     default_alternate_key_types: List[FileKeyType] = [Sha256E, Sha256HSe, Sha1HSe, MD5HSe]
