@@ -40,7 +40,7 @@ class AnnexFS(FileStore):
     file_system: FileSystem
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         """Copy a file-like object into the annex."""
         output_path = Path(self.file_system) / "tmp" / random.randbytes(16).hex()
         output_path.parent.mkdirs(exist_ok=True)
@@ -52,7 +52,7 @@ class AnnexFS(FileStore):
         file_key = await data_source.file_key()
         # TODO: Handle the case where the file already exists.
         output_path.rename(self.get_key_path(file_key))
-        return file_key
+        return FileStore.PutFileResult(file_key=file_key, uuids=[self.uuid] if self.uuid else [])
 
     @override
     @await_or_enter
@@ -126,4 +126,4 @@ class AnnexFSModel(FileStoreModel):
             file_system = fs.osfs.OSFS(str(self.root))
         else:
             file_system = self.root
-        return AnnexFS(file_system=file_system)
+        return AnnexFS(uuid=self.uuid, file_system=file_system)

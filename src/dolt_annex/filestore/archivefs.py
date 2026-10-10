@@ -11,7 +11,7 @@ from __future__ import annotations
 from contextlib import AsyncExitStack, asynccontextmanager
 import pathlib
 import tarfile
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Optional
 import uuid
 from pydantic import InstanceOf
 from typing_extensions import override
@@ -61,6 +61,7 @@ class ArchiveFS(FileStore):
 
     def __init__(
             self, *,
+            uuid: Optional[FileStore.Id],
             file_system: FileSystem,
             secondary: FileStore,
             exit_stack: AsyncExitStack,
@@ -68,6 +69,7 @@ class ArchiveFS(FileStore):
             append: bool,
             readonly: bool,
     ):
+        self.uuid = uuid
         self.file_system = file_system
         self.secondary = secondary
         self.max_archive_size = max_archive_size
@@ -111,10 +113,10 @@ class ArchiveFS(FileStore):
                 continue
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         if self.readonly:
             raise FileStoreError("Cannot write to a readonly ArchiveFS filestore.")
-        # get an open achive file if possible, else create a new one.
+        # get an open archive file if possible, else create a new one.
         if self.available_archives:
             tarfile = self.available_archives.pop()
         else:
@@ -123,21 +125,22 @@ class ArchiveFS(FileStore):
             success, file_key, offset, file_size = await tarfile.addfile(input_fileobj=in_fd, file_key_producer=data_source.file_key(), exists=self.exists, overwrite_existing=overwrite_existing)
             if not success:
                 self.available_archives.append(tarfile)
-                return file_key
+                return FileStore.PutFileResult(file_key=file_key, uuids=[])
             
             # TODO: We probably don't need to flush immediately after each write,
             # But there's no way to signal a flush for tests.
 
             tarfile.fd_sync.flush()
             secondary_value = f"{tarfile.path.name}:{offset}:{file_size}"
-            await self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key)
+            _, uuids = await self.secondary.put_file_bytes(secondary_value.encode('utf-8'), file_key)
 
         if await tarfile.fd.tell() > self.max_archive_size:
             tarfile.close()
             tarfile.path.rename(self.finalized_archives_dir / tarfile.path.name)
         else:
             self.available_archives.append(tarfile)
-        return file_key
+        return FileStore.PutFileResult(file_key=file_key, uuids=list(uuids) + ([self.uuid] if self.uuid else []))
+
 
     @await_or_enter
     async def decode_secondary_value(self, file_key: FileKey, secondary_value_bytes: bytes) -> AsyncGenerator[ExistingFileHandle]:
@@ -187,11 +190,11 @@ class ArchiveFS(FileStore):
 
     @override
     async def exists(self, file_key: FileKey) -> bool:
-        return await maybe_await(self.secondary.exists(file_key))
+        return await self.secondary.exists(file_key)
 
     @override
     async def flush(self) -> None:
-        await maybe_await(self.secondary.flush())
+        await self.secondary.flush()
 
     @override
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
@@ -233,6 +236,7 @@ class ArchiveFSModel(FileStoreModel):
                 file_system = self.root
             
             archive = ArchiveFS(
+                uuid=self.uuid,
                 file_system=file_system,
                 secondary=secondary_filestore,
                 exit_stack=exit_stack,

@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from functools import wraps
 import inspect
 import pathlib
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 import logging
+import typing
 from uuid import UUID
 
 from dolt_annex.datatypes.async_types import maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
@@ -72,15 +73,22 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
 @dataclass(kw_only=True)
 class FileStore(abc.ABC):
 
+    type Id = UUID
 
-    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
+    uuid: Optional[Id] = None
+
+    class PutFileResult(typing.NamedTuple):
+        file_key: FileKey
+        uuids: Sequence[FileStore.Id]
+
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> PutFileResult:
         """
         Insert an in-memory file to the remote.
         """
-        await self.put_file_object(known_key_source_nocheck(async_bytes_io(file_bytes), file_key=file_key))
+        return await self.put_file_object(known_key_source_nocheck(async_bytes_io(file_bytes), file_key=file_key))
     
     @abstractmethod
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> PutFileResult:
         """Insert a file-like object into the remote. If the key already exists, the filestore *must* replace the existing content with the new content."""
 
     def with_file_stream(self, file_key: FileKey) -> KeyedFileStream:
@@ -170,6 +178,8 @@ class FileStoreModel(Loadable, AbstractBaseModel, extension="filestore", config_
     """
     Subclasses must implement either open() or create().
     """
+
+    uuid: Optional[FileStore.Id] = None
     
     @asynccontextmanager
     async def open(self, config: Config) -> AsyncGenerator[FileStore]:

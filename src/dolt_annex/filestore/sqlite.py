@@ -81,7 +81,7 @@ class SQLite(FileStore):
         self.pending_size = 0
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         async with data_source as in_fd:
             data = await in_fd.read()
         file_key = await data_source.file_key()
@@ -98,7 +98,7 @@ class SQLite(FileStore):
                 logger.debug("Flushing SQLite filestore with %s added records ending in %s", len(self.pending), str(file_key))
                 await self.flush()
                 
-        return file_key
+        return FileStore.PutFileResult(file_key=file_key, uuids=[self.uuid] if self.uuid else [])
     
     async def flush(self):
         self.db.executemany(

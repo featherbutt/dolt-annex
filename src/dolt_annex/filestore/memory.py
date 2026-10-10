@@ -28,23 +28,24 @@ class MemoryFS(FileStore):
     files: dict[bytes, bytes] = field(default_factory=dict)
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         """Copy a file-like object into the annex."""
         async with data_source as in_fd:
             value = await in_fd.read()
-            file_key = await data_source.file_key()
-            if overwrite_existing or bytes(file_key) not in self.files:
-                self.files[bytes(file_key)] = value
-            return file_key
+        file_key = await data_source.file_key()
+        if overwrite_existing or bytes(file_key) not in self.files:
+            self.files[bytes(file_key)] = value
+        return FileStore.PutFileResult(file_key=file_key, uuids=[self.uuid] if self.uuid else [])
 
     @override
-    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> None:
+    async def put_file_bytes(self, file_bytes: bytes, file_key: FileKey) -> FileStore.PutFileResult:
         """
         Upload an in-memory file to the remote.
 
         If file_key is not provided, it will be computed.
         """
         self.files[bytes(file_key)] = file_bytes
+        return FileStore.PutFileResult(file_key=file_key, uuids=[self.uuid] if self.uuid else [])
 
     @override
     @await_or_enter
@@ -88,4 +89,4 @@ class MemoryFSModel(FileStoreModel):
     files: dict[bytes, bytes] = {}
 
     def create(self, config: Config) -> MemoryFS:
-        return MemoryFS(files=self.files if self.persistent else self.files.copy())
+        return MemoryFS(uuid=self.uuid, files=self.files if self.persistent else self.files.copy())

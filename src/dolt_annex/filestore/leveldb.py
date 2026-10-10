@@ -38,13 +38,13 @@ class LevelDB(FileStore):
         self.db = db
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         async with data_source as in_fd:
             value = await maybe_await(in_fd.read())
         file_key = await data_source.file_key()
         if overwrite_existing or self.db.get(bytes(file_key)) is None:
             self.db.put(bytes(file_key), value, sync=True)
-        return file_key
+        return FileStore.PutFileResult(file_key=file_key, uuids=[self.uuid] if self.uuid else [])
 
     @override
     @await_or_enter
