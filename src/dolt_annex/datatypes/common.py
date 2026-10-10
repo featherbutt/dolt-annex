@@ -35,84 +35,82 @@ class Connection(StrictBaseModel):
         cls,
         url: str,
         url_scheme: str,
-        default_user: str,
-        default_port: int,
-        default_path: str,
     ) -> Self:
+        args = {}
 
         if url.startswith(url_scheme):
             url = url[len(url_scheme):]
 
+        if url == "":
+            raise ValueError("URL cannot be empty.")
+
         match url.split("@"):
-            case [user, host_port_db]:
-                pass
+            case [user_password, host_port_db]:
+                match user_password.split(":"):
+                    case [user, password]:
+                        args['user'] = user
+                        args['password'] = password
+                    case [user]:
+                        args['user'] = user
+                        args['password'] = False
+                    case _:
+                        raise ValueError("Invalid format. Too many ':' symbols in the user part. Please enter in the format username:password@hostname:port/path.")
             case [host_port_db]:
-                user = default_user
+                pass
             case _:
                 raise ValueError("Invalid format. Too many '@' symbols. Please enter in the format username@hostname:port/path.")
 
-        match user.split(":"):
-            case [user, password]:
-                pass
-            case [user]:
-                password = False
-            case _:
-                raise ValueError("Invalid format. Too many ':' symbols in the user part. Please enter in the format username:password@hostname:port/path.")
-
+        
         match host_port_db.split("/", maxsplit=1):
             case [host_port, path]:
-                pass
+                args['path'] = path
             case [host_port]:
-                path = default_path
+                pass
             case _:
                 raise ValueError("Invalid format. Unable to parse path. Please enter in the format username@hostname:port/path.")
 
         match host_port.split(":"):
             case [host, port_str]:
-                port = int(port_str)
+                args['port'] = int(port_str)
             case [host]:
-                port = default_port
+                pass
             case _:
                 raise ValueError("Invalid format. Unable to parse host and port. Please enter in the format username@hostname:port/path.")
 
         return cls(
             hostname=host,
-            port=port,
-            user=user,
-            password=password,
-            path=Path(path)
+            **args,
         )
 
 
 class SSHConnection(Connection):
     # password is used to decrypt the client key if client_key is not None. Otherwise it is
     # used as the SSH password.
+    user: str = getpass.getuser()
+    port: int = 22
+    path: Path = Path(".")
 
     client_key: Path | None = None
-    port: int = 22
 
     @classmethod
     def parse_url(
         cls,
         url: str,
         url_scheme="sftp://",
-        default_user=getpass.getuser(),
-        default_port=22,
-        default_path=".",
     ) -> Self:
         return super().parse_url(
             url=url,
             url_scheme=url_scheme,
-            default_user=default_user,
-            default_port=default_port,
-            default_path=default_path,
         )
 
 class MySQLConnection(Connection):
+    user: str = "root"
+    port: int = 3306
     # path is the name of the database
+    path: Path = Path("dolt")
+
     server_socket: Optional[Path] = None
     autocommit: bool = True
-    port: int = 3306
     extra_params: dict[str, str] = {}
 
     @property
@@ -124,16 +122,8 @@ class MySQLConnection(Connection):
         cls,
         url: str,
         url_scheme="mysql://",
-        default_user="root",
-        default_port=3306,
-        default_path="dolt",
     ) -> Self:
-        if url == "":
-            raise ValueError("URL cannot be empty.")
         return super().parse_url(
             url=url,
             url_scheme=url_scheme,
-            default_user=default_user,
-            default_port=default_port,
-            default_path=default_path,
         )
