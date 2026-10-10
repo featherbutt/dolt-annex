@@ -28,14 +28,13 @@ class Connection(StrictBaseModel):
     password: str | bool = False
     hostname: str = "localhost"
     port: int
-    path: Path = Path(".")
 
     @classmethod
-    def parse_url(
+    def _parse_url(
         cls,
         url: str,
         url_scheme: str,
-    ) -> Self:
+    ):
         args = {}
 
         if url.startswith(url_scheme):
@@ -77,10 +76,7 @@ class Connection(StrictBaseModel):
             case _:
                 raise ValueError("Invalid format. Unable to parse host and port. Please enter in the format username@hostname:port/path.")
 
-        return cls(
-            hostname=host,
-            **args,
-        )
+        return host, args
 
 
 class SSHConnection(Connection):
@@ -98,24 +94,24 @@ class SSHConnection(Connection):
         url: str,
         url_scheme="sftp://",
     ) -> Self:
-        return super().parse_url(
+        host, args = cls._parse_url(
             url=url,
             url_scheme=url_scheme,
+        )
+        return cls(
+            hostname=host,
+            **args,
         )
 
 class MySQLConnection(Connection):
     user: str = "root"
     port: int = 3306
     # path is the name of the database
-    path: Path = Path("dolt")
+    database: str = "dolt"
 
     server_socket: Optional[Path] = None
     autocommit: bool = True
     extra_params: dict[str, str] = {}
-
-    @property
-    def database(self) -> str:
-        return str(self.path)
 
     @classmethod
     def parse_url(
@@ -123,7 +119,13 @@ class MySQLConnection(Connection):
         url: str,
         url_scheme="mysql://",
     ) -> Self:
-        return super().parse_url(
+        host, args = cls._parse_url(
             url=url,
             url_scheme=url_scheme,
+        )
+        database = args.pop("path", "dolt")
+        return cls(
+            hostname=host,
+            database=database,
+            **args,
         )
