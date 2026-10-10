@@ -1,10 +1,11 @@
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Awaitable, Optional
 
 from dolt_annex.datatypes.async_types import AwaitOrEnter, ReadableStream, awaitable, awaitable_func
 from dolt_annex.datatypes.errors import ContentAddressableStorageError
-from dolt_annex.datatypes.file_io import Path, async_bytes_io
+from dolt_annex.datatypes.file_io import Path, Pipe, async_bytes_io
 from dolt_annex.file_keys.base import FileKey, FileKeyGeneratingReader
 
 @dataclass(kw_only=True)
@@ -67,3 +68,27 @@ def known_key_source[T: FileKey](data_source: AwaitOrEnter[ReadableStream], file
         file_key_producer=finalize_file_key,
         known_key=file_key
     )
+
+def fork_readable_stream(source: KeyedFileStream, num_forks: int = 2, max_buffer_size: int = 1 << 16, event_loop: Optional[asyncio.AbstractEventLoop] = None) -> list[KeyedFileStream]:
+    if event_loop is None:
+        event_loop = asyncio.get_event_loop()
+        
+    pipes = [Pipe(event_loop) for _ in range(num_forks)]
+    pipe_context_managers = [pipe.open() for pipe in pipes]
+
+    async def feed_pipes():
+        # TODO: max_buffer_size enforcement for each pipe
+        async with source as src:
+            while True:
+                chunk = await src.read(max_buffer_size)
+                if not chunk:
+                    break
+                for pipe in pipes:
+                    await pipe.write(chunk)
+        for pipe in pipes:
+            await pipe.write(b"")
+            pipe.done.set()
+
+    event_loop.create_task(feed_pipes())
+
+    return [KeyedFileStream(data_source=pipe, file_key_producer=source.file_key) for pipe in pipe_context_managers]

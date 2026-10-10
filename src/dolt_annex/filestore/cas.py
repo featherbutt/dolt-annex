@@ -57,9 +57,12 @@ class ContentAddressableStorage:
                         logger.info("File with key %s already exists and is valid, skipping write", data_source.known_key)
                         return data_source.known_key
 
+        file_key_from_source: Optional[FileKey] = None
 
         async def _file_key_producer() -> FileKey:
             file_key = await data_source.file_key()
+            nonlocal file_key_from_source
+            file_key_from_source = file_key
         
             # If the file already exists under one of its aliases, return that one.
             # This will cause the filestore to avoid storing a duplicate file.
@@ -76,15 +79,23 @@ class ContentAddressableStorage:
             data_source = FileKeyGeneratingReader.new(data_source, generators),
             file_key_producer=_file_key_producer
         )
-        result_file_key = await self.file_store.put_file_object(new_data_source, overwrite_existing=overwrite_existing)
+
+        result_file_key, _ = await self.file_store.put_file_object(new_data_source, overwrite_existing=overwrite_existing)
 
         computed_keys = [generator.finalize(extension=result_file_key["extension"]) for generator in generators]
-        # Include the original key here, avoid unnecessary calls?
         for alias in computed_keys:
             if alias == result_file_key:
                 continue
             await self.create_alias(old_key=result_file_key, new_key=alias)
 
+        # In certain cases, the file key from the data source may differ from the file key that was actually stored.
+        # In that case, we create an alias from the stored file key to the original file key from the data source.
+        # This ensures that the provided file key will always exist in the filestore afterward.
+        if file_key_from_source:
+            if file_key_from_source != result_file_key and file_key_from_source not in computed_keys:
+                await self.create_alias(old_key=result_file_key, new_key=file_key_from_source)
+            return file_key_from_source
+        
         return result_file_key
 
     def with_file_stream(self, key: FileKey) -> KeyedFileStream:

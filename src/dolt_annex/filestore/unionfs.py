@@ -3,12 +3,13 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
+from typing import Optional
 from typing_extensions import override, Any
 
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
-from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, fork_readable_stream
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, YesNoMaybe, maybe_await
 
@@ -21,13 +22,25 @@ class UnionFS(FileStore):
 
     children: list[FileStore]
 
-    def __init__(self, *, children: list[FileStore]):
+    write_to_all_children: bool = False
+
+    def __init__(self, *, uuid: Optional[FileStore.Id], children: list[FileStore], write_to_all_children: bool = False):
+        self.uuid = uuid
         self.children = children
+        self.write_to_all_children = write_to_all_children
 
     @override
-    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileKey:
+    async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         """Upload a file-like object to the remote."""
-        return await self.children[0].put_file_object(data_source, overwrite_existing=overwrite_existing)
+        if self.write_to_all_children:
+            uuids = []
+            child_streams = fork_readable_stream(data_source, num_forks=len(self.children))
+            for child, child_stream in zip(self.children, child_streams):
+                _, child_uuids = await child.put_file_object(child_stream, overwrite_existing=overwrite_existing) # TODO: Don't need to put synchroniously; use a worker pool
+                uuids.extend(child_uuids)
+        else:
+            _, uuids = await self.children[0].put_file_object(data_source, overwrite_existing=overwrite_existing)
+        return FileStore.PutFileResult(file_key=await data_source.file_key(), uuids=list(uuids) + ([self.uuid] if self.uuid else []))
 
     @override
     @await_or_enter
@@ -104,10 +117,15 @@ class UnionFS(FileStore):
     
     @override
     async def create_alias(self, old_key: FileKey, new_key: FileKey) -> None:
+        found = False
         for child in self.children:
-            if await maybe_await(child.exists(old_key)):
-                return await child.create_alias(old_key, new_key)
-        raise FileNotFoundError(f"File with key {old_key} not found in annex.")
+            if await child.exists(old_key):
+                await child.create_alias(old_key, new_key)
+                found = True
+                if not self.write_to_all_children:
+                    return
+        if not found:
+            raise FileNotFoundError(f"File with key {old_key} not found in annex.")
 
     @override
     async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
@@ -122,6 +140,7 @@ class UnionFS(FileStore):
 
 class UnionFSModel(FileStoreModel):
     children: list[FileStoreModel]
+    write_to_all_children: bool = False
 
     @override
     @asynccontextmanager
@@ -131,7 +150,11 @@ class UnionFSModel(FileStoreModel):
             for child_model in self.children:
                 child_instance = await stack.enter_async_context(child_model.open(config))
                 children_filestores.append(child_instance)
-            yield UnionFS(children=children_filestores)
+            yield UnionFS(
+                uuid=self.uuid,
+                children=children_filestores,
+                write_to_all_children=self.write_to_all_children
+            )
 
     @override
     def type_name(self) -> str:
