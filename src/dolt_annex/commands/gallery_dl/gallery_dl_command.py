@@ -75,7 +75,7 @@ class GalleryDL(SubCommand):
             
         async with (
             Repo.open(self.config, self.repo) as repo,
-            as_acm(DatabaseConnection.open(self.config)) as conn,
+            DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
         ):
             output = await run_gallery_dl(repo, gallery_dl_config, dataset, *args)

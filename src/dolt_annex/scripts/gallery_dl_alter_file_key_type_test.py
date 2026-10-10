@@ -91,7 +91,7 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
     )
 
     async with (
-        as_acm(DatabaseConnection.open(setup.config)) as conn,
+        DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(dataset_schema)) as dataset,
         dataset.with_repo(setup.local_repo.uuid) as dataset_repo,
     ):

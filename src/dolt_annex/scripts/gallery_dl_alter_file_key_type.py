@@ -75,7 +75,7 @@ class AlterFileKeyType(SubCommand):
 
         async with (
             Repo.open(self.config, self.repo) as repo,
-            as_acm(DatabaseConnection.open(self.config)) as conn,
+            DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as dataset_repo,
         ):

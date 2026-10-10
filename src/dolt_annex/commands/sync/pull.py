@@ -7,6 +7,7 @@ from typing_extensions import List
 
 from plumbum import cli
 
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
@@ -92,11 +93,9 @@ class Pull(cli.Application):
         async with (
             base_config.open_default_repo() as local_repo,
             Repo.open(base_config, remote_name) as remote_repo,
+            DatabaseConnection.open(self.parent.config) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
         ):
-            with (
-                DatabaseConnection.open(self.parent.config) as conn,
-                conn.open_dataset(dataset_schema) as dataset,
-            ):
-                pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, self.ignore_missing)
-                print(f"Pulled {pulled_files} files from remote {remote_name}")
+            pulled_files = await move_dataset(dataset, remote_repo, local_repo, self.filters, self.limit, self.ignore_missing)
+            print(f"Pulled {pulled_files} files from remote {remote_name}")
         return 0

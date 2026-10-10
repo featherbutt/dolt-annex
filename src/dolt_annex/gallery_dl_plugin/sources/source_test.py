@@ -262,7 +262,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
     for test in tests[site].import_tests:
 
         async with (
-            as_acm(DatabaseConnection.open(setup.config)) as conn,
+            DatabaseConnection.open(setup.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(setup.local_repo.uuid) as local_dataset,
         ):
@@ -270,7 +270,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
 
             assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
             assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
-
+            await conn.flush()
             submission_rows = list(local_dataset.get_table("submissions").get_rows())
             metadata_rows = list(local_dataset.get_table("metadata").get_rows())
             
@@ -311,7 +311,7 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
     # download https://inkbunny.net/s/3783696
     # download https://e621.net/posts/6086319 and confirm it gets skipped
     async with (
-        as_acm(DatabaseConnection.open(setup.config)) as conn,
+        DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(dataset_schema)) as dataset,
     ):
         output = await run_gallery_dl(setup.local_repo, setup.config.gallery_dl, dataset, "https://inkbunny.net/s/3783696")

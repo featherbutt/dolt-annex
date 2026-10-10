@@ -37,7 +37,7 @@ class ReplicatedDatabase(ABC):
 
     @classmethod
     @abstractmethod
-    def open(cls, base_config: Config, database_password: Optional[str] = None) -> ContextManager[Self]:
+    def open(cls, base_config: Config, database_password: Optional[str] = None) -> AsyncContextManager[Self]:
         """
         Open a connection to a replicated database.
         """
@@ -68,6 +68,7 @@ class ReplicatedDataset(ABC):
         """
 
 class ReplicatedTable(ABC):
+    schema: FileTableSchema
 
     @abstractmethod
     def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:

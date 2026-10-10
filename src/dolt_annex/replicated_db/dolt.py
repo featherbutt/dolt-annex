@@ -4,17 +4,16 @@
 from __future__ import annotations
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 import os
 import random
 import time
-from typing import Generator, Self, override
+from typing import Self, override
 from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable, Any
 
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes import FileKey, TableRow
-from dolt_annex.datatypes.async_types import AsyncContextManager
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
@@ -35,7 +34,6 @@ logger = logging.getLogger(__name__)
 # - So we have a separate branch
 # The safe approach is the following:
 # - Add the database entries
-# - After flushing the database cache, compute the new git-annex branch.
 # - Move the annex files in a batch.
 
 @dataclass
@@ -45,9 +43,17 @@ class DatabaseConnection(interface.ReplicatedDatabase):
     """
     dolt: DoltSqlServer
 
+    @dataclass(frozen=True)
+    class TableLookupKey:
+        uuid: Repo.Id
+        dataset: str
+        table_name: str
+        
+    tables: Dict[TableLookupKey, FileTable] = field(default_factory=dict)
+
     @classmethod
-    @contextmanager
-    def open(cls, base_config: Config, database_password: Optional[str] = None) -> Generator[Self]:
+    @asynccontextmanager
+    async def open(cls, base_config: Config, database_password: Optional[str] = None) -> AsyncGenerator[Self]:
         """Context manager for creating a Dataset object by connecting to the Dolt server."""
         # If configuration sets a port, use that.
         # Otherwise, use default port for connecting to an existing server and random port if we're spawning a new server.
@@ -73,8 +79,17 @@ class DatabaseConnection(interface.ReplicatedDatabase):
         with (
             DoltSqlServer(dolt_config.dolt_dir, connection.database, db_config, dolt_config.spawn_dolt_server) as dolt_server,
         ):
-            conn = cls(dolt_server)
-            yield conn
+            conn = None
+            try:
+                conn = cls(dolt_server)
+                yield conn
+            finally:
+                if conn is not None:
+                    await conn.flush()
+
+    async def flush(self):
+        for table in self.tables.values():
+            await table.flush()
 
     @contextmanager
     def open_dataset(self, dataset_schema: DatasetSchema):
@@ -124,11 +139,7 @@ class Dataset(interface.ReplicatedDataset):
 
     @asynccontextmanager
     async def with_repo(self, repo: Repo.Id):
-        repo_dataset = RepoDataset(self, repo)
-        try:
-            yield repo_dataset
-        finally:
-            await repo_dataset.flush()
+        yield RepoDataset(self, repo)
 
     @asynccontextmanager
     async def with_table(self, table_name: str):
@@ -178,8 +189,9 @@ class ReplicatedTable(interface.ReplicatedTable):
             yield (diff_type, FileKey.must_parse(annex_key), TableRow(to_table_row), TableRow(from_table_row))
 
 
-    def with_repo(self, repo: Repo.Id) -> AsyncContextManager:
-        raise NotImplementedError
+    @asynccontextmanager
+    async def with_repo(self, repo: Repo.Id):
+        yield FileTable(repo, self.dataset, self.schema)
 
 class RepoDataset(interface.DatasetReplica):
     """
@@ -197,7 +209,7 @@ class RepoDataset(interface.DatasetReplica):
     def __init__(self, dataset: Dataset, repo: Repo.Id):
         self._dataset = dataset
         self.repo = repo
-        self.tables = {table.name: FileTable(repo, dataset, table, dataset.schema.empty_table_ref) for table in dataset.schema.tables}
+        self.tables = {table.name: FileTable(repo, dataset, table) for table in dataset.schema.tables}
         self.dataset.initialize_dataset_source(self.repo)
 
     def get_table(self, table_name: str) -> FileTable:
@@ -216,7 +228,6 @@ class FileTable(interface.TableReplica):
     dataset: Dataset
     table: interface.ReplicatedTable
     urls: Dict[str, List[str]]
-    sources: Dict[FileKey, List[str]]
     # TODO: Instead of a list of pending inserts and removes, maintain a mapping of
     # key-value pairs. This allows us to correctly evaluate get_rows for non-flushed tables,
     # and ensures correct behavior when inserts and removes use the same key. However,
@@ -228,12 +239,14 @@ class FileTable(interface.TableReplica):
     count: int
     time: float
     flush_hooks: List[Callable[[], Awaitable[None]]]
-    write_sources_table: bool = False
-    write_git_annex: bool = False
     schema: FileTableSchema
     branch_start_point: str
 
-    def __init__(self, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema, branch_start_point: str):
+    def __new__(cls, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+        table_lookup_key = DatabaseConnection.TableLookupKey(repo_id, dataset.name, schema.name)
+        if table_lookup_key in dataset.conn.tables:
+            return dataset.conn.tables[table_lookup_key]
+        self = super().__new__(cls)
         self.repo_id = repo_id
         self.dataset = dataset
         self.schema = schema
@@ -244,16 +257,17 @@ class FileTable(interface.TableReplica):
         self.batch_size = 1000
         self.count = 0
         self.time = time.time()
-        self.branch_start_point = branch_start_point
+        self.branch_start_point = dataset.schema.empty_table_ref
+        dataset.conn.tables[table_lookup_key] = self
+        return self
+
+    def __init__(self, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+        pass
 
     @classmethod
     @asynccontextmanager
-    async def new(cls, repo: Repo.Id, dataset: Dataset, schema: FileTableSchema, branch_start_point: str):
-        instance = cls(repo, dataset, schema, branch_start_point)
-        try:
-            yield instance
-        finally:
-            await instance.flush()
+    async def new(cls, repo: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+        yield cls(repo, dataset, schema)
     
     @property
     def dolt(self) -> DoltSqlServer:

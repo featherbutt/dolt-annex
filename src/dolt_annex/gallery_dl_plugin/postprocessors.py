@@ -17,9 +17,9 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.datatypes.file_stream import bytes_file_source, file_source
+from dolt_annex.datatypes.file_stream import KeyedFileStream, bytes_file_source, file_source
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
-from dolt_annex.replicated_db.interface import DatasetReplica, TableFilter, TableReplica
+from dolt_annex.replicated_db.interface import ReplicatedDataset, ReplicatedTable, TableFilter
 
 
 from dolt_annex.datatypes import TableRow
@@ -40,34 +40,31 @@ def gallery_dl_post(metadata: PostMetadata):
 
     source.format_post_metadata(metadata)
 
-    repo_dataset: DatasetReplica = context.repo_dataset
+    dataset: ReplicatedDataset = context.dataset
 
-    context.run(insert_metadata(metadata, source, repo_dataset, context.repo, context.collections_metadata_tables))
+    context.run(insert_metadata(metadata, source, dataset, context.repo, context.collections_metadata_tables))
     context.post_metadata_files_processed += 1
 
 def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
     source.format_post_metadata(metadata)
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
-    metadata_bytes = json.dumps(    
+    return json.dumps(    
         public_metadata,
         ensure_ascii=False,
         sort_keys=True,
         indent=4,
         default=json_default).encode('utf-8') + b'\n'
-    return Sha256E.from_bytes(metadata_bytes, "json"), metadata_bytes
 
 
-async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo_dataset: DatasetReplica, repo: Repo, collections: GalleryDLContext.CollectionTables = GalleryDLContext.CollectionTables([])):
-    file_key, metadata_bytes = serialize_metadata(metadata, source, repo)
+async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, dataset: ReplicatedDataset, repo: Repo, collections: GalleryDLContext.CollectionTables = GalleryDLContext.CollectionTables([])):
+    metadata_bytes = serialize_metadata(metadata, source, repo)
+    
+    table_row = TableRow({"source": source.source_name, "id": metadata["_id"]})
+
+    async with dataset.with_table("metadata") as table:
+        file_key = await import_file(repo.filestore, table_row, bytes_file_source(metadata_bytes, Sha256E, extension="json"), table, collections)
     metadata["_metadata_file_key"] = file_key
-
-    table_row = TableRow({"source": source.source_name, "id": metadata["_id"], "file_key": file_key})
-
-    table = repo_dataset.get_table("metadata")
-    # return matadata file key on insertion
-
-    await import_bytes(repo.filestore, table, collections, table_row, metadata_bytes, "json", Sha256E)
     return file_key
 
 def gallery_dl_prepare(metadata: FileMetadata):
@@ -77,10 +74,8 @@ def gallery_dl_prepare(metadata: FileMetadata):
     source = get_source(category, subcategory)
 
     context = _gallery_dl_context.get()
-    repo_dataset = context.repo_dataset
     repo = context.repo
-
-    submissions_table = repo_dataset.get_table("submissions")
+    dataset = context.dataset
 
     source.format_file_metadata(metadata)
     if check_skip(source, metadata):
@@ -102,10 +97,14 @@ def gallery_dl_prepare(metadata: FileMetadata):
             pipe = Pipe(context.event_loop)
             writer = SyncPipeWriter(pipe)
             async def task():
-                submission_file_key = await repo.filestore.put_file(file_source(pipe.open(), key_type, extension=metadata["extension"]))
-                insert_row["submission_file_key"] = submission_file_key
-                await submissions_table.insert(insert_row)
-                await context.collections_submission_tables.insert(insert_row)
+                async with dataset.with_table("submissions") as submissions_table:
+                    await import_file(
+                        repo.filestore,
+                        insert_row,
+                        file_source(pipe.open(), key_type, extension=metadata["extension"]),
+                        submissions_table,
+                        context.collections_submission_tables
+                    )
             context.enqueue_task(task())
             return writer
         from gallery_dl.path import PathFormat
@@ -123,6 +122,7 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
 
     repo_dataset = context.repo_dataset
     repo = context.repo
+    dataset = context.dataset
 
     submissions_table = repo_dataset.get_table("submissions")
     metadata_table = repo_dataset.get_table("metadata")
@@ -148,16 +148,22 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
             try:
-                async for key, _ in repo.filestore.file_store.get_files(bytes(key_prefix)):
+                async for data_source in repo.filestore.file_store.get_files(bytes(key_prefix)):
+                    
                     row = TableRow({
                         "source": source.source_name,
                         "id": metadata["_id"],
                         "metadata_file_key": metadata["_metadata_file_key"],
                         "part": page_number,
-                        "submission_file_key": key
                     })
-                    await submissions_table.insert(row)
-                    await context.collections_submission_tables.insert(row)
+                    async with dataset.with_table("submissions") as writable_submissions_table:
+                        await import_file(
+                            repo.filestore,
+                            row,
+                            data_source,
+                            writable_submissions_table,
+                            context.collections_submission_tables
+                        )
                     return True
             except FileStore.GetFilesNotImplementedError:
                 pass
@@ -214,9 +220,17 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
         raise NotImplementedError("metadata on files is not currently supported")
         context.run(insert_metadata(metadata, source, repo_dataset, context.repo, context.collections_metadata_tables))
 
-async def import_bytes(cas: ContentAddressableStorage, file_table: TableReplica, collections: GalleryDLContext.CollectionTables, table_key: TableRow, file_bytes: bytes, extension: str, file_key_type: type[FileKey]):
-    """Import a file into the dolt-annex dataset, and add a corresponding row to given table with the given table key."""
-    await cas.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
-        
-    await file_table.insert(table_key)
-    await collections.insert(table_key)
+async def import_file(
+    cas: ContentAddressableStorage,
+    table_row: TableRow,
+    data_source: KeyedFileStream,
+    replicated_table: ReplicatedTable,
+    collections: GalleryDLContext.CollectionTables,
+) -> FileKey:
+    file_key, filestore_ids = await cas.put_file(data_source)
+    table_row[replicated_table.schema.file_column] = file_key
+    for filestore_id in filestore_ids:
+        async with replicated_table.with_repo(filestore_id) as table_replica:
+            await table_replica.insert(table_row)
+            await collections.insert(table_row)
+    return file_key

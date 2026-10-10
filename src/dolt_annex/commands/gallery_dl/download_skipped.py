@@ -40,7 +40,7 @@ class DownloadSkipped(SubCommand):
 
         async with (
             Repo.open(self.config, self.parent.repo) as repo,
-            as_acm(DatabaseConnection.open(self.config)) as conn,
+            DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):
@@ -70,7 +70,7 @@ class DownloadSkipped(SubCommand):
                         with requests.get(url, stream=True) as response:
                             response.raise_for_status()
                             # Using raw might not work for deflated text.
-                            repo.filestore.put_file(
+                            await repo.filestore.put_file(
                                 async_open(response.raw),
                                 # TODO: We need the key before we can write?
                                 # We can if we use the key from the metadata.

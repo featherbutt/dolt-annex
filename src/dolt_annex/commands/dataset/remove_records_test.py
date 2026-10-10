@@ -22,7 +22,7 @@ async def test_remove_record(tmp_path, setup: EnvironmentForTest):
     )
 
     async with (
-        as_acm(DatabaseConnection.open(setup.config)) as conn,
+        DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
     ):
@@ -36,7 +36,7 @@ async def test_remove_record(tmp_path, setup: EnvironmentForTest):
     )
 
     async with (
-        as_acm(DatabaseConnection.open(setup.config)) as conn,
+        DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
     ):

@@ -8,6 +8,7 @@ from plumbum import cli
 
 from dolt_annex.application import Application
 from dolt_annex.commands import SubCommand
+from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.table import DatasetSchema
@@ -68,9 +69,9 @@ class Diff(SubCommand):
         base_config: Config = self.config
 
         dataset_schema = DatasetSchema.must_load(self.dataset)
-        with (
+        async with (
             DatabaseConnection.open(base_config) as conn,
-            conn.open_dataset(dataset_schema) as dataset,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
         ):
             local_repo_model = RepoModel.must_load(self.from_repo)
             remote_repo_model = RepoModel.must_load(self.to_repo)

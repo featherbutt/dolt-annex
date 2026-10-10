@@ -91,7 +91,7 @@ class InsertRecord(cli.Application):
         
         async with (
             Repo.open(base_config, self.repo) as repo,
-            as_acm(DatabaseConnection.open(base_config)) as conn,
+            DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):

@@ -50,10 +50,10 @@ class GalleryDLMigrate(SubCommand):
     async def main(self, *args) -> Literal[0,1]:
         old_dataset_schema = DatasetSchema.must_load(self.old_dataset)
         new_dataset_schema = DatasetSchema.must_load(self.new_dataset)
-        repo_model = RepoModel.open(self.parent.config, self.repo)
+        repo_model = RepoModel.open(self.config, self.repo)
         repo_id = repo_model.uuid
         async with (
-            as_acm(DatabaseConnection.open(self.parent.config)) as conn,
+            DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(old_dataset_schema)) as old_dataset,
             as_acm(conn.open_dataset(new_dataset_schema)) as new_dataset,
             old_dataset.with_repo(repo_id) as old_dataset_repo,

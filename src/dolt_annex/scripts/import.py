@@ -20,10 +20,8 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import FileKeyType, get_file_key_type
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore import FileStore
-from dolt_annex.filestore.base import maybe_await
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.datatypes.file_stream import path_file_source, KeyedFileStream
+from dolt_annex.datatypes.file_stream import path_file_source
 from dolt_annex.importers.base import get_importer
 from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
 from dolt_annex.datatypes.file_io import Path
@@ -131,7 +129,7 @@ class Import(cli.Application):
 
         async with (
             Repo.open(base_config, self.repo) as repo,
-            as_acm(DatabaseConnection.open(base_config)) as conn,
+            DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):

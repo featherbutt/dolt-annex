@@ -36,6 +36,7 @@ class GalleryDLContext:
     """
     config: GalleryDLConfig
     repo: Repo
+    dataset: ReplicatedDataset
     repo_dataset: DatasetReplica
     event_loop: asyncio.AbstractEventLoop
     collections_submission_tables: CollectionTables
@@ -98,6 +99,7 @@ class GalleryDLContext:
                 repo_dataset=repo_dataset,
                 event_loop=event_loop,
                 task_group=task_group,
+                dataset=dataset,
                 collections_submission_tables=GalleryDLContext.CollectionTables(collections_submission_tables),
                 collections_metadata_tables=GalleryDLContext.CollectionTables(collections_metadata_tables),
             )

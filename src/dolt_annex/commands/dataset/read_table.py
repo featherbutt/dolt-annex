@@ -83,7 +83,7 @@ class ReadTable(cli.Application):
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (
-            as_acm(DatabaseConnection.open(base_config)) as conn,
+            DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(repo_id) as repo_dataset,
         ):
