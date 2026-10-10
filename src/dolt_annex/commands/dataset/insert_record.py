@@ -102,7 +102,7 @@ class InsertRecord(cli.Application):
                 extension = self.extension
             
             table = repo_dataset.get_table(self.table_name)
-            key = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
+            key, _ = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)

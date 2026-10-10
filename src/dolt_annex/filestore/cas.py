@@ -30,7 +30,7 @@ class ContentAddressableStorage:
             format.generator(extension=extension) for format in self.supported_key_formats
         ]
     
-    async def put_file[T: FileKey](self, data_source: KeyedFileStream[T]) -> FileKey:
+    async def put_file[T: FileKey](self, data_source: KeyedFileStream[T]) -> FileStore.PutFileResult:
         """
         Insert a file-like object into the repo.
         
@@ -55,7 +55,7 @@ class ContentAddressableStorage:
                     else:
                         # If the existing file is valid, we skip writing the new content.
                         logger.info("File with key %s already exists and is valid, skipping write", data_source.known_key)
-                        return data_source.known_key
+                        return FileStore.PutFileResult(file_key=data_source.known_key, uuids=[self.file_store.uuid] if self.file_store.uuid else [])
 
         file_key_from_source: Optional[FileKey] = None
 
@@ -94,9 +94,9 @@ class ContentAddressableStorage:
         if file_key_from_source:
             if file_key_from_source != result_file_key and file_key_from_source not in computed_keys:
                 await self.create_alias(old_key=result_file_key, new_key=file_key_from_source)
-            return file_key_from_source
+            result_file_key = file_key_from_source
         
-        return result_file_key
+        return FileStore.PutFileResult(file_key=result_file_key, uuids=[self.file_store.uuid] if self.file_store.uuid else [])
 
     def with_file_stream(self, key: FileKey) -> KeyedFileStream:
         return known_key_source(self.file_store.with_file_object(key), key)

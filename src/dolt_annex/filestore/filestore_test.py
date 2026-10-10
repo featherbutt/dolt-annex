@@ -159,7 +159,7 @@ async def test_put_other_key_type(cas: ContentAddressableStorage):
     # won't generate aliases of that type automatically.
     assert MD5e not in cas.supported_key_formats
     file_bytes = b"test"
-    md5_key = await cas.put_file(bytes_file_source(file_bytes, MD5e))
+    md5_key, _ = await cas.put_file(bytes_file_source(file_bytes, MD5e))
     assert await maybe_await(cas.file_store.exists(md5_key))
     async with cas.file_store.with_file_object(md5_key) as f:
         file_info = await maybe_await(cas.file_store.fstat(f))
@@ -176,7 +176,7 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     md5_key = MD5e.from_bytes(file_bytes, extension=extension)
     sha1_key = SHA1e.from_bytes(file_bytes, extension=extension)
     sha256hs_key = Sha256HSe.from_bytes(file_bytes, extension=extension)
-    sha256_key = await cas.put_file(bytes_file_source(file_bytes, Sha256E, extension=extension))
+    sha256_key, _ = await cas.put_file(bytes_file_source(file_bytes, Sha256E, extension=extension))
 
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
@@ -261,7 +261,7 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
 
         # Creating a file in the UnionFS that already exists in non-primary child filestore but under an alias should insert the new file correctly.
         cas = ContentAddressableStorage(test_config.filestore, union_filestore, [Sha256E, MD5e, SHA1e])
-        new_file_key = await cas.put_file(bytes_file_source(b"file_in_child_1", MD5e))
+        new_file_key, __build_class__ = await cas.put_file(bytes_file_source(b"file_in_child_1", MD5e))
         assert type(new_file_key) is MD5e
         assert await union_filestore.exists(new_file_key)
 
@@ -404,7 +404,7 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
             supported_key_formats=[Sha256E, SHA1e, Sha256HSe, MD5e],
         )
 
-        inserted_file_key = await cas.put_file(bytes_file_source(file_bytes, MD5e))
+        inserted_file_key, _ = await cas.put_file(bytes_file_source(file_bytes, MD5e))
         assert type(inserted_file_key) is MD5e
         await archive_filestore.flush()
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)

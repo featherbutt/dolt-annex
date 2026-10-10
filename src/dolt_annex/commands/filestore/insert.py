@@ -51,7 +51,7 @@ class Insert(SubCommand):
         file_bytes = self.file_bytes.encode('utf-8')
 
         async with Repo.open(base_config, self.repo) as repo:
-            key = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, self.extension))
+            key, _ = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, self.extension))
         print(f"Inserted file with key {key} into filestore of repo '{repo.name}'")
 
         return 0
