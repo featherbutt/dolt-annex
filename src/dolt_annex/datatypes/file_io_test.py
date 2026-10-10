@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing_extensions import Literal
 import pytest
 
-from src.dolt_annex.datatypes.file_io import BytesQueue
+from dolt_annex.datatypes.file_io import BytesQueue
 
 @pytest.mark.asyncio
 async def test_bytes_queue():
