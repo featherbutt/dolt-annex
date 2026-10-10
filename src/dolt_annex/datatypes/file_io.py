@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from asyncio import Future
 import asyncio
+import collections
 from collections.abc import AsyncGenerator, Iterable
 import contextvars
 from dataclasses import dataclass
@@ -258,3 +259,22 @@ class SyncPipeWriter:
 
     async def readinto(self, buffer: Buffer) -> int:
         raise NotImplementedError("readinto is not implemented for SyncPipeWriter")
+
+class BytesQueue(asyncio.Queue[bytes]):
+
+    def _init(self, maxsize):
+        self._queue = collections.deque()
+        self.__buffer_size = 0
+
+    def _get(self):
+        result = self._queue.popleft()
+        self.__buffer_size -= len(result)
+        return result
+
+    def _put(self, item):
+        self._queue.append(item)
+        self.__buffer_size += len(item)
+    
+    def qsize(self):
+        """Number of items in the queue."""
+        return self.__buffer_size
