@@ -8,6 +8,7 @@ import random
 import tarfile
 import tempfile
 from typing import Optional
+import uuid
 import pytest_asyncio
 from typing_extensions import Generator, AsyncGenerator, override
 import pytest
@@ -240,14 +241,14 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
         for i in range(len(union_filestore.children)):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
-            assert await maybe_await(union_filestore.exists(file_key))
+            assert await union_filestore.exists(file_key)
             async with union_filestore.with_file_object(file_key) as f:
                 read_bytes = await f.read()
                 assert read_bytes == file_bytes
 
-        # Creating a child in the parent UnionFS creates the file in the first child filestore
-        new_file_key = await maybe_await(union_filestore.put_file_object(bytes_file_source(b"new_file", Sha256E)))
-        assert await maybe_await(union_filestore.children[0].exists(new_file_key))
+        # Creating a file in the parent UnionFS creates the file in the first child filestore
+        new_file_key, _ = await union_filestore.put_file_object(bytes_file_source(b"new_file", Sha256E))
+        assert await union_filestore.children[0].exists(new_file_key)
 
         # Creating an alias in the UnionFS creates the alias in the child filestore where the original file exists
 
@@ -255,20 +256,69 @@ async def test_unionfs(temp_dir: pathlib.Path, test_config: Config):
             file_bytes = f"file_in_child_{i}".encode()
             file_key = Sha256E.from_bytes(file_bytes)
             alias_key = MD5e.from_bytes(file_bytes)
-            await maybe_await(union_filestore.create_alias(file_key, alias_key))
-            assert await maybe_await(child.exists(alias_key))
+            await union_filestore.create_alias(file_key, alias_key)
+            assert await child.exists(alias_key)
 
-def assert_tarfile_has_members(tar_file_path: Path, expected_num_members: int):
-    with (
-        tar_file_path.open_sync("rb") as f,
-        tarfile.open(fileobj=f) as tar
-    ):
-        assert len(tar.getmembers() ) == expected_num_members
+        # Creating a file in the UnionFS that already exists in non-primary child filestore but under an alias should insert the new file correctly.
+        cas = ContentAddressableStorage(test_config.filestore, union_filestore, [Sha256E, MD5e, SHA1e])
+        new_file_key = await cas.put_file(bytes_file_source(b"file_in_child_1", MD5e))
+        assert type(new_file_key) is MD5e
+        assert await union_filestore.exists(new_file_key)
 
-def assert_single_tarfile_has_members(archive_dir: Path, expected_num_members: int):
-    archive_files = list(archive_dir.children())
-    assert len(archive_files) == 1
-    assert_tarfile_has_members(archive_files[0], expected_num_members)
+
+@pytest.mark.asyncio
+async def test_unionfs_write_to_all_children(temp_dir: pathlib.Path, test_config: Config):
+    child_filestores = [
+        MemoryFSModel(uuid=uuid.uuid4(), persistent=False),
+        AnnexFSModel(uuid=uuid.uuid4(), root=temp_dir / "annex_root"),
+        ArchiveFSModel(uuid=uuid.uuid4(), num_workers=1, root=temp_dir / "archive_root", secondary=MemoryFSModel(uuid=uuid.uuid4(), persistent=False)),
+
+    ]
+    async with UnionFSModel(uuid=uuid.uuid4(), children=child_filestores, write_to_all_children=True).open(test_config) as union_filestore:
+
+        # Create a file in each child filestore
+        for i, child in enumerate(union_filestore.children):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = await child.put_file_object(bytes_file_source(file_bytes, Sha256E))
+
+        for i in range(len(union_filestore.children)):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = Sha256E.from_bytes(file_bytes)
+            assert await union_filestore.exists(file_key)
+            async with union_filestore.with_file_object(file_key) as f:
+                read_bytes = await f.read()
+                assert read_bytes == file_bytes
+
+        # Creating a file in the parent UnionFS creates the file in each child filestore
+        new_file_key, uuids = await union_filestore.put_file_object(bytes_file_source(b"new_file", Sha256E))
+        # Expected UUIDS: the UnionFS, the MemoryFS, the AnnexFS, the ArchiveFS, and the ArchiveFS secondary. 
+        assert len(set(uuids)) == 5
+        for child in union_filestore.children:
+            assert await child.exists(new_file_key)
+
+        # Creating an alias in the UnionFS creates the alias in each child filestore where the original file exists
+
+        for i, child in enumerate(union_filestore.children):
+            file_bytes = f"file_in_child_{i}".encode()
+            file_key = Sha256E.from_bytes(file_bytes)
+            alias_key = MD5e.from_bytes(file_bytes)
+            await union_filestore.create_alias(file_key, alias_key)
+            assert await child.exists(alias_key)
+
+        new_alias_key = MD5e.from_bytes(b"new_file")
+        await union_filestore.create_alias(new_file_key, new_alias_key)
+        for child in union_filestore.children:
+            assert await child.exists(new_alias_key)
+
+        # Test inserting a file into the parent that already exists in one of the child filestores as an alias.
+        # Currently, if we attempt to insert a file into a filestore that already exists, the generated key is guarenteed to
+        # be the key that already exists. We do this so that ArchiveFS can detect that the file already exists and abort
+        # and insert an alias instead. But this is a problem for UnionFS, since it could insert the wrong key.
+        cas = ContentAddressableStorage(test_config.filestore, union_filestore, [Sha256E, MD5e, SHA1e])
+        await union_filestore.children[0].put_file_object(bytes_file_source(b"new_file", Sha256E))
+        await union_filestore.children[1].put_file_object(bytes_file_source(b"new_file", MD5e))
+        await cas.put_file(bytes_file_source(b"new_file", SHA1e))
+                
 
 @pytest.mark.asyncio
 async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Config):
@@ -354,7 +404,8 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
             supported_key_formats=[Sha256E, SHA1e, Sha256HSe, MD5e],
         )
 
-        await cas.put_file(bytes_file_source(file_bytes, MD5e))
+        inserted_file_key = await cas.put_file(bytes_file_source(file_bytes, MD5e))
+        assert type(inserted_file_key) is MD5e
         await archive_filestore.flush()
         assert_single_tarfile_has_members(archive_filestore.writable_archives_dir, 1)
                 
@@ -365,6 +416,17 @@ async def test_archivefs_alias_duplication(temp_dir: pathlib.Path, test_config: 
         for KeyType in [Sha256E, SHA1e, Sha256HSe, MD5e]:
             assert await archive_filestore.get_file_bytes(KeyType.from_bytes(file_bytes)) == file_bytes
 
+def assert_tarfile_has_members(tar_file_path: Path, expected_num_members: int):
+    with (
+        tar_file_path.open_sync("rb") as f,
+        tarfile.open(fileobj=f) as tar
+    ):
+        assert len(tar.getmembers() ) == expected_num_members
+
+def assert_single_tarfile_has_members(archive_dir: Path, expected_num_members: int):
+    archive_files = list(archive_dir.children())
+    assert len(archive_files) == 1
+    assert_tarfile_has_members(archive_files[0], expected_num_members)
 
 if __name__ == "__main__":
     pytest.main([__file__])
