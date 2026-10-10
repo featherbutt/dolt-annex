@@ -145,7 +145,14 @@ class SFTPServer(asyncssh.SFTPServer):
             return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
-            key = FileKey.must_parse(key=path.rsplit(b'/')[-1])
+            filename = path.rsplit(b'/')[-1]
+            if filename == b"uuid":
+                uuid = self.cas.file_store.uuid
+                if uuid:
+                    return AsyncBytesIO(uuid.bytes)
+                else:
+                    raise asyncssh.SFTPOpUnsupported("UUID is not available")
+            key = FileKey.must_parse(key=filename)
             return await self.open_file_for_read(key)
         
 
@@ -182,7 +189,14 @@ class SFTPServer(asyncssh.SFTPServer):
             return await self.create_file(path)
         else:
             # If create flag is not set, read must be set.
-            key = FileKey.must_parse(key=path.rsplit(b'/')[-1])
+            filename = path.rsplit(b'/')[-1]
+            if filename == b"uuid":
+                uuid = self.cas.file_store.uuid
+                if uuid:
+                    return AsyncBytesIO(uuid.bytes)
+                else:
+                    raise asyncssh.SFTPOpUnsupported("UUID is not available")
+            key = FileKey.must_parse(key=filename)
             return await self.open_file_for_read(key)
         
     async def create_file(self, path: bytes) -> NewFileWriter:
