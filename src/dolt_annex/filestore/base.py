@@ -73,7 +73,7 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
 @dataclass(kw_only=True)
 class FileStore(abc.ABC):
 
-    type Id = UUID
+    Id = UUID
 
     uuid: Optional[Id] = None
 

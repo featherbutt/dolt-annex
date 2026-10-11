@@ -19,7 +19,7 @@ import hashlib
 import logging
 from pathlib import Path
 import random
-from typing import Awaitable, Self
+from typing import Optional, Self
 import asyncssh
 from typing_extensions import AsyncGenerator, override
 
@@ -27,7 +27,7 @@ from asyncssh.sftp import SFTPError
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config, resolve_path
 from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream
 
@@ -140,10 +140,18 @@ class SftpFileStore(FileStore):
             newpath=new_absolute_path,
         )
 
+    @wrap_errors(wrap=SFTPError, into=FileStoreError)
+    async def get_remote_uuid(self) -> Optional[FileStore.Id]:
+        try:
+            async with self.sftp.open("uuid", "rb") as f:
+                return FileStore.Id(bytes=await f.read())
+        except asyncssh.SFTPNoSuchFile:
+            return None
+
     @classmethod
     @asynccontextmanager
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def open(cls, connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
+    async def open(cls, filestore_id: Optional[FileStore.Id], connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
         """Connect to an SFTP filestore."""
         extra_opts = {}
         if connection.password is True:
@@ -166,7 +174,11 @@ class SftpFileStore(FileStore):
         ) as conn:
             async with conn.start_sftp_client() as sftp:
                 await sftp.chdir(connection.path.as_posix())
-                filestore = cls(sftp=sftp)
+                filestore = cls(uuid=filestore_id, sftp=sftp)
+                if filestore.uuid != None:
+                    remote_uuid = await filestore.get_remote_uuid()
+                    if remote_uuid and remote_uuid != filestore.uuid:
+                        raise FileStoreError("Local UUID does not match remote UUID")
                 yield filestore
         
 class SftpFileStoreModel(FileStoreModel):
@@ -176,4 +188,4 @@ class SftpFileStoreModel(FileStoreModel):
     @override
     def open(self, config: Config) -> _AsyncGeneratorContextManager[SftpFileStore]:
         """Connect to an SFTP filestore."""
-        return SftpFileStore.open(self.connection, config)
+        return SftpFileStore.open(self.uuid, self.connection, config)

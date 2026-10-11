@@ -151,7 +151,7 @@ class SFTPServer(asyncssh.SFTPServer):
                 if uuid:
                     return AsyncBytesIO(uuid.bytes)
                 else:
-                    raise asyncssh.SFTPOpUnsupported("UUID is not available")
+                    raise asyncssh.SFTPNoSuchFile("UUID is not available")
             key = FileKey.must_parse(key=filename)
             return await self.open_file_for_read(key)
         
@@ -195,7 +195,7 @@ class SFTPServer(asyncssh.SFTPServer):
                 if uuid:
                     return AsyncBytesIO(uuid.bytes)
                 else:
-                    raise asyncssh.SFTPOpUnsupported("UUID is not available")
+                    raise asyncssh.SFTPNoSuchFile("UUID is not available")
             key = FileKey.must_parse(key=filename)
             return await self.open_file_for_read(key)
         
