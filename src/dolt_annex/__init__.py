@@ -31,9 +31,11 @@ Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
 Application.subcommand("script", script.Script)
 
-async def main():
+def main():
     """Entry point for dolt-annex package"""
+    asyncio.run(async_main())
 
+async def async_main():
     try:
         # If no command-line arguments are provided, launch the interactive shell.
         # TODO: The interactive shell takes command line arguments which can't be passed in here.
@@ -56,4 +58,4 @@ async def main():
 __all__ = ["gallery_dl_post", "gallery_dl_prepare", "gallery_dl_after", "gallery_dl_post_test"]
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
