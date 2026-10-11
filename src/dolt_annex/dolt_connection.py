@@ -109,12 +109,14 @@ class DoltSqlServer:
         if (server_err_logfile := os.getenv("DA_SERVER_ERR_LOGFILE")) is not None:
             dolt = (dolt >= server_err_logfile)
         dolt_server_process = dolt.popen(["sql-server", *args], start_new_session=True)
+        delay = 0.01
         while True:
             try:
                 return dolt_server_process, ThreadLocalMySqlConnection(self.db_config)
             except Exception as e:
                 logger.debug("Waiting for SQL server: %s", str(e))
-                time.sleep(1)
+                time.sleep(delay)
+                delay = min(delay * 2, 0.5)
 
     @contextmanager
     def new_connection(self):
