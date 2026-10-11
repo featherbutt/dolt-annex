@@ -2,7 +2,7 @@ name: 'Run tests'
 description: 'Run the test suite for the project'
 runs:
   using: 'docker'
-  image: './docker/Dockerfile'
+  image: './Dockerfile'
   entrypoint: '/bin/bash'
   args:
     - '-c'
