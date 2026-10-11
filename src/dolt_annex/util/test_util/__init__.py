@@ -19,7 +19,7 @@ from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
+from dolt_annex.util.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
 @dataclass
 class EnvironmentForTest:
