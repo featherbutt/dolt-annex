@@ -49,7 +49,7 @@ class DatabaseConnection(interface.ReplicatedDatabase):
         dataset: str
         table_name: str
         
-    tables: Dict[TableLookupKey, FileTable] = field(default_factory=dict)
+    tables: Dict[TableLookupKey, TableReplica] = field(default_factory=dict)
 
     @classmethod
     @asynccontextmanager
@@ -139,7 +139,7 @@ class Dataset(interface.ReplicatedDataset):
 
     @asynccontextmanager
     async def with_repo(self, repo: Repo.Id):
-        yield RepoDataset(self, repo)
+        yield DatasetReplica(self, repo)
 
     @asynccontextmanager
     async def with_table(self, table_name: str):
@@ -191,15 +191,15 @@ class ReplicatedTable(interface.ReplicatedTable):
 
     @asynccontextmanager
     async def with_repo(self, repo: Repo.Id):
-        yield FileTable(repo, self.dataset, self.schema)
+        yield TableReplica(repo, self.dataset, self.schema)
 
-class RepoDataset(interface.DatasetReplica):
+class DatasetReplica(interface.DatasetReplica):
     """
     The dataset as it exists on a specific repo. Every row in this dataset corresponds to a file on that repo.
     """
     _dataset: Dataset
     repo: Repo.Id
-    tables: Dict[str, FileTable]
+    tables: Dict[str, TableReplica]
 
     @property
     @override
@@ -209,20 +209,20 @@ class RepoDataset(interface.DatasetReplica):
     def __init__(self, dataset: Dataset, repo: Repo.Id):
         self._dataset = dataset
         self.repo = repo
-        self.tables = {table.name: FileTable(repo, dataset, table) for table in dataset.schema.tables}
+        self.tables = {table.name: TableReplica(repo, dataset, table) for table in dataset.schema.tables}
         self.dataset.initialize_dataset_source(self.repo)
 
-    def get_table(self, table_name: str) -> FileTable:
+    def get_table(self, table_name: str) -> TableReplica:
         return self.tables[table_name]
     
-    def get_tables(self) -> Iterable[FileTable]:
+    def get_tables(self) -> Iterable[TableReplica]:
         return self.tables.values()
     
     async def flush(self):
         for table in self.tables.values():
             await table.flush()
 
-class FileTable(interface.TableReplica):
+class TableReplica(interface.TableReplica):
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
     repo_id: Repo.Id
     dataset: Dataset

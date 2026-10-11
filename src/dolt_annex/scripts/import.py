@@ -23,7 +23,7 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.datatypes.file_stream import path_file_source
 from dolt_annex.importers.base import get_importer
-from dolt_annex.replicated_db.dolt import DatabaseConnection, RepoDataset
+from dolt_annex.replicated_db.dolt import DatabaseConnection, DatasetReplica
 from dolt_annex.datatypes.file_io import Path
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ class Import(cli.Application):
 
         return 0
 
-async def do_import(repo_dataset: RepoDataset, repo: Repo, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(repo_dataset: DatasetReplica, repo: Repo, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in repo_dataset.tables.items():
         key_paths[table_name] = {}
