@@ -4,7 +4,7 @@
 import pytest
 
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.test_util import EnvironmentForTest, run
+from dolt_annex.util.test_util import EnvironmentForTest, run
 
 @pytest.mark.asyncio
 async def test_insert_record(tmp_path, setup: EnvironmentForTest):

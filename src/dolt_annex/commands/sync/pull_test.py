@@ -10,7 +10,7 @@ import pytest
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.memory import MemoryFS
 
-from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
+from dolt_annex.util.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
 async def test_pull_local(tmp_path, setup: EnvironmentForTest):

@@ -10,7 +10,7 @@ from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey, Sha256HSe
 from dolt_annex.replicated_db.dolt import DatabaseConnection
-from dolt_annex.test_util import run, EnvironmentForTest
+from dolt_annex.util.test_util import run, EnvironmentForTest
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("key_format", [Sha256E])

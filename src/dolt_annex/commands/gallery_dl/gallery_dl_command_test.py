@@ -3,7 +3,7 @@
 
 import pytest
 
-from dolt_annex.test_util import run
+from dolt_annex.util.test_util import run
 
 @pytest.mark.asyncio
 async def test_gallery_dl(tmp_path, setup):

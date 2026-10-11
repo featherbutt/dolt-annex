@@ -14,11 +14,9 @@ import pytest
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.datatypes.config import Config, DoltConfig, UserConfig
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.file_keys import Sha256E
-from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.util.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
 @dataclass

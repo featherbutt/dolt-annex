@@ -12,7 +12,7 @@ from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFSModel
-from dolt_annex.test_util import run, EnvironmentForTest, test_dataset_schema
+from dolt_annex.util.test_util import run, EnvironmentForTest, test_dataset_schema
 
 @pytest.mark.asyncio
 async def test_delete_redundant_files(tmp_path, setup: EnvironmentForTest):

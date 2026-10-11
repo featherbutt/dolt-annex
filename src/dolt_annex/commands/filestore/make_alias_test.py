@@ -6,7 +6,7 @@ import pytest
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import MD5HSe, Sha256HSe
 from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
-from dolt_annex.test_util import EnvironmentForTest, run
+from dolt_annex.util.test_util import EnvironmentForTest, run
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("key_format", [Sha256E])

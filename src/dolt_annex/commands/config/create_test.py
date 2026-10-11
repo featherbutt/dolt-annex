@@ -12,7 +12,7 @@ from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sqlite import SQLiteModel
-from dolt_annex.test_util import run
+from dolt_annex.util.test_util import run
 
 
 @pytest.mark.asyncio

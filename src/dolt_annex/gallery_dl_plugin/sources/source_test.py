@@ -21,7 +21,7 @@ from dolt_annex.gallery_dl_plugin.sources.furaffinity import Furaffinity
 from dolt_annex.gallery_dl_plugin.sources.inkbunny import Inkbunny
 from dolt_annex.gallery_dl_plugin.sources.pixiv import Pixiv
 from dolt_annex.gallery_dl_plugin.sources.nhentai import NHentai
-from dolt_annex.test_util import EnvironmentForTest
+from dolt_annex.util.test_util import EnvironmentForTest
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 

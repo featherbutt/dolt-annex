@@ -16,7 +16,7 @@ import pytest
 import asyncssh
 import fs.memoryfs
 
-from dolt_annex import test_util
+from dolt_annex.util import test_util
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.common import SSHConnection

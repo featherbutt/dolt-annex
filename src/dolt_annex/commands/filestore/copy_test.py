@@ -6,7 +6,7 @@ import pytest
 from dolt_annex.datatypes.file_io import async_bytes_io
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.datatypes.file_stream import bytes_file_source, known_key_source_nocheck
-from dolt_annex.test_util import EnvironmentForTest, run
+from dolt_annex.util.test_util import EnvironmentForTest, run
 
 # Test with named files
 # Test with --all

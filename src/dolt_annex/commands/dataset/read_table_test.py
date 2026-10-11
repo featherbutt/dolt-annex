@@ -4,7 +4,7 @@
 import pytest
 
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.test_util import EnvironmentForTest, run, test_dataset_schema
+from dolt_annex.util.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio
 async def test_read_table(tmp_path, setup: EnvironmentForTest):

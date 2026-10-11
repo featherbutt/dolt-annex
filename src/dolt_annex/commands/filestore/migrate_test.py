@@ -8,7 +8,7 @@ from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.memory import MemoryFSModel
-from dolt_annex.test_util import EnvironmentForTest, run
+from dolt_annex.util.test_util import EnvironmentForTest, run
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("local_filestore_model", [AnnexFSModel(root=pathlib.Path('./annex'))])
