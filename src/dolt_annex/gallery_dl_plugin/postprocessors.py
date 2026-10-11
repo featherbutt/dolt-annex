@@ -8,10 +8,12 @@ Helper functions that gallery-dl postprocessors can use to format data for dolt-
 import json
 import sys
 from typing import Dict
+import gallery_dl
 from typing_extensions import Any
 
 from gallery_dl.util import json_default
 
+from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 from dolt_annex.datatypes.file_io import Pipe, SyncPipeWriter
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey, Sha256E
@@ -33,17 +35,22 @@ def gallery_dl_post(metadata: PostMetadata):
     context = _gallery_dl_context.get()
     if context.abort_flag:
         sys.exit(1)
-        
-    category = metadata["category"]
-    subcategory = metadata["subcategory"]
-    source = get_source(category, subcategory)
 
-    source.format_post_metadata(metadata)
+    try:
+        category = metadata["category"]
+        subcategory = metadata["subcategory"]
+        source = get_source(category, subcategory)
 
-    dataset: ReplicatedDataset = context.dataset
+        source.format_post_metadata(metadata)
 
-    context.run(insert_metadata(metadata, source, dataset, context.repo, context.collections_metadata_tables))
-    context.post_metadata_files_processed += 1
+        dataset: ReplicatedDataset = context.dataset
+
+        context.run(insert_metadata(metadata, source, dataset, context.repo, context.collections_metadata_tables))
+        context.post_metadata_files_processed += 1
+    except DoltAnnexApplicationError as e:
+        context.exception.set_exception(e)
+        raise gallery_dl.exception.TerminateExtraction()
+
 
 def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
     source.format_post_metadata(metadata)
@@ -69,46 +76,50 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, dat
 
 def gallery_dl_prepare(metadata: FileMetadata):
     """The entrypoint for 'prepare' postprocessor hooks (run before downloading the file)"""
-    category = metadata["category"]
-    subcategory = metadata["subcategory"]
-    source = get_source(category, subcategory)
-
     context = _gallery_dl_context.get()
-    repo = context.repo
-    dataset = context.dataset
+    try:
+        category = metadata["category"]
+        subcategory = metadata["subcategory"]
+        source = get_source(category, subcategory)
 
-    source.format_file_metadata(metadata)
-    if check_skip(source, metadata):
-        metadata["_skip"] = 1
-    else:
-        insert_row = TableRow({
-            "source": source.source_name,
-            "id": metadata["_id"],
-            "metadata_file_key": metadata["_metadata_file_key"],
-            "part": source.page_number(metadata),
-        })
-        for key in source.keys_from_metadata(metadata):
-            if isinstance(key, FileKey):
-                key_type = type(key)
-                break
+        repo = context.repo
+        dataset = context.dataset
+
+        source.format_file_metadata(metadata)
+        if check_skip(source, metadata):
+            metadata["_skip"] = 1
         else:
-            key_type = Sha256E
-        def custom_open(self, mode):
-            pipe = Pipe(context.event_loop)
-            writer = SyncPipeWriter(pipe)
-            async def task():
-                async with dataset.with_table("submissions") as submissions_table:
-                    await import_file(
-                        repo.filestore,
-                        insert_row,
-                        file_source(pipe.open(), key_type, extension=metadata["extension"]),
-                        submissions_table,
-                        context.collections_submission_tables
-                    )
-            context.enqueue_task(task())
-            return writer
-        from gallery_dl.path import PathFormat
-        PathFormat.open = custom_open
+            insert_row = TableRow({
+                "source": source.source_name,
+                "id": metadata["_id"],
+                "metadata_file_key": metadata["_metadata_file_key"],
+                "part": source.page_number(metadata),
+            })
+            for key in source.keys_from_metadata(metadata):
+                if isinstance(key, FileKey):
+                    key_type = type(key)
+                    break
+            else:
+                key_type = Sha256E
+            def custom_open(self, mode):
+                pipe = Pipe(context.event_loop)
+                writer = SyncPipeWriter(pipe)
+                async def task():
+                    async with dataset.with_table("submissions") as submissions_table:
+                        await import_file(
+                            repo.filestore,
+                            insert_row,
+                            file_source(pipe.open(), key_type, extension=metadata["extension"]),
+                            submissions_table,
+                            context.collections_submission_tables
+                        )
+                context.enqueue_task(task())
+                return writer
+            from gallery_dl.path import PathFormat
+            PathFormat.open = custom_open
+    except DoltAnnexApplicationError as e:
+        context.exception.set_exception(e)
+        raise gallery_dl.exception.TerminateExtraction()
 
 def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     """Check whether we should skip downloading this file."""
@@ -202,10 +213,15 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
 
 def gallery_dl_after(metadata: dict[str, Any]):
     """The entrypoint for 'after' postprocessor hooks (run after downloading the file)"""
-    category = metadata["category"]
-    subcategory = metadata["subcategory"]
-    source = get_source(category, subcategory)
-    gallery_dl_import(source, metadata)
+    context = _gallery_dl_context.get()
+    try:
+        category = metadata["category"]
+        subcategory = metadata["subcategory"]
+        source = get_source(category, subcategory)
+        gallery_dl_import(source, metadata)
+    except DoltAnnexApplicationError as e:
+        context.exception.set_exception(e)
+        raise gallery_dl.exception.TerminateExtraction()
 
 def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     """Import the submission file and its metadata into the dolt-annex dataset."""

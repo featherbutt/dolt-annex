@@ -6,6 +6,8 @@ from typing import Any, List
 
 from typing_extensions import Dict
 
+from dolt_annex.datatypes.errors import GalleryDlCategoryNotSupportedError, GalleryDlSubcategoryNotSupportedError
+
 from .base import GalleryDLSource
 from .itaku import Itaku
 from .furaffinity import Furaffinity
@@ -43,9 +45,9 @@ category_to_source : Dict[str, GalleryDLSource]= {
 
 def get_source(category: str, subcategory: str) -> GalleryDLSource:
     if not (source := category_to_source.get(category)):
-        raise ValueError(f"Category {category} is not currently supported. Supported categories: {list(category_to_source.keys())}")
+        raise GalleryDlCategoryNotSupportedError(f"Category {category} is not currently supported. Supported categories:\n - {'\n - '.join(sorted(category_to_source.keys()))}")
     if subcategory not in source.supported_subcategories():
-        raise ValueError(f"Subcategory {subcategory} is not supported for category {category}. Supported subcategories: {source.supported_subcategories()}")
+        raise GalleryDlSubcategoryNotSupportedError(f"Subcategory {subcategory} is not supported for category {category}. Supported subcategories:\n - {'\n - '.join(sorted(source.supported_subcategories()))}")
     return source
 
 def remove_metadata(metadata: Dict[str, Any]):

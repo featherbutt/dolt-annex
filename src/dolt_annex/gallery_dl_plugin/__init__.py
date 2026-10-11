@@ -42,6 +42,7 @@ class GalleryDLContext:
     collections_submission_tables: CollectionTables
     collections_metadata_tables: CollectionTables
     task_group: asyncio.TaskGroup
+    exception: asyncio.Future[None]
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
@@ -100,6 +101,7 @@ class GalleryDLContext:
                 event_loop=event_loop,
                 task_group=task_group,
                 dataset=dataset,
+                exception=asyncio.Future(),
                 collections_submission_tables=GalleryDLContext.CollectionTables(collections_submission_tables),
                 collections_metadata_tables=GalleryDLContext.CollectionTables(collections_metadata_tables),
             )
@@ -172,11 +174,13 @@ async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset
                 # Clear gallery_dl's internal state to avoid interference between runs.
                 gallery_dl.config.clear()
                 gallery_dl.main()
+                if not gallery_dl_context.exception.done():
+                    gallery_dl_context.exception.set_result(None)
 
-        gallery_dl_thread = loop.run_in_executor(None, gallery_dl_main)
+        loop.run_in_executor(None, gallery_dl_main)
 
-        await gallery_dl_thread
-
+        await gallery_dl_context.exception
+ 
         return GalleryDLOutput(
             stdout=gallery_dl_stdout.getvalue(),
             stderr=gallery_dl_stderr.getvalue(),

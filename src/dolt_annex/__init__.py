@@ -2,15 +2,20 @@
 # -*- coding: utf-8 -*-
 
 import asyncio
+import inspect
+import sys
+
+from dolt_annex import interactive
+from dolt_annex.application import Application
 from dolt_annex.commands import init, server_command, script
 from dolt_annex.commands.config import create
 from dolt_annex.commands.gallery_dl import gallery_dl_command
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
 from dolt_annex.commands.filestore import FilestoreSubcommand
-
 from dolt_annex.datatypes.async_types import maybe_await
-from .application import Application
+from dolt_annex.datatypes.errors import DoltAnnexApplicationError
+
 
 # gallery-dl postprocessor callbacks must be in the top level package, so we import them here
 from .gallery_dl_plugin.postprocessors import gallery_dl_post, gallery_dl_prepare, gallery_dl_after
@@ -26,11 +31,29 @@ Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
 Application.subcommand("script", script.Script)
 
-def main(entrypoint=Application):
+async def main():
     """Entry point for dolt-annex package"""
-    async def run():
-        _, continuation = entrypoint.run(exit=False)
-        await maybe_await(continuation)
-    asyncio.run(run())
+
+    # If no command-line arguments are provided, launch the interactive shell.
+    # TODO: The interactive shell takes command line arguments which can't be passed in here.
+    if len(sys.argv) == 1:
+        return await interactive.main()
+
+    # Otherwise, run the command-line application.
+    try:
+        # Most commands are async and return an awaitable continuation instead of a status code.
+        _, continuation = Application.run(exit=False)
+        if inspect.isawaitable(continuation):
+            return await continuation
+        else:
+            return continuation
+    except* DoltAnnexApplicationError as e:
+        for exc in e.exceptions:
+            print(f"Error: {exc}")
+    except* KeyboardInterrupt:
+        print("Exiting...")
 
 __all__ = ["gallery_dl_post", "gallery_dl_prepare", "gallery_dl_after", "gallery_dl_post_test"]
+
+if __name__ == "__main__":
+    asyncio.run(main())

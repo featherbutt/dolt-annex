@@ -14,3 +14,12 @@ class StorageError(DoltAnnexApplicationError):
 class ContentAddressableStorageError(StorageError):
     """Raised when a provided FileKey does not match the computed FileKey of the data being uploaded."""
     pass
+
+class GalleryDlError(DoltAnnexApplicationError):
+    pass
+
+class GalleryDlCategoryNotSupportedError(GalleryDlError):
+    pass
+
+class GalleryDlSubcategoryNotSupportedError(GalleryDlError):
+    pass
