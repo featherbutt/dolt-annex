@@ -38,7 +38,7 @@ async def ensure_filestore(config: Config, filestore_name: str) -> FileStoreMode
     if (filestore := FileStoreModel.load(filestore_name)) is not None:
         return filestore
     
-    return await (await select(
+    filestore: FileStoreModel = await (await select(
         message=f"""Choose a download strategy:
 
 Local Only - Add files to the local filestore without checking if they already exist remotely. Use this to ensure that downloaded files exist locally.
@@ -59,6 +59,8 @@ Local AND/OR Remote - Add files to both local and remote filestores, but skip fi
             Separator("Local AND/OR Remote (Not Implmemented)"),
             ]
     ).execute_async())(config, filestore_name) # pyright: ignore[reportOptionalCall]
+    filestore.save()
+    return filestore
 
 async def make_new_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
     while True:
@@ -104,7 +106,6 @@ async def make_new_remote_filestore(config: Config, filestore_name: str) -> File
     except Exception as e:
         raise FileStoreSetupError(f"Error retrieving remote filestore UUID: {e}") from e
     
-    filestore_model.save()
     return filestore_model
 
 async def make_new_local_filestore(config: Config, repo_name: str) -> FileStoreModel:
@@ -116,7 +117,6 @@ async def make_new_local_filestore(config: Config, repo_name: str) -> FileStoreM
             root=Path(".")
         )
     )
-    filestore.save()
     return filestore
 
 async def make_new_local_and_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
@@ -127,7 +127,6 @@ async def make_new_local_and_remote_filestore(config: Config, filestore_name: st
         children=[local_filestore, remote_filestore],
         write_to_all_children=True,
     )
-    union_filestore.save()
     return union_filestore
 
 async def make_new_local_or_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
@@ -138,7 +137,6 @@ async def make_new_local_or_remote_filestore(config: Config, filestore_name: str
         children=[local_filestore, remote_filestore],
         write_to_all_children=False,
     )
-    union_filestore.save()
     return union_filestore
 
 async def get_remote_filestore_uuid(config: Config, filestore_model: SftpFileStoreModel) -> uuid.UUID:
