@@ -26,7 +26,7 @@ from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.datatypes.file_stream import bytes_file_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.sync import move_dataset
-from dolt_annex.test_util import EnvironmentForTest, test_dataset_schema
+from dolt_annex.util.test_util import EnvironmentForTest, test_dataset_schema
 
 # Try every combination of two and from types.
 def all_filestore_types(prefix: pathlib.Path) -> Generator[FileStoreModel]:
