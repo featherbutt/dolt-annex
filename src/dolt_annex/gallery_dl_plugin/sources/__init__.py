@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import copy
-from typing import Any, List
+from typing import Any, List, Self
 
 from typing_extensions import Dict
 
-from dolt_annex.datatypes.errors import GalleryDlCategoryNotSupportedError, GalleryDlSubcategoryNotSupportedError
+from dolt_annex.datatypes.errors import GalleryDlError
 
 from .base import GalleryDLSource
 from .itaku import Itaku
@@ -43,11 +43,31 @@ category_to_source : Dict[str, GalleryDLSource]= {
     "gelbooru": Gelbooru(),
 }
 
+class GalleryDlCategoryNotSupportedError(GalleryDlError):
+    @classmethod
+    def new(cls, category: str) -> Self:
+        message = f"""Category {category} is supported by gallery-dl but not currently supported by dolt-annex. If you would like it to be supported, please open an issue.
+
+Supported categories:
+{'\n'.join(f' - {key}' for key in sorted(category_to_source.keys()))}
+"""
+        return cls(message)
+
+class GalleryDlSubcategoryNotSupportedError(GalleryDlError):
+    @classmethod
+    def new(cls, source: GalleryDLSource, category: str, subcategory: str) -> Self:
+        message = f"""Subcategory {subcategory} is for category {category} is supported by gallery-dl but not currently supported by dolt-annex. If you would like it to be supported, please open an issue.
+
+Supported subcategories for {category}:
+{'\n'.join(f' - {key}' for key in sorted(source.supported_subcategories()))}
+"""
+        return cls(message)
+
 def get_source(category: str, subcategory: str) -> GalleryDLSource:
     if not (source := category_to_source.get(category)):
-        raise GalleryDlCategoryNotSupportedError(f"Category {category} is not currently supported. Supported categories:\n - {'\n - '.join(sorted(category_to_source.keys()))}")
+        raise GalleryDlCategoryNotSupportedError.new(category)
     if subcategory not in source.supported_subcategories():
-        raise GalleryDlSubcategoryNotSupportedError(f"Subcategory {subcategory} is not supported for category {category}. Supported subcategories:\n - {'\n - '.join(sorted(source.supported_subcategories()))}")
+        raise GalleryDlSubcategoryNotSupportedError.new(source, category, subcategory)
     return source
 
 def remove_metadata(metadata: Dict[str, Any]):

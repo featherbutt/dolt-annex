@@ -17,9 +17,3 @@ class ContentAddressableStorageError(StorageError):
 
 class GalleryDlError(DoltAnnexApplicationError):
     pass
-
-class GalleryDlCategoryNotSupportedError(GalleryDlError):
-    pass
-
-class GalleryDlSubcategoryNotSupportedError(GalleryDlError):
-    pass
