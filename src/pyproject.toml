@@ -32,6 +32,7 @@ parse = "^1.22.1"
 gallery-dl = "^1.32.12"
 inquirerpy = "^0.3.4"
 pyinstaller = "^6.22.3"
+pytest-xdist = {extras = ["psutil"], version = "^3.8.0"}
 
 [tool.poetry.scripts]
 dolt-annex = 'dolt_annex:main'
