@@ -9,6 +9,7 @@ from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey, Sha256HSe
+from dolt_annex.gallery_dl_plugin import make_default_schema
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.util.test_util import run, EnvironmentForTest
 
@@ -23,13 +24,7 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
         args=["dolt-annex", "init"],
     )
     
-    # Calling gallery-dl will initialize the dataset, then fail because there are no URLs.
-    await run(
-        args=["dolt-annex", "gallery-dl"],
-        expected_exception=SystemExit
-    )
-
-    dataset_schema = DatasetSchema.must_load("gallery-dl")
+    dataset_schema = make_default_schema("gallery-dl")
 
     # In the first row, both the metadata and the submission need to be migrated
     await run(

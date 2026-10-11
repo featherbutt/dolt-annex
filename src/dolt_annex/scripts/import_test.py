@@ -4,6 +4,7 @@
 import pytest
 
 from dolt_annex.file_keys import Sha256E
+from dolt_annex.gallery_dl_plugin import make_default_schema
 from dolt_annex.util.test_util import run
 
 @pytest.mark.asyncio
@@ -23,12 +24,9 @@ async def test_import(temp_dir, setup):
     await run(
         args=["dolt-annex", "init"],
     )
-    # Calling gallery-dl will initialize the dataset, then fail because there are no URLs.
-    # TODO: Run "dolt-annex config create" instead.
-    await run(
-        args=["dolt-annex", "gallery-dl"],
-        expected_exception=SystemExit
-    )
+
+    dataset_schema = make_default_schema("gallery-dl")
+    
     await run(
         args=[
             "dolt-annex", "script", "import", "--",
