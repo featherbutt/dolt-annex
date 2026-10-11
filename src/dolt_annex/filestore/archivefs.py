@@ -29,7 +29,7 @@ from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_l
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.file_handles import ExistingFileHandle
 from dolt_annex.datatypes.file_stream import KnownKeyFileStream, KeyedFileStream, known_key_source_nocheck
-from dolt_annex.tarfile_utils import TarFile
+from dolt_annex.util.tarfile_utils import TarFile
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel
 
