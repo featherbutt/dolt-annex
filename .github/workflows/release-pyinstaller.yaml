@@ -42,7 +42,9 @@ jobs:
       - name: Archive bundle
         run: |
           set -e
-          name="dolt_annex-${RUNNER_OS,,}-${RUNNER_ARCH,,}"
+          os=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          arch=$(echo "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')
+          name="dolt_annex-$os-$arch"
           if [ "$RUNNER_OS" = "Windows" ]; then
             (cd dist && 7z a "../$name.zip" ./*)
           else
