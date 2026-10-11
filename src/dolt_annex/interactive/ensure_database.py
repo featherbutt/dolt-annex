@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import cast
 
-from InquirerPy.inquirer import select, text, confirm # pyright: ignore[reportPrivateImportUsage]
+from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
@@ -78,7 +78,7 @@ async def clone_existing_database() -> DoltConfig:
     )
 
 async def make_new_local_database() -> DoltConfig:
-    dolt_path_str: str = cast(str, await text(
+    dolt_path_str: str = cast(str, await filepath(
         message="Enter the path to where the new local Dolt database should be created: (leave empty for the current directory)",
     ).execute_async())
     dolt_path = Path(dolt_path_str) if dolt_path_str else Path.cwd()
@@ -93,7 +93,7 @@ async def make_new_local_database() -> DoltConfig:
 
 async def use_existing_local_database() -> DoltConfig:
     while True:
-        dolt_path_str: str = cast(str, await text(
+        dolt_path_str: str = cast(str, await filepath(
             message="Enter the path to the Dolt database:",
         ).execute_async())
         dolt_path = Path(dolt_path_str)
