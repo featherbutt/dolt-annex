@@ -37,10 +37,14 @@ async def ensure_config(config_file: Optional[str], repo_name: str) -> Config:
 
 async def make_config(config_file_path: Path, repo_name: str) -> Config:
     dolt_config = await ensure_database()
-    return Config(
+    config = Config(
         dolt=dolt_config,
         local_repo=repo_name,
     )
+    with open(config_file_path, "w", encoding="utf-8") as f:
+        f.write(config.model_dump_json(ensure_ascii=False, indent=4))
+    print(f"Created configuration at {config_file_path}")
+    return config
 
 
     

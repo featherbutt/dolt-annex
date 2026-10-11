@@ -115,3 +115,10 @@ def do_init(base_config: Config, init_config: InitConfig):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(base_config.model_dump_json(ensure_ascii=False, indent=4))
             print("Created config.json")
+
+def create_dolt_directory(dolt_dir: Path):
+    if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
+        print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
+        dolt_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
+        print(f"Initialized Dolt repository in {dolt_dir}")

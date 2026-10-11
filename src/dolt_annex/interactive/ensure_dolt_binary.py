@@ -1,3 +1,5 @@
+import asyncio
+import os
 from pathlib import Path
 import platform
 
@@ -40,7 +42,12 @@ def dolt_version_check(dolt_bin_path: Path) -> bool:
     version = output.decode().strip().split()[-1]
     return tuple(map(int, version.split("."))) >= MIN_DOLT_VERSION
 
-def download_and_extract_dolt(dolt_binary: Path):
+def extract_file_from_tar(tar: tarfile.TarFile, member_name: str, extract_path: Path):
+        member = tar.getmember(member_name)
+        member.name = os.path.basename(member.name)
+        tar.extract(member, path=extract_path)
+
+async def download_and_extract_dolt(dolt_binary: Path):
     dolt_binary.parent.mkdir(parents=True, exist_ok=True)
     dolt_release_url = get_latest_dolt_release_url(platform.uname())
     path, _ = urllib.request.urlretrieve(dolt_release_url)
@@ -51,8 +58,10 @@ def download_and_extract_dolt(dolt_binary: Path):
     else:
         with tarfile.open(path, "r:gz") as tar:
             root = tar.getnames()[0]
-            tar.extract(f"{root}/bin/dolt", path=dolt_binary)
-            tar.extract(f"{root}/LICENSES", path=dolt_binary.parent)
+            extract_file_from_tar(tar, f"{root}/bin/dolt", dolt_binary.parent)
+            extract_file_from_tar(tar, f"{root}/LICENSES", dolt_binary.parent)
+    print(f"Dolt successfully downloaded and extracted to {dolt_binary}.")
+    await asyncio.sleep(1)
 
 def find_dolt_binary_on_path() -> Optional[Path]:
     dolt_binary = shutil.which("dolt")
@@ -67,7 +76,7 @@ def find_dolt_binary_on_path() -> Optional[Path]:
         print("Dolt binary at", dolt_binary, "is out of date.")
         return None
 
-def ensure_dolt_binary(dolt_binary_path: Optional[Path] = None):
+async def ensure_dolt_binary(dolt_binary_path: Optional[Path] = None):
     # TODO: We only need the dolt binary if we're connecting to a local Dolt repository.
     # But if we are, we need to make sure that the binary is correctly when we try to connect.
     if dolt_binary_path:
@@ -81,7 +90,8 @@ def ensure_dolt_binary(dolt_binary_path: Optional[Path] = None):
 
     if not dolt_binary_path.exists():
         print(f"Dolt binary not found at {dolt_binary_path}. Downloading and extracting from GitHub...")
-        download_and_extract_dolt(dolt_binary_path)
+        await download_and_extract_dolt(dolt_binary_path)
     elif not dolt_version_check(dolt_binary_path):
         print(f"Dolt binary at {dolt_binary_path} is out of date. Downloading and extracting the latest version...")
-        download_and_extract_dolt(dolt_binary_path)
+        await download_and_extract_dolt(dolt_binary_path)
+    return dolt_binary_path
