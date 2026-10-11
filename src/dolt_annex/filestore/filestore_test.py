@@ -26,7 +26,7 @@ from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStore, FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.filestore.leveldb import LevelDBModel
+from dolt_annex.filestore.leveldb import LevelDBModel, plyvel_imported
 from dolt_annex.filestore.memory import MemoryFSModel
 from dolt_annex.filestore.sftp import SftpFileStore
 from dolt_annex.filestore.sqlite import SQLiteModel
@@ -114,7 +114,8 @@ class SftpWrappedFilestoreModel(FileStoreModel):
 
 def local_filestore_types():
     yield MemoryFSModel(persistent=False)
-    yield LevelDBModel(root=pathlib.Path("leveldb"))
+    if plyvel_imported:
+        yield LevelDBModel(root=pathlib.Path("leveldb"))
     yield AnnexFSModel(root=fs.memoryfs.MemoryFS())
     yield UnionFSModel(children=[MemoryFSModel(persistent=False)])
     yield ArchiveFSModel(num_workers=1, root=pathlib.Path("archive_root"), secondary=MemoryFSModel(persistent=False))
