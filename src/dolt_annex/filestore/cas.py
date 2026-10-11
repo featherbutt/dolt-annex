@@ -80,7 +80,7 @@ class ContentAddressableStorage:
             file_key_producer=_file_key_producer
         )
 
-        result_file_key, _ = await self.file_store.put_file_object(new_data_source, overwrite_existing=overwrite_existing)
+        result_file_key, uuids = await self.file_store.put_file_object(new_data_source, overwrite_existing=overwrite_existing)
 
         computed_keys = [generator.finalize(extension=result_file_key["extension"]) for generator in generators]
         for alias in computed_keys:
@@ -96,7 +96,7 @@ class ContentAddressableStorage:
                 await self.create_alias(old_key=result_file_key, new_key=file_key_from_source)
             result_file_key = file_key_from_source
         
-        return FileStore.PutFileResult(file_key=result_file_key, uuids=[self.file_store.uuid] if self.file_store.uuid else [])
+        return FileStore.PutFileResult(file_key=result_file_key, uuids=list(uuids) + ([self.file_store.uuid] if self.file_store.uuid else []))
 
     def with_file_stream(self, key: FileKey) -> KeyedFileStream:
         return known_key_source(self.file_store.with_file_object(key), key)
