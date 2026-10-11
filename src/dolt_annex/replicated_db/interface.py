@@ -33,6 +33,10 @@ class TableFilter:
     column_name: str
     column_value: Any
 
+    @classmethod
+    def from_table_row(cls, table_row: TableRow) -> List[Self]:
+        return [cls(column_name=key, column_value=value) for key, value in table_row.items()]
+
 class ReplicatedDatabase(ABC):
 
     @classmethod

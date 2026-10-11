@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import tempfile
 from plumbum import cli
+from dolt_annex.browser import display_file
 from dolt_annex.commands import CommandGroup, SubCommand
 
 from dolt_annex.datatypes.repo import RepoModel
@@ -30,20 +30,7 @@ class Display(SubCommand):
             repo = self.config.get_default_repo()
 
         async with repo.filestore.open(self.config) as filestore:
-            async with filestore.with_file_object(queried_key) as f:
-                with tempfile.NamedTemporaryFile(
-                    suffix="." + queried_key["extension"], mode="wb"
-                ) as temp_file:
-                    buffer_size = 1024 * 1024  # 1 MB buffer size
-                    while True:
-                        buf = await f.read(buffer_size)
-                        if not buf:
-                            break
-                        temp_file.write(buf)
-                    temp_file.flush()
-                    temp_path = temp_file.name
+            await display_file(filestore, queried_key)
+            return 0
 
-                    import webbrowser
-                    webbrowser.open("file://" + temp_path)
-                    input("Press Enter to continue...")
-                    return 0
+

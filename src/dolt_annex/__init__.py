@@ -34,13 +34,13 @@ Application.subcommand("script", script.Script)
 async def main():
     """Entry point for dolt-annex package"""
 
-    # If no command-line arguments are provided, launch the interactive shell.
-    # TODO: The interactive shell takes command line arguments which can't be passed in here.
-    if len(sys.argv) == 1:
-        return await interactive.main()
-
-    # Otherwise, run the command-line application.
     try:
+        # If no command-line arguments are provided, launch the interactive shell.
+        # TODO: The interactive shell takes command line arguments which can't be passed in here.
+        if len(sys.argv) == 1:
+            return await interactive.main()
+
+        # Otherwise, run the command-line application.
         # Most commands are async and return an awaitable continuation instead of a status code.
         _, continuation = Application.run(exit=False)
         if inspect.isawaitable(continuation):

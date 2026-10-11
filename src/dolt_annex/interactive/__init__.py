@@ -1,23 +1,26 @@
-from dolt_annex.interactive.ensure_config import ensure_config
-from dolt_annex.interactive.ensure_database import ensure_database
-from dolt_annex.interactive.ensure_filestore import ensure_filestore, ensure_repo
-from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
-
 import argparse
 import asyncio
 from typing import Optional
 
 from InquirerPy.inquirer import text, secret, confirm, rawlist # pyright: ignore[reportPrivateImportUsage]
 
+from dolt_annex.browser import display_file
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
+from dolt_annex.replicated_db.interface import TableFilter
+
+from dolt_annex.interactive.ensure_config import ensure_config
+from dolt_annex.interactive.ensure_database import ensure_database
+from dolt_annex.interactive.ensure_filestore import ensure_filestore, ensure_repo
+from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
+from dolt_annex.interactive.database_search import prompt_next_column
 
 import logging
 logger = logging.getLogger(__name__)
@@ -99,9 +102,21 @@ async def loop(config: Config, repo: Repo, dataset: Dataset):
                             message="Enter the URLs to download, separated by whitespace"
                         ).execute_async()).split()
                         await run_gallery_dl(repo, config.gallery_dl, dataset, *urls)
+                        await dataset.conn.flush()
                     case "Database Search":
                         # Implement database search logic here
-                        pass
+                        async with (
+                            dataset.with_table("metadata") as table,
+                            table.with_repo(repo.uuid) as table_replica,
+                            dataset.with_table("submissions") as submission_table,
+                            submission_table.with_repo(repo.uuid) as submission_table_replica,
+                        ):
+                            table_row = await prompt_next_column(table_replica, {})
+                            table_row["metadata_file_key"] = table_row.pop("file_key")
+                            submission_table_rows = submission_table_replica.get_rows(columns=[submission_table_replica.schema.file_column], filters=TableFilter.from_table_row(table_row))
+                            for row in submission_table_rows:
+                                await display_file(repo.filestore.file_store, FileKey.must_parse(row[submission_table_replica.schema.file_column]))
+                                
                     case "Exit":
                         break
             except* Exception as e:
