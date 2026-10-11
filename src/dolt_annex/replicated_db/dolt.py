@@ -77,7 +77,7 @@ class DatabaseConnection(interface.ReplicatedDatabase):
             raise ValueError("Either server_socket or hostname must be set in the Dolt connection configuration.")
 
         with (
-            DoltSqlServer(dolt_config.dolt_dir, connection.database, db_config, dolt_config.spawn_dolt_server) as dolt_server,
+            DoltSqlServer(dolt_config, connection.database, db_config) as dolt_server,
         ):
             conn = None
             try:

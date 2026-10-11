@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import logging
 import os
 from pathlib import Path
+import shutil
 import threading
 import time
 from typing import List
@@ -16,6 +17,7 @@ from typing_extensions import Any, Dict, Tuple
 from plumbum import local
 import pymysql
 
+from dolt_annex.datatypes.config import DoltConfig
 from dolt_annex.datatypes.repo import Repo
 
 logger = logging.getLogger(__name__)
@@ -49,18 +51,20 @@ class ThreadLocalMySqlConnection(threading.local):
 
 class DoltSqlServer:
     """A connection to a Dolt SQL server."""
+    dolt_config: DoltConfig
     db_config: Dict[str, Any]
     connection: ThreadLocalMySqlConnection
     active_branch: str
     db_name: str
     dolt_server_process: Any
 
-    def __init__(self, dolt_dir: Path, dolt_db_name: str, db_config: Dict[str, Any], spawn_dolt_server: bool):
+    def __init__(self, dolt_config: DoltConfig, dolt_db_name: str, db_config: Dict[str, Any]):
+        self.dolt_config = dolt_config
         self.db_config = db_config
         self.db_name = dolt_db_name
 
-        if spawn_dolt_server:
-            self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_dir)
+        if dolt_config.spawn_dolt_server:
+            self.dolt_server_process, self.connection = self.spawn_dolt_server(dolt_config.dolt_dir)
         else:
             self.dolt_server_process = None
             self.connection = ThreadLocalMySqlConnection(db_config)
@@ -81,7 +85,20 @@ class DoltSqlServer:
             self.dolt_server_process.terminate()
 
     def spawn_dolt_server(self, dolt_dir: Path) -> Tuple[Any, ThreadLocalMySqlConnection]:
-        dolt = local.cmd.dolt.with_cwd(dolt_dir)
+        if self.dolt_config.dolt_binary:
+            if not self.dolt_config.dolt_binary.exists():
+                logger.error("Dolt binary not found at specified path: %s", str(self.dolt_config.dolt_binary))
+                raise FileNotFoundError(f"Dolt binary not found at specified path: {self.dolt_config.dolt_binary}")
+            if not os.access(self.dolt_config.dolt_binary, os.X_OK):
+                logger.error("Dolt binary is not executable: %s", str(self.dolt_config.dolt_binary))
+                raise PermissionError(f"Dolt binary is not executable: {self.dolt_config.dolt_binary}")
+            dolt = local[self.dolt_config.dolt_binary]
+        else:
+            if "dolt" not in local:
+                logger.error("Dolt binary not found in local environment.")
+                raise FileNotFoundError("Dolt binary not found in local environment.")
+            dolt = local.cmd.dolt
+        dolt = dolt.with_cwd(dolt_dir)
         args = []
         if "port" in self.db_config:
             args.extend(["-P", str(self.db_config["port"])])
