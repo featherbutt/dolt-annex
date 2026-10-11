@@ -103,22 +103,25 @@ def temp_dir(tmp_path):
     tmp_path = pathlib.Path(tmp_path)
     with contextlib.chdir(tmp_path):
         yield tmp_path
-            
-@pytest.fixture
-def dolt(temp_dir: pathlib.Path):
-    dolt_dir = pathlib.Path(temp_dir / "dolt")
-    dolt_dir.mkdir()
-    dolt = local.cmd.dolt.with_cwd(dolt_dir)
-    shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
-    yield dolt
 
-@pytest.fixture
-def init_dolt(dolt):
+@pytest.fixture(scope="session")
+def init_session_dolt(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
+    template_dir = tmp_path_factory.mktemp("init_dolt_template") / "dolt"
+    template_dir.mkdir()
+    dolt = local.cmd.dolt.with_cwd(template_dir)
+    shutil.copytree(data_dir / "dolt_base" / ".dolt", template_dir / ".dolt")
     dolt("checkout", "-b", "test_dataset")
     dolt("sql", "-q", "CREATE TABLE test_table(path varchar(100) primary key, file_key varchar(100));")
     dolt("add", ".")
     dolt("commit", "-m", "Initial commit")
-    yield dolt
+    return template_dir / ".dolt"
+
+@pytest.fixture
+def init_dolt(temp_dir: pathlib.Path, init_session_dolt: pathlib.Path):
+    dolt_dir = pathlib.Path(temp_dir / "dolt")
+    dolt_dir.mkdir()
+    shutil.copytree(init_session_dolt, dolt_dir / ".dolt")
+    yield local.cmd.dolt.with_cwd(dolt_dir)
 
 @contextlib.asynccontextmanager
 async def create_test_filestore(config: Config, repo_model: RepoModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
