@@ -3,7 +3,7 @@
 from PyInstaller.utils.hooks import collect_submodules
 
 a = Analysis(
-    ['dolt_annex/interactive.py'],
+    ['dolt_annex/__main__.py'],
     pathex=[],
     binaries=[],
     datas=[
@@ -27,7 +27,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='interactive',
+    name='dolt-annex',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

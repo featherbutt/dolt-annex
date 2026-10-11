@@ -30,11 +30,11 @@ FROM build AS packaged
 
 WORKDIR /
 
-RUN pyinstaller /src/interactive.spec
+RUN pyinstaller /src/dolt_annex.spec
 
 ENTRYPOINT ["tini", "--"]
 
-CMD ["/dist/interactive/interactive"]
+CMD ["/dist/dolt_annex/dolt_annex"]
 
 FROM build AS with_dolt
 
