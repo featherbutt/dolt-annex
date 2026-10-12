@@ -81,6 +81,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
         category = metadata["category"]
         subcategory = metadata["subcategory"]
         source = get_source(category, subcategory)
+        context.stdout.write(f"Downloading post {metadata['_id']}...")
 
         repo = context.repo
         dataset = context.dataset
@@ -219,6 +220,7 @@ def gallery_dl_after(metadata: dict[str, Any]):
         subcategory = metadata["subcategory"]
         source = get_source(category, subcategory)
         gallery_dl_import(source, metadata)
+        context.stdout.write(f"Done\n")
     except DoltAnnexApplicationError as e:
         context.exception.set_exception(e)
         raise gallery_dl.exception.TerminateExtraction()
