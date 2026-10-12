@@ -5,6 +5,7 @@ from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignor
 from typing import cast
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
+from pydantic import ValidationError
 
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.config import Config
@@ -22,8 +23,11 @@ class FileStoreSetupError(Exception):
     pass
 
 async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
-    if (repo := config.maybe_get_default_repo()) is not None:
-        return repo
+    try:
+        if (repo := config.maybe_get_default_repo()) is not None:
+            return repo
+    except ValidationError:
+        pass
     filestore = await ensure_filestore(config, repo_name)
     repo = RepoModel(
         name=repo_name,
