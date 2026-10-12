@@ -78,7 +78,7 @@ class GalleryDL(SubCommand):
             DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
         ):
-            output = await run_gallery_dl(repo, gallery_dl_config, dataset, *args)
+            output = await run_gallery_dl(self.config, repo, dataset, *args)
         print(json.dumps(dataclasses.asdict(output), indent=2))
         return 0
     

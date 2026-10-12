@@ -9,13 +9,14 @@ import asyncio
 import contextlib
 import contextvars
 from dataclasses import dataclass
-import io
+import logging
 import shutil
 import sys
 from pathlib import Path
 from typing import List, TextIO
 
 from dolt_annex.datatypes.common import TableRow
+from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 import gallery_dl
 
@@ -28,7 +29,7 @@ from dolt_annex.replicated_db.interface import DatasetReplica, ReplicatedDataset
 config_path = Path(__file__).parent / "gallery_dl_config.json"
 skip_db_path = Path(__file__).parent / "skip.sqlite3"
 
-gdl_args = [ "gallery-dl", "--config", str(config_path) ]
+gdl_args = [ "gallery-dl", "--config", str(config_path), "--warning" ]
 
 @dataclass
 class GalleryDLContext:
@@ -142,10 +143,22 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset: Dataset, *args) -> GalleryDLOutput:
-    sys.argv = gdl_args + list(args)
-    gallery_dl_stdout = io.StringIO()
-    gallery_dl_stderr = io.StringIO()
+async def run_gallery_dl(config: Config, repo: Repo, dataset: Dataset, *args) -> GalleryDLOutput:
+    def gdl_log_level_flags(log_level: str) -> list[str]:
+        match log_level.upper():
+            case "WARNING":
+                return ["--warning"]
+            case "ERROR", "CRITICAL":
+                return ["--quiet"]
+            case "DEBUG":
+                return ["--verbose"]
+            case "INFO":
+                return []
+            case _:
+                return []
+
+    gallery_dl_config: GalleryDLConfig = config.gallery_dl
+    sys.argv = gdl_args + gdl_log_level_flags(config.log_level) +list(args)
 
     if not Path("skip.sqlite3").exists():
         shutil.copy(skip_db_path, "skip.sqlite3")
@@ -172,7 +185,14 @@ async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset
 
                 # Clear gallery_dl's internal state to avoid interference between runs.
                 gallery_dl.config.clear()
+
+                # gallery-dl sets the root logger in a pretty hacky way, adding an extra handler without modifying existing ones.
+                # To get normal behavior, we need to manually clear the root logger's handlers before running gallery-dl,
+                # and reset the logger afterward.
+                logging.getLogger().handlers.clear()
                 gallery_dl.main()
+                logging.basicConfig(level=config.log_level.upper(), force=True)
+
                 if not gallery_dl_context.exception.done():
                     gallery_dl_context.exception.set_result(None)
 

@@ -50,8 +50,7 @@ async def main():
             ).execute_async()
 
     dataset_schema = ensure_dataset_schema(dataset_name)
-    repo_model = await ensure_repo(config, repo_name)
-
+    
     async with (
         Repo.open(config, repo_model) as repo,
         DatabaseConnection.open(config, database_password) as conn,
@@ -102,7 +101,7 @@ async def loop(config: Config, repo: Repo, dataset: Dataset):
                         urls = (await text(
                             message="Enter the URLs to download, separated by whitespace"
                         ).execute_async()).split()
-                        await run_gallery_dl(repo, config.gallery_dl, dataset, *urls)
+                        await run_gallery_dl(config, repo, dataset, *urls)
                         await dataset.conn.flush()
                     case "Database Search":
                         # Implement database search logic here

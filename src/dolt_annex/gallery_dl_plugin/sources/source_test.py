@@ -266,7 +266,7 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
             dataset.with_repo(setup.local_repo.uuid) as local_dataset,
         ):
-            output = await run_gallery_dl(setup.local_repo, setup.config.gallery_dl, dataset, test.post_url.url)
+            output = await run_gallery_dl(setup.config, setup.local_repo, dataset, test.post_url.url)
 
             assert output.submission_files_processed == len(test.rows), f"Expected to process {len(test.rows)} submission files, but processed {output.submission_files_processed}"
             assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
@@ -314,12 +314,12 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(dataset_schema)) as dataset,
     ):
-        output = await run_gallery_dl(setup.local_repo, setup.config.gallery_dl, dataset, "https://inkbunny.net/s/3783696")
+        output = await run_gallery_dl(setup.config, setup.local_repo, dataset, "https://inkbunny.net/s/3783696")
 
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
         assert output.submission_files_processed == 2, f"Expected to process 1 submission file, but processed {output.submission_files_processed}"
 
-        output = await run_gallery_dl(setup.local_repo, setup.config.gallery_dl, dataset, "https://e621.net/posts/6086319")
+        output = await run_gallery_dl(setup.config, setup.local_repo, dataset, "https://e621.net/posts/6086319")
 
         assert output.post_metadata_files_processed == 1, f"Expected to process 1 post metadata file, but processed {output.post_metadata_files_processed}"
         assert output.submission_files_processed == 0, f"Expected to process 0 submission files, but processed {output.submission_files_processed}"
