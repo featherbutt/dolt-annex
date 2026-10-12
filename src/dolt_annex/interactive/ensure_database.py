@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 from typing import cast
 
-from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
+from InquirerPy.inquirer import rawlist, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 from InquirerPy.base.control import Choice
 
 from dolt_annex.data import data_dir
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 async def ensure_database() -> DoltConfig:
-    return await (await select(
+    return await (await rawlist(
         message=f"""dolt-annex stores file metadata in a Dolt database. There are several options:
         
 Remote Database - dolt-annex will connect to a database running on another device (requires a URL beginning with mysql://). Metadata will not be stored locally, but search functionality will have access to all records on the remote.

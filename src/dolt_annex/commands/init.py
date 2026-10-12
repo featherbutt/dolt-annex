@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-import os
 from pathlib import Path
 import pathlib
+import uuid
 
 from plumbum import cli
 
@@ -62,7 +62,7 @@ class Init(cli.Application):
 
         repo = RepoModel(
             name="__local__",
-            uuid=filestore_model.uuid,
+            uuid=filestore_model.uuid or uuid.uuid4(),
             filestore=filestore_model,
             alternate_key_formats=[base_config.default_file_key_type] + base_config.default_alternate_key_types,
             )

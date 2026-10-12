@@ -1,7 +1,7 @@
 from pathlib import Path
 import uuid
 
-from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
+from InquirerPy.inquirer import rawlist, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 from typing import cast
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
@@ -31,7 +31,7 @@ async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
     filestore = await ensure_filestore(config, repo_name)
     repo = RepoModel(
         name=repo_name,
-        uuid=filestore.uuid,
+        uuid=filestore.uuid or uuid.uuid4(),
         filestore=filestore,
         alternate_key_formats=[config.default_file_key_type] + config.default_alternate_key_types,
         )
@@ -42,7 +42,7 @@ async def ensure_filestore(config: Config, filestore_name: str) -> FileStoreMode
     if (filestore := FileStoreModel.load(filestore_name)) is not None:
         return filestore
     
-    filestore: FileStoreModel = await (await select(
+    filestore: FileStoreModel = await (await rawlist(
         message=f"""Choose a download strategy:
 
 Local Only - Add files to the local filestore without checking if they already exist remotely. Use this to ensure that downloaded files exist locally.
