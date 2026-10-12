@@ -18,6 +18,8 @@ def get_latest_dolt_release_url(uname: platform.uname_result) -> str:
     machine = uname.machine.lower()
     if machine == "aarch64":
         machine = "arm64"
+    if machine == "amd64":
+        machine = "x86_64"
     match system, machine:
         case "linux", "x86_64":
             return f"{RELEASES_BASE_URL}/dolt-linux-amd64.tar.gz"
