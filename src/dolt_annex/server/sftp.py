@@ -278,6 +278,12 @@ class SFTPServer(asyncssh.SFTPServer):
            :raises: :exc:`SFTPError` to return an error to the client
 
         """
+        # The client may query the file at "/uuid"
+        if isinstance(file_obj, AsyncBytesIO):
+            return asyncssh.SFTPAttrs(
+                        type=asyncssh.constants.FILEXFER_TYPE_REGULAR,
+                        size=len(file_obj.data),
+                    )
         file_info = await self.cas.file_store.fstat(file_obj)
         return asyncssh.SFTPAttrs(
             type=asyncssh.constants.FILEXFER_TYPE_REGULAR,

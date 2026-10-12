@@ -20,9 +20,6 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
     Test the basic functionality of the gallery-dl subcommand,
     downloading files using gallery-dl and inserting them into a dolt-annex dataset.
     """
-    await run(
-        args=["dolt-annex", "init"],
-    )
     
     dataset_schema = make_default_schema("gallery-dl")
 

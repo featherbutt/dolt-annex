@@ -1,7 +1,7 @@
 from pathlib import Path
 import uuid
 
-from InquirerPy.inquirer import select, text, confirm # pyright: ignore[reportPrivateImportUsage]
+from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 from typing import cast
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
@@ -74,7 +74,7 @@ async def make_new_remote_filestore(config: Config, filestore_name: str) -> File
             print(f"Error: {e}")
 
     while True:
-        client_key = cast(str, await text(
+        client_key = cast(str, await filepath(
             message="Enter the path to the client key (leave blank if not applicable):",
         ).execute_async())
         if not client_key:

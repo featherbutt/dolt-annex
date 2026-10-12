@@ -1,12 +1,12 @@
 
 from pathlib import Path
+import shutil
 from typing import cast
 
 from InquirerPy.inquirer import select, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 from InquirerPy.base.control import Choice
-from InquirerPy.separator import Separator
 
-from dolt_annex.commands.init import create_dolt_directory
+from dolt_annex.data import data_dir
 from dolt_annex.datatypes.common import MySQLConnection
 from dolt_annex.datatypes.config import DoltConfig
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
@@ -111,3 +111,10 @@ async def use_existing_local_database() -> DoltConfig:
         dolt_dir=dolt_path,
         dolt_binary=dolt_binary_path,
     )
+
+def create_dolt_directory(dolt_dir: Path):
+    if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
+        print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
+        dolt_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
+        print(f"Initialized Dolt repository in {dolt_dir}")

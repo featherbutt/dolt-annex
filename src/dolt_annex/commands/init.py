@@ -1,22 +1,16 @@
 from dataclasses import dataclass
 import os
 from pathlib import Path
-import shutil
-import uuid
+import pathlib
 
-from plumbum import cli, local
+from plumbum import cli
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import RepoModel
-from dolt_annex.filestore.annexfs import AnnexFSModel
-from dolt_annex.datatypes.config import Config
-from dolt_annex.data import data_dir
-from dolt_annex.filestore.archivefs import ArchiveFSModel
-from dolt_annex.filestore.sqlite import SQLiteModel
-
-def is_wsl():
-    """Check if running in Windows Subsystem for Linux"""
-    return os.path.exists("/proc/sys/fs/binfmt_misc/WSLInterop")
+from dolt_annex.datatypes.config import Config, DoltConfig, DoltConfig
+from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
+from dolt_annex.interactive.ensure_database import create_dolt_directory
+from dolt_annex.interactive.ensure_filestore import make_new_local_filestore
 
 @dataclass
 class InitConfig:
@@ -46,79 +40,39 @@ class Init(cli.Application):
         envname = "DA_REMOTE_NAME",
     )
 
-    def main(self, *args):
+    async def main(self, *args):
         if args:
             print("Unexpected positional arguments: ", args)
             self.help()
             return 1
         
-        init_config = InitConfig(
-            init_dolt = not self.no_dolt,
-            dolt_url = self.dolt_url,
-            remote_name = self.remote_name
-        )
         base_config: Config = self.parent.config
-        # TODO: The init command using the existing config is a bit chicken-and-egg.
-        # There's probably a better way to handle this.
-        # We should ensure the default dolt port is set so that it can connect to
-        # a running dolt sql-server.
-        if base_config.dolt.connection.port is None:
-            base_config.dolt.connection.port = 3306
 
-        # Create local repo definition if it doesn't exist
-        local_repo_or_name = base_config.local_repo
-        if isinstance(local_repo_or_name, str):
-            local_repo_name = local_repo_or_name
-            local_repo = RepoModel.load(local_repo_name)
-            if local_repo is None:
-                local_repo = RepoModel(
-                    name=local_repo_name,
-                    uuid=uuid.uuid4(),
-                    filestore=ArchiveFSModel(
-                        root=Path("./archivefs/fs"),
-                        secondary=SQLiteModel(
-                            root=Path("./archivefs/db")
-                        )
-                    ),
-                    alternate_key_formats=base_config.default_alternate_key_types + [base_config.default_file_key_type]
-                )
-                local_repo.save()
+        dolt_path = pathlib.Path("./dolt")
+        create_dolt_directory(dolt_path)
+        dolt_binary_path = await ensure_dolt_binary()
+        base_config.dolt = DoltConfig(
+            spawn_dolt_server=True,
+            dolt_binary=dolt_binary_path,
+            dolt_dir=dolt_path,
+        )
+
+        filestore_model = await make_new_local_filestore(base_config, "__local__")
+        filestore_model.save()
+
+        repo = RepoModel(
+            name="__local__",
+            uuid=filestore_model.uuid,
+            filestore=filestore_model,
+            alternate_key_formats=[base_config.default_file_key_type] + base_config.default_alternate_key_types,
+            )
+        repo.save()
         
-        do_init(self.parent.config, init_config)
-        return 0
-
-def do_init(base_config: Config, init_config: InitConfig):
-    # Things that need to be created:
-    # - dolt directory/repository (if it doesn't exist)
-    # - If a dolt-url is provided, add it as a remote to the dolt repository
-    # - If a dolt-url is provided, fetch from it and create a branch for this UUID?
-
-    if init_config.init_dolt:
-        dolt_dir = base_config.dolt.dolt_dir
-        if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
-            print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
-            dolt_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
-            print(f"Initialized Dolt repository in {dolt_dir}")
-            # Add dolt remote if it was provided
-            dolt = local.cmd.dolt.with_cwd(base_config.dolt.dolt_dir)
-            dolt("config", "--local", "--add", "push.autoSetupRemote", "true")
-            if init_config.dolt_url:
-                dolt("remote", "add", init_config.remote_name, init_config.dolt_url)
-                dolt("fetch", init_config.remote_name)
-
-    # Create config file
-    if not Path("config.json").exists():
-
-        with open("config.json", "w", encoding="utf-8") as f:
-            path = Path("config.json")
+        path = Path("config.json")
+        if not path.exists():
             with open(path, "w", encoding="utf-8") as f:
                 f.write(base_config.model_dump_json(ensure_ascii=False, indent=4))
             print("Created config.json")
 
-def create_dolt_directory(dolt_dir: Path):
-    if not dolt_dir.exists() or not (dolt_dir / ".dolt").exists():
-        print(f"Dolt directory {dolt_dir} does not exist. Creating it.")
-        dolt_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(data_dir / "dolt_base" / ".dolt", dolt_dir / ".dolt")
-        print(f"Initialized Dolt repository in {dolt_dir}")
+        return 0
+

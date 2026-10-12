@@ -18,9 +18,6 @@ async def test_gallery_dl(tmp_path, setup):
         args=["dolt-annex", "create", "collection", "empty", '{"uuid": "123e4567-e89b-12d3-a456-426614174001"}'],
     )
     await run(
-        args=["dolt-annex", "init"],
-    )
-    await run(
         args=["dolt-annex", "gallery-dl", "https://e621.net/posts/3165771", "--collection", "favorites"],
     )
     await run(
