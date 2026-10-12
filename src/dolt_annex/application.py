@@ -36,7 +36,7 @@ class Application(BaseApplication):
         else:
             self.config = Config()
 
-        logging.basicConfig(level=self.log_level.upper())
+        logging.basicConfig(level=self.config.log_level.upper())
 
         if args:
             print(f"Unknown command: dolt-annex {args[0]}")

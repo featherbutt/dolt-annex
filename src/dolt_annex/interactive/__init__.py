@@ -35,7 +35,8 @@ async def main():
     config_file, repo_name, dataset_name, dolt_binary = parsed_args.config, parsed_args.repo, parsed_args.dataset, parsed_args.dolt_binary
 
     config = await ensure_config(config_file, repo_name)
-    await ensure_repo(config, repo_name)
+    logging.basicConfig(level=config.log_level.upper())
+    repo_model =await ensure_repo(config, repo_name)
 
     database_password: Optional[str]
     match config.dolt.connection.password:

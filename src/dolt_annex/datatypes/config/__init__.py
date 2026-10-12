@@ -3,7 +3,7 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, List, Literal
 from typing_extensions import Annotated, Optional, deprecated
 
 from pydantic import AliasChoices, Field
@@ -58,6 +58,7 @@ class Config(StrictBaseModel):
     ssh: SshSettings = SshSettings()
     filestore: FilestoreConfig = FilestoreConfig()
     gallery_dl: GalleryDLConfig = GalleryDLConfig()
+    log_level: Literal['CRITICAL', 'critical', 'ERROR', 'error', 'WARNING', 'warning', 'INFO', 'info', 'DEBUG', 'debug'] = "warning"
 
     # str | Named[RepoModel] avoid preemptively loading the repo if it's a string.
     # It's fine for this to be omitted or for the named repo to not exist, if

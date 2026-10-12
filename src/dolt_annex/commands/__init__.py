@@ -46,8 +46,6 @@ class BaseApplication(CommandGroup):
 
     config: Config
 
-    log_level = cli.SwitchAttr("--log-level", str, default="INFO", help="The logging level to use (e.g. DEBUG, INFO, WARNING, ERROR, CRITICAL)")
-
 class SubCommand(Command):
     """
     A base class for all subcommands, including middle-level command groups, but not the top-level application.
