@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from typing import Type
+
 import pytest
 from typing_extensions import Dict
+
+from dolt_annex.datatypes.errors import InvalidFileKeyError
 
 from .base import FileKey
 from .base import Sha1HSe, Sha256HSe, MD5HSe
@@ -48,5 +52,13 @@ def test_convertable_from(from_type: type[FileKey], to_type: type[FileKey], is_c
             # Converting to Sha256E can lose case sensitivity in the extension. This is acceptable.
             assert to_type.convert_from(key(from_type)) == key(to_type)
             assert to_type.convert_from(key(from_type).remove_extension()) == key(to_type).remove_extension()
-        
-    
+
+@pytest.mark.parametrize("key_type, key_bytes", [
+    (FileKey, b"invalid-key"),
+    (FileKey, b'SHA256E-invalid'),
+    (Sha256E, b'MD5e-s11--5eb63bbbe01eeed093cb22bb8f5acdc3.txt'),
+    (Sha256E, b'SHA256E-invalid'),
+])
+def test_invalid_file_key(key_type: Type[FileKey], key_bytes: bytes):
+    with pytest.raises(InvalidFileKeyError):
+        key_type.must_parse(key_bytes)

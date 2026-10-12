@@ -8,6 +8,8 @@ class DoltAnnexApplicationError(Exception):
     """
     pass
 
+class InvalidFileKeyError(DoltAnnexApplicationError):
+    pass
 class StorageError(DoltAnnexApplicationError):
     pass
 

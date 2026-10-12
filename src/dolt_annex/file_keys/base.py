@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from collections.abc import Buffer, Sequence, Set
-from contextlib import asynccontextmanager
 import hashlib
 from typing import Any, AsyncGenerator, Callable, ClassVar, Dict, List, Type, overload, override
 import parse
@@ -12,6 +11,7 @@ from typing_extensions import Optional, Protocol, Self
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, ReadableFileObject, ReadableStream, SizedBuffer
 from dolt_annex.datatypes.async_utils import await_or_enter
+from dolt_annex.datatypes.errors import InvalidFileKeyError
 from dolt_annex.datatypes.file_io import Path
 
 type FileKeyPrefix = bytes
@@ -42,7 +42,12 @@ class FileKey(FileKeyMixinBase):
         """Parse a key into a FileKey instance."""
         for prefix, subclass in cls.prefixes.items():
             if key.startswith(prefix.encode('utf-8')):
-                return subclass(key)
+                self = subclass(key)
+                try:
+                    self.to_fields()
+                except InvalidFileKeyError:
+                    continue
+                return self
         return None
     
     @overload
@@ -63,7 +68,7 @@ class FileKey(FileKeyMixinBase):
             key = key.encode('utf-8')
         file_key = cls.try_parse(key)
         if file_key is None:
-            raise ValueError(f"Could not parse file key: {key!r}")
+            raise InvalidFileKeyError(f"Could not parse file key: {key!r}")
         return file_key
     
     def __bytes__(self) -> bytes:
@@ -114,7 +119,11 @@ class FileKey(FileKeyMixinBase):
         @classmethod
         def try_parse(cls: type[Self], key: bytes) -> Optional[Self]:
             if key.startswith(cls.prefix.encode('utf-8')):
-                return cls(key)
+                self = cls(key)
+                try:
+                    self.to_fields()
+                except InvalidFileKeyError:
+                    return None
             return None
         cls.try_parse = try_parse
 
@@ -166,7 +175,7 @@ class FileKey(FileKeyMixinBase):
             parse_results = parser.parse(str(self))
             if parse_results is not None:
                 return parse_results.named
-        raise ValueError(f"Could not parse file key: {self.key!r}")
+        raise InvalidFileKeyError(f"Could not parse file key: {self.key!r}")
     
     @classmethod
     def from_fields(cls, **fields: Dict[str, Any]) -> Self:
@@ -177,7 +186,7 @@ class FileKey(FileKeyMixinBase):
                 return cls(key_str.encode('utf-8'))
             except KeyError:
                 continue
-        raise ValueError(f"Could not create file key from fields: {fields!r}")
+        raise InvalidFileKeyError(f"Could not create file key from fields: {fields!r}")
     
 class FileKeyGenerator[FileKeyType: FileKey = FileKey]:
     
