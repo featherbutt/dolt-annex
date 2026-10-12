@@ -11,6 +11,9 @@ class DoltAnnexApplicationError(Exception):
 class StorageError(DoltAnnexApplicationError):
     pass
 
+class ConfigurationError(DoltAnnexApplicationError):
+    pass
+
 class ContentAddressableStorageError(StorageError):
     """Raised when a provided FileKey does not match the computed FileKey of the data being uploaded."""
     pass

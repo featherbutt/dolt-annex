@@ -34,29 +34,36 @@ async def main():
     parsed_args = parser.parse_args()
     config_file, repo_name, dataset_name, dolt_binary = parsed_args.config, parsed_args.repo, parsed_args.dataset, parsed_args.dolt_binary
 
-    config = await ensure_config(config_file, repo_name)
-    logging.basicConfig(level=config.log_level.upper())
-    repo_model =await ensure_repo(config, repo_name)
+    try:
+        config = await ensure_config(config_file, repo_name)
+        logging.basicConfig(level=config.log_level.upper())
+        repo_model =await ensure_repo(config, repo_name)
 
-    database_password: Optional[str]
-    match config.dolt.connection.password:
-        case str() as password:
-            database_password = password
-        case False:
-            database_password = None
-        case True:
-            database_password = await secret(
-                message="Enter the database password:"
-            ).execute_async()
+        database_password: Optional[str]
+        match config.dolt.connection.password:
+            case str() as password:
+                database_password = password
+            case False:
+                database_password = None
+            case True:
+                database_password = await secret(
+                    message="Enter the database password:"
+                ).execute_async()
 
-    dataset_schema = ensure_dataset_schema(dataset_name)
-    
-    async with (
-        Repo.open(config, repo_model) as repo,
-        DatabaseConnection.open(config, database_password) as conn,
-        as_acm(conn.open_dataset(dataset_schema)) as dataset,
-    ):
-        await loop(config, repo, dataset)
+        dataset_schema = ensure_dataset_schema(dataset_name)
+        
+        async with (
+            Repo.open(config, repo_model) as repo,
+            DatabaseConnection.open(config, database_password) as conn,
+            as_acm(conn.open_dataset(dataset_schema)) as dataset,
+        ):
+            await loop(config, repo, dataset)
+    except Exception as e:
+        logger.error("An error occurred: %s", e)
+        await text(
+            message="Press Enter to exit...",
+        ).execute_async()
+        
 
 def get_filestore_password(filestore_model: FileStoreModel, database_password_needed: bool) -> Optional[str]:
     match filestore_model:

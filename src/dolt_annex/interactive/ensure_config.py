@@ -1,19 +1,25 @@
 from pathlib import Path
 from typing import Optional
 
+from pydantic import ValidationError
 import pyjson5
 
 from dolt_annex.datatypes.config import Config, default_config_file_locations
+from dolt_annex.datatypes.errors import ConfigurationError
+from dolt_annex.datatypes.loader import validation_error
 from dolt_annex.interactive.ensure_database import ensure_database
 
 import logging
 logger = logging.getLogger(__name__)
 
 def load_config_from_file(config_file_path: Path) -> Config:
-    with open(config_file_path, "r") as f:
-        result = Config(**pyjson5.load(f))
-    print(f"Loaded existing configuration from {config_file_path}.")
-    return result
+    try:
+        with open(config_file_path, "r") as f:
+            result = Config(**pyjson5.load(f))
+        print(f"Loaded existing configuration from {config_file_path}.")
+        return result
+    except ValidationError as e:
+        raise ConfigurationError(validation_error(config_file_path, e)) from e
 
 async def ensure_config(config_file: Optional[str], repo_name: str) -> Config:
     config_file_path: Optional[Path] = None

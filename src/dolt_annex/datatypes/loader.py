@@ -7,10 +7,11 @@ from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 import pathlib
 from typing import Annotated, Any
-from pydantic import ModelWrapValidatorHandler, SerializerFunctionWrapHandler, WrapSerializer, model_serializer, model_validator
+from pydantic import ModelWrapValidatorHandler, SerializerFunctionWrapHandler, ValidationError, WrapSerializer, model_serializer, model_validator
 import pyjson5
 from typing_extensions import Self, Optional, ClassVar
 
+from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 
 registered_subclasses: set[type[Loadable]] = set()
@@ -77,7 +78,12 @@ class Loadable(StrictBaseModel):
         if data is None:
             return None
 
-        instance = cls(**data)
+        try:
+            instance = cls(**data)
+        except ValidationError as e:
+            path = cls.config_dir / f"{name}.{cls.extension}"
+            raise ConfigurationError(validation_error(path, e)) from e
+
         cache[name] = instance
         return instance
 
@@ -162,3 +168,12 @@ def serialize_loadable(
     return handler(self)
 
 type Named[T: Loadable] = Annotated[T, WrapSerializer(serialize_loadable)]
+
+def validation_error(path: pathlib.Path, e: ValidationError) -> ConfigurationError:
+    lines = []
+    lines.append(f"Failed to validate configuration in {path}")
+    for error in e.errors():
+        lines.append(f"""{'.'.join(str(loc) for loc in error['loc'])}:
+  {error['msg']}
+  Found {error['input']}""")
+    raise ConfigurationError("\n".join(lines))
