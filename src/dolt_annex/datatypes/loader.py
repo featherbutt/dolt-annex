@@ -152,7 +152,7 @@ class Loadable(StrictBaseModel):
         path = self.config_dir / f"{self.name}.{self.extension}"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as f:
-            f.write(self.model_dump_json(ensure_ascii=False, indent=4).encode("utf-8"))
+            f.write(self.model_dump_json(exclude_unset=True, ensure_ascii=False, indent=4).encode("utf-8"))
 
 def serialize_loadable(
     self, handler: SerializerFunctionWrapHandler
