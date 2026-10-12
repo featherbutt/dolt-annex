@@ -161,9 +161,10 @@ class Loadable(StrictBaseModel):
             f.write(self.model_dump_json(exclude_unset=True, ensure_ascii=False, indent=4).encode("utf-8"))
 
 def serialize_loadable(
-    self, handler: SerializerFunctionWrapHandler
+    self: Loadable, handler: SerializerFunctionWrapHandler
 ) -> Any:
     if self.name is not None:
+        self.save()
         return self.name
     return handler(self)
 

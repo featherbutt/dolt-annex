@@ -59,7 +59,7 @@ async def main():
         ):
             await loop(config, repo, dataset)
     except Exception as e:
-        logger.error("An error occurred: %s", e)
+        print("An error occurred: %s", e)
         await text(
             message="Press Enter to exit...",
         ).execute_async()

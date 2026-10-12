@@ -8,6 +8,7 @@ from typing_extensions import override, Any
 
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.loader import Named
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, fork_readable_stream
 
@@ -139,7 +140,7 @@ class UnionFS(FileStore):
             child.delete(key)
 
 class UnionFSModel(FileStoreModel):
-    children: list[FileStoreModel]
+    children: list[Named[FileStoreModel]]
     write_to_all_children: bool = False
 
     @override

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
@@ -26,7 +27,7 @@ async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
     try:
         if (repo := config.maybe_get_default_repo()) is not None:
             return repo
-    except ValidationError:
+    except ConfigurationError:
         pass
     filestore = await ensure_filestore(config, repo_name)
     repo = RepoModel(
@@ -124,8 +125,8 @@ async def make_new_local_filestore(config: Config, repo_name: str) -> FileStoreM
     return filestore
 
 async def make_new_local_and_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
-    local_filestore = await make_new_local_filestore(config, filestore_name+"/local")
-    remote_filestore = await make_new_remote_filestore(config, filestore_name+"/remote")
+    local_filestore = await make_new_local_filestore(config, filestore_name+"_local")
+    remote_filestore = await make_new_remote_filestore(config, filestore_name+"_remote")
     union_filestore = UnionFSModel(
         name=filestore_name,
         children=[local_filestore, remote_filestore],
@@ -134,8 +135,8 @@ async def make_new_local_and_remote_filestore(config: Config, filestore_name: st
     return union_filestore
 
 async def make_new_local_or_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
-    local_filestore = await make_new_local_filestore(config, filestore_name+"/local")
-    remote_filestore = await make_new_remote_filestore(config, filestore_name+"/remote")
+    local_filestore = await make_new_local_filestore(config, filestore_name+"_local")
+    remote_filestore = await make_new_remote_filestore(config, filestore_name+"_remote")
     union_filestore = UnionFSModel(
         name=filestore_name,
         children=[local_filestore, remote_filestore],
