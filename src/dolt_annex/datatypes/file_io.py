@@ -11,7 +11,7 @@ import contextvars
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
-from typing import Optional
+from typing import AnyStr, Optional
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
 import fs.copy
@@ -278,3 +278,11 @@ class BytesQueue(asyncio.Queue[bytes]):
     def qsize(self):
         """Number of items in the queue."""
         return self.__buffer_size
+
+class DevNull():
+    """A file-like object that discards all data written to it."""
+    def flush(self) -> None:
+        pass
+
+    def write(self, s: AnyStr) -> int:
+        return len(s)

@@ -13,12 +13,13 @@ import io
 import shutil
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, TextIO
 
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
 import gallery_dl
 
+from dolt_annex.datatypes.file_io import DevNull
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.replicated_db.dolt import Dataset
@@ -43,6 +44,7 @@ class GalleryDLContext:
     collections_metadata_tables: CollectionTables
     task_group: asyncio.TaskGroup
     exception: asyncio.Future[None]
+    stdout: TextIO = sys.stdout
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
@@ -136,8 +138,6 @@ def make_default_schema(dataset_name: str) -> DatasetSchema:
 
 @dataclass
 class GalleryDLOutput:
-    stdout: str
-    stderr: str
     submission_files_processed: int = 0
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
@@ -167,9 +167,8 @@ async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset
                 contextlib.ExitStack() as stack,
                 with_gallery_dl_context(gallery_dl_context),
             ):
-                if gallery_dl_config.capture_output:
-                    stack.enter_context(contextlib.redirect_stdout(gallery_dl_stdout))
-                    stack.enter_context(contextlib.redirect_stderr(gallery_dl_stderr))
+                if not gallery_dl_config.capture_output:
+                    stack.enter_context(contextlib.redirect_stdout(DevNull()))
 
                 # Clear gallery_dl's internal state to avoid interference between runs.
                 gallery_dl.config.clear()
@@ -182,8 +181,6 @@ async def run_gallery_dl(repo: Repo, gallery_dl_config: GalleryDLConfig, dataset
         await gallery_dl_context.exception
  
         return GalleryDLOutput(
-            stdout=gallery_dl_stdout.getvalue(),
-            stderr=gallery_dl_stderr.getvalue(),
             submission_files_processed=gallery_dl_context.submission_files_processed,
             submission_metadata_files_processed=gallery_dl_context.submission_metadata_files_processed,
             post_metadata_files_processed=gallery_dl_context.post_metadata_files_processed,
