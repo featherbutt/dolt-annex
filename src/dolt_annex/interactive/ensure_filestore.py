@@ -79,7 +79,7 @@ async def make_new_remote_filestore(config: Config, filestore_name: str) -> File
         ).execute_async())
         if not client_key:
             break
-        client_key_path = Path(client_key)
+        client_key_path = Path(client_key).expanduser()
         if not client_key_path.exists():
             proceed = cast(bool, await confirm(
                 message=f"Warning: Client key path '{client_key_path}' does not exist. Proceed anyway?",

@@ -81,7 +81,7 @@ async def make_new_local_database() -> DoltConfig:
     dolt_path_str: str = cast(str, await filepath(
         message="Enter the path to where the new local Dolt database should be created: (leave empty for the current directory)",
     ).execute_async())
-    dolt_path = Path(dolt_path_str) if dolt_path_str else Path.cwd()
+    dolt_path = Path(dolt_path_str).expanduser() if dolt_path_str else Path.cwd()
     dolt_path = dolt_path / "dolt"
     create_dolt_directory(dolt_path)
     dolt_binary_path = await ensure_dolt_binary()
@@ -96,7 +96,7 @@ async def use_existing_local_database() -> DoltConfig:
         dolt_path_str: str = cast(str, await filepath(
             message="Enter the path to the Dolt database:",
         ).execute_async())
-        dolt_path = Path(dolt_path_str)
+        dolt_path = Path(dolt_path_str).expanduser()
         if not dolt_path.exists():
             proceed = cast(bool, await confirm(
                 message=f"Warning: Dolt database path '{dolt_path}' does not exist. Proceed anyway?",
