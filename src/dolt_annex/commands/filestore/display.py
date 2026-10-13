@@ -3,11 +3,11 @@
 
 import sys
 from plumbum import cli
-from dolt_annex.browser import display_file
 from dolt_annex.commands import CommandGroup, SubCommand
 
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.server import http
 
 class Display(SubCommand):
     """Displays a file using the default system viewer."""
@@ -29,8 +29,11 @@ class Display(SubCommand):
         else:
             repo = self.config.get_default_repo()
 
-        async with repo.filestore.open(self.config) as filestore:
-            await display_file(filestore, queried_key)
+        async with (
+            repo.filestore.open(self.config) as filestore,
+            http.serve_filestore(filestore) as http_server,
+        ):
+            await http_server.display_file(queried_key)
             return 0
 
 

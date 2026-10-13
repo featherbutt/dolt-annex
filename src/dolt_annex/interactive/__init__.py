@@ -4,7 +4,6 @@ from typing import Optional
 
 from InquirerPy.inquirer import text, secret, confirm, rawlist # pyright: ignore[reportPrivateImportUsage]
 
-from dolt_annex.browser import display_file
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
@@ -23,6 +22,8 @@ from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 from dolt_annex.interactive.database_search import prompt_next_column
 
 import logging
+
+from dolt_annex.server import http
 logger = logging.getLogger(__name__)
 
 async def main():
@@ -56,8 +57,9 @@ async def main():
             Repo.open(config, repo_model) as repo,
             DatabaseConnection.open(config, database_password) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
+            http.serve_filestore(repo.filestore.file_store) as http_server,
         ):
-            await loop(config, repo, dataset)
+            await loop(config, repo, dataset, http_server)
     except Exception as e:
         print("An error occurred: %s", e)
         await text(
@@ -94,7 +96,7 @@ def ensure_dataset_schema(dataset_name: str) -> DatasetSchema:
         dataset_schema.save()
     return dataset_schema
 
-async def loop(config: Config, repo: Repo, dataset: Dataset):
+async def loop(config: Config, repo: Repo, dataset: Dataset, http_server: http.HTTPServer):
     # Command menu has command for gallery-dl download and db search. Selecting a result in the search displays the file.
     
         while True:
@@ -122,7 +124,7 @@ async def loop(config: Config, repo: Repo, dataset: Dataset):
                             table_row["metadata_file_key"] = table_row.pop("file_key")
                             submission_table_rows = submission_table_replica.get_rows(columns=[submission_table_replica.schema.file_column], filters=TableFilter.from_table_row(table_row))
                             for row in submission_table_rows:
-                                await display_file(repo.filestore.file_store, FileKey.must_parse(row[submission_table_replica.schema.file_column]))
+                                await http_server.display_file(FileKey.must_parse(row[submission_table_replica.schema.file_column]))
                                 
                     case "Exit":
                         break
