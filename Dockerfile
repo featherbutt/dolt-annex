@@ -1,4 +1,4 @@
-FROM python:3-slim AS build
+FROM python:3.14-slim AS build
 
 RUN apt update -y && \
     apt install -y \
