@@ -10,3 +10,4 @@ runs:
       set -e
       pytest /src/ /example_config/
       chmod u+x /scripts/cli_tests.sh && /scripts/cli_tests.sh
+      chmod u+x /scripts/interactive_tests.sh && /scripts/interactive_tests.sh
