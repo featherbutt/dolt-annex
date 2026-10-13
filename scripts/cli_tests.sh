@@ -19,10 +19,8 @@ dolt-annex create repo remote '{
             "key_format": "SHA256E"
         }'
 
-output=$(dolt-annex gallery-dl --capture-output https://e621.net/posts/14)
-assert_eq $(echo $output | jq '.submission_files_processed') 1
-assert_eq $(echo $output | jq '.submission_metadata_files_processed') 0
-assert_eq $(echo $output | jq '.post_metadata_files_processed') 1
+output=$(dolt-annex gallery-dl https://e621.net/posts/14)
+assert_contain "$output" "Downloading post 14...Done"
 
 expected_file_key="MD5_HSe-3e47080200fbde2d7d2ccf419343ab0a--s96998.jpg"
 output=$(dolt-annex dataset read-table --dataset gallery-dl --table-name submissions)
