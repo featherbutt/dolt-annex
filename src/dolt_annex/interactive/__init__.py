@@ -2,9 +2,8 @@ import argparse
 import asyncio
 from typing import Optional
 
-from InquirerPy.inquirer import text, secret, confirm, rawlist # pyright: ignore[reportPrivateImportUsage]
-
 from dolt_annex.datatypes.async_utils import as_acm
+from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
@@ -14,6 +13,7 @@ from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
 from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, secret
 
 from dolt_annex.interactive.ensure_config import ensure_config
 from dolt_annex.interactive.ensure_database import ensure_database
@@ -47,9 +47,7 @@ async def main():
             case False:
                 database_password = None
             case True:
-                database_password = await secret(
-                    message="Enter the database password:"
-                ).execute_async()
+                database_password = await secret("Enter the database password:")
 
         dataset_schema = ensure_dataset_schema(dataset_name)
         
@@ -62,12 +60,10 @@ async def main():
             await loop(config, repo, dataset, http_server)
     except Exception as e:
         print("An error occurred: %s", e)
-        await text(
-            message="Press Enter to exit...",
-        ).execute_async()
+        await text("Press Enter to exit...")
         
 
-def get_filestore_password(filestore_model: FileStoreModel, database_password_needed: bool) -> Optional[str]:
+async def get_filestore_password(filestore_model: FileStoreModel, database_password_needed: bool) -> Optional[str]:
     match filestore_model:
         case SftpFileStoreModel():
             match filestore_model.connection.password:
@@ -77,14 +73,12 @@ def get_filestore_password(filestore_model: FileStoreModel, database_password_ne
                     return None
 
             if database_password_needed:
-                if confirm(
+                if await confirm(
                     message="Reuse the database password for the filestore?",
                     default=True
-                ).execute():
+                ):
                     return database_password
-            return text(
-                message="Enter the filestore password:"
-            ).execute()
+            return await text("Enter the filestore password:")
     return None
 
 def ensure_dataset_schema(dataset_name: str) -> DatasetSchema:
@@ -98,39 +92,40 @@ def ensure_dataset_schema(dataset_name: str) -> DatasetSchema:
 
 async def loop(config: Config, repo: Repo, dataset: Dataset, http_server: http.HTTPServer):
     # Command menu has command for gallery-dl download and db search. Selecting a result in the search displays the file.
-    
         while True:
             try:
-                action = await rawlist(
+                func = await choices(
                     message="Select an action:",
-                    choices=["Gallery-dl Download", "Database Search", "Exit"]
-                ).execute_async()
-                match action:
-                    case "Gallery-dl Download":
-                        urls = (await text(
-                            message="Enter the URLs to download, separated by whitespace"
-                        ).execute_async()).split()
-                        await run_gallery_dl(config, repo, dataset, *urls)
-                        await dataset.conn.flush()
-                    case "Database Search":
-                        # Implement database search logic here
-                        async with (
-                            dataset.with_table("metadata") as table,
-                            table.with_repo(repo.uuid) as table_replica,
-                            dataset.with_table("submissions") as submission_table,
-                            submission_table.with_repo(repo.uuid) as submission_table_replica,
-                        ):
-                            table_row = await prompt_next_column(table_replica, {})
-                            table_row["metadata_file_key"] = table_row.pop("file_key")
-                            submission_table_rows = submission_table_replica.get_rows(columns=[submission_table_replica.schema.file_column], filters=TableFilter.from_table_row(table_row))
-                            for row in submission_table_rows:
-                                await http_server.display_file(FileKey.must_parse(row[submission_table_replica.schema.file_column]))
-                                
-                    case "Exit":
-                        break
+                    choices=[
+                        Choice(name="Gallery-dl Download", value=lambda: gallery_dl_download(config, repo, dataset)),
+                        Choice(name="Database Search", value=lambda: database_search(repo, dataset, http_server)),
+                        Choice(name="Exit", value=lambda: exit()),
+                    ]
+                )
+                await func()
             except* Exception as e:
                 for exc in e.exceptions:
                     print(f"Error: {exc}")
+
+async def gallery_dl_download(config: Config, repo: Repo, dataset: Dataset):
+    urls = (await text(
+        message="Enter the URLs to download, separated by whitespace"
+    )).split()
+    await run_gallery_dl(config, repo, dataset, *urls)
+    await dataset.conn.flush()
+
+async def database_search(repo: Repo, dataset: Dataset, http_server: http.HTTPServer):
+    async with (
+        dataset.with_table("metadata") as table,
+        table.with_repo(repo.uuid) as table_replica,
+        dataset.with_table("submissions") as submission_table,
+        submission_table.with_repo(repo.uuid) as submission_table_replica,
+    ):
+        table_row = await prompt_next_column(table_replica, TableRow({}))
+        table_row["metadata_file_key"] = table_row.pop("file_key")
+        submission_table_rows = submission_table_replica.get_rows(columns=[submission_table_replica.schema.file_column], filters=TableFilter.from_table_row(table_row))
+        for row in submission_table_rows:
+            await http_server.display_file(FileKey.must_parse(row[submission_table_replica.schema.file_column]))
 
 __all__ = ["ensure_config", "ensure_dolt_binary", "ensure_database", "ensure_filestore", "ensure_repo"]
 

@@ -1,11 +1,9 @@
+from collections.abc import Awaitable
 from pathlib import Path
+from typing import Callable
 import uuid
 
-from InquirerPy.inquirer import rawlist, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
-from typing import cast
-from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
-from pydantic import ValidationError
 
 from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.config import Config
@@ -16,6 +14,8 @@ from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.filestore.unionfs import UnionFSModel
+from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, filepath
+
 
 import logging
 logger =logging.getLogger(__name__)
@@ -35,7 +35,7 @@ async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
         uuid=filestore.uuid or uuid.uuid4(),
         filestore=filestore,
         alternate_key_formats=[config.default_file_key_type] + config.default_alternate_key_types,
-        )
+    )
     repo.save()
     return repo
 
@@ -43,7 +43,7 @@ async def ensure_filestore(config: Config, filestore_name: str) -> FileStoreMode
     if (filestore := FileStoreModel.load(filestore_name)) is not None:
         return filestore
     
-    filestore: FileStoreModel = await (await rawlist(
+    func = await choices(
         message=f"""Choose a download strategy:
 
 Local Only - Add files to the local filestore without checking if they already exist remotely. Use this to ensure that downloaded files exist locally.
@@ -63,15 +63,16 @@ Local AND/OR Remote - Add files to both local and remote filestores, but skip fi
             Choice(name="Local OR Remote", value=make_new_local_or_remote_filestore),
             Separator("Local AND/OR Remote (Not Implmemented)"),
             ]
-    ).execute_async())(config, filestore_name) # pyright: ignore[reportOptionalCall]
+    )
+    filestore = await func(config, filestore_name)
     filestore.save()
     return filestore
 
 async def make_new_remote_filestore(config: Config, filestore_name: str) -> FileStoreModel:
     while True:
-        url: str = cast(str, await text(
+        url = await text(
             message="Enter the remote filestore URL (sftp://username@hostname:port/path):",
-        ).execute_async())
+        )
         try:
             filestore_conn = SSHConnection.parse_url(url)
             break
@@ -79,27 +80,25 @@ async def make_new_remote_filestore(config: Config, filestore_name: str) -> File
             print(f"Error: {e}")
 
     while True:
-        client_key = cast(str, await filepath(
-            message="Enter the path to the client key (leave blank if not applicable):",
-        ).execute_async())
+        client_key = await filepath("Enter the path to the client key (leave blank if not applicable):")
         if not client_key:
             break
         client_key_path = Path(client_key).expanduser()
         if not client_key_path.exists():
-            proceed = cast(bool, await confirm(
+            proceed = await confirm(
                 message=f"Warning: Client key path '{client_key_path}' does not exist. Proceed anyway?",
                 default=False
-            ).execute_async())
+            )
             if not proceed:
                 continue
         filestore_conn.client_key = client_key_path
         break
 
     if filestore_conn.password is False:
-        filestore_conn.password = cast(bool, await confirm(
+        filestore_conn.password = await confirm(
             message="Is a password required for the new remote filestore (or the client key)?",
             default=True
-        ).execute_async())
+        )
 
     filestore_model = SftpFileStoreModel(
         name=filestore_name,
