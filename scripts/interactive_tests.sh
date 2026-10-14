@@ -41,13 +41,24 @@ cd ../../downstream
 
 dolt-annex <<EOF
 Connect to Remote Database
-mysql://root@127.0.0.1/
+mysql://root@127.0.0.1/dolt
 n
 Remote Only
 sftp://127.0.0.1:2222/
 ../id_ed25519_unencrypted
 n
 Firefox
+Exit
+EOF
+
+dolt-annex <<EOF
+Exit
+EOF
+
+dolt-annex <<EOF
+Gallery-dl Download
+https://e621.net/posts/6780547
+
 Exit
 EOF
 

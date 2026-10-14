@@ -38,6 +38,10 @@ if sys.stdin.isatty():
         return cast(str, result)
 else:
     import getpass
+
+    # gallery-dl will attempt to reconfigure stdin, which can cause issues if stdin has already been read from
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure = lambda *args, **kwargs: None
     
     async def text(message: str) -> str:
         return input(f"{message}: ")
