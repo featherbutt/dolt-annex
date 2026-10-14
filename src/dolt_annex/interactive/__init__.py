@@ -1,7 +1,11 @@
 import argparse
 import asyncio
-from typing import Optional
+from typing import Any, Dict, NamedTuple, Optional, cast
 
+import gallery_dl.extractor
+from gallery_dl.extractor.common import Extractor
+
+from dolt_annex.config import open_json
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
@@ -11,13 +15,16 @@ from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
+from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
 from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, secret
+from dolt_annex.gallery_dl_plugin.sources import category_to_source
 
 from dolt_annex.interactive.ensure_config import ensure_config
 from dolt_annex.interactive.ensure_database import ensure_database
 from dolt_annex.interactive.ensure_filestore import ensure_filestore, ensure_repo
+from dolt_annex.interactive.ensure_gallery_dl_config import ensure_gallery_dl_config, gallery_dl_config_file_location
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 from dolt_annex.interactive.database_search import prompt_next_column
 
@@ -50,6 +57,8 @@ async def main():
                 database_password = await secret("Enter the database password:")
 
         dataset_schema = ensure_dataset_schema(dataset_name)
+
+        await ensure_gallery_dl_config()
         
         async with (
             Repo.open(config, repo_model) as repo,
@@ -107,12 +116,64 @@ async def loop(config: Config, repo: Repo, dataset: Dataset, http_server: http.H
                 for exc in e.exceptions:
                     print(f"Error: {exc}")
 
+class UsernameAndPassword(NamedTuple):
+    username: Optional[str]
+    password: Optional[str]
+
+async def get_username_and_password(source: GalleryDLSource, source_extractor: Dict[str, Any]) -> UsernameAndPassword:
+    password_phrasing = "API key" if source.uses_api_key else "password"
+    password_phrasing_upper = "API Key" if source.uses_api_key else "Password"
+    username = source_extractor.get("username", None)
+    password = source_extractor.get("password", None)
+    prompt_to_save = (not username and not password)
+
+    if not username:
+        username = await text(f"Enter {source.source_name} username (blank for none):")
+        if not username:
+            return UsernameAndPassword(username=None, password=None)
+        
+    if not password:
+        password = await secret(f"Enter {source.source_name} {password_phrasing}:")
+    if prompt_to_save:
+        save_username, save_password = await choices(
+            message=f"Do you want to save the username and {password_phrasing} for {source.source_name}?",
+            choices=[
+                Choice(name=f"Save Username and {password_phrasing_upper}", value=(True, True)),
+                Choice(name="Only Save Username", value=(True, False)),
+                Choice(name="Save Nothing", value=(False, False)),
+            ]
+        )
+        if save_username:
+            source_extractor["username"] = username
+        if save_password:
+            source_extractor["password"] = password
+
+    return UsernameAndPassword(username=username, password=password)
+
 async def gallery_dl_download(config: Config, repo: Repo, dataset: Dataset):
     urls = (await text(
-        message="Enter the URLs to download, separated by whitespace"
+        message="Enter the URLs to download, separated by whitespace:"
     )).split()
-    await run_gallery_dl(config, repo, dataset, *urls)
-    await dataset.conn.flush()
+    
+    for url in urls:
+        async with open_json(gallery_dl_config_file_location) as gallery_dl_config:
+            extractor_config = gallery_dl_config["extractor"]
+            extractor = cast(Optional[Extractor], gallery_dl.extractor.find(url))
+            if not extractor:
+                raise ValueError(f"No extractor found for URL: {url}")
+            category = cast(str, extractor.category)
+            source: GalleryDLSource = category_to_source[category]
+            source_extractor: Dict[str, Any] = extractor_config.setdefault(category, {})
+            cookies = source_extractor.get("cookies", None) or extractor_config.get("cookies", None)
+            uses_cookies = cookies and source.uses_cookies()
+            
+            if not uses_cookies and source.uses_login:
+                username, password = await get_username_and_password(source, source_extractor)
+            else:
+                username, password = None, None
+
+        await run_gallery_dl(config, repo, dataset, url, username=username, password=password)
+        await dataset.conn.flush()
 
 async def database_search(repo: Repo, dataset: Dataset, http_server: http.HTTPServer):
     async with (

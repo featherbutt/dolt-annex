@@ -90,6 +90,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
         source.format_file_metadata(metadata)
         if check_skip(source, metadata):
             metadata["_skip"] = 1
+            context.stdout.write(f"Skipped\n")
         else:
             insert_row = TableRow({
                 "source": source.source_name,

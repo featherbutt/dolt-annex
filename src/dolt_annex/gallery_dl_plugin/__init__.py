@@ -66,7 +66,14 @@ class GalleryDLOutput:
     submission_metadata_files_processed: int = 0
     post_metadata_files_processed: int = 0
 
-async def run_gallery_dl(config: Config, repo: Repo, dataset: Dataset, *args) -> GalleryDLOutput:
+async def run_gallery_dl(
+    config: Config,
+    repo: Repo,
+    dataset: Dataset,
+    *args,
+    username: str | None = None,
+    password: str | None = None,
+) -> GalleryDLOutput:
     def gdl_log_level_flags(log_level: str) -> list[str]:
         match log_level.upper():
             case "WARNING":
@@ -84,6 +91,10 @@ async def run_gallery_dl(config: Config, repo: Repo, dataset: Dataset, *args) ->
     sys_args = gdl_args + gdl_log_level_flags(config.log_level)
     if gallery_dl_config_file_location.exists():
         sys_args += ["--config", str(gallery_dl_config_file_location)]
+    if username:
+        sys_args += ["--username", username]
+    if password:
+        sys_args += ["--password", password]
     sys_args += list(args)
     sys.argv = sys_args
 
