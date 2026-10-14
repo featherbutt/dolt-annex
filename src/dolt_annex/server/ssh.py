@@ -17,11 +17,12 @@ class _ClientAuthentication(asyncssh.SSHServer):
     Authenticates clients by password.
     """
 
-    def __init__(self, password: Optional[str]):
+    def __init__(self, password: Optional[str], authorized_keys: Optional[str] = None):
         self._password = password
+        self._authorized_keys = authorized_keys
 
     def begin_auth(self, username: str) -> bool:
-        return self._password is not None
+        return self._password is not None or self._authorized_keys is not None
 
     def password_auth_supported(self) -> bool:
         return self._password is not None
@@ -47,7 +48,7 @@ async def server_context(
         host=host,
         port=port,
         server_host_keys=[server_host_key],
-        server_factory=lambda: _ClientAuthentication(password=password),
+        server_factory=lambda: _ClientAuthentication(password=password, authorized_keys=authorized_keys),
         authorized_client_keys=authorized_keys,
         password_auth=password is not None,
         passphrase=server_keyfile_passphrase,

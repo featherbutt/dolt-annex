@@ -20,23 +20,34 @@ run_test() (
     password=""
     password_initial_prompt_answer=$'n\n'
     password_subsequent_prompt_answer=""
+
+    # Credentials that the server must reject. Empty means the configuration has no
+    # authentication to reject.
+    rejected_sftp_url="$sftp_url"
+    rejected_client_key_answer=""
+    rejected_password_initial_prompt_answer=$'n\n'
     case "$auth_mode" in
         no-authentication)
             server_auth_args=(--no-authentication)
+            rejected_sftp_url=""
             ;;
         password-in-url)
             server_auth_args=(--password password)
             sftp_url="sftp://user:password@127.0.0.1:2222/"
             password_initial_prompt_answer=""
+            rejected_sftp_url="sftp://user:wrong-password@127.0.0.1:2222/"
+            rejected_password_initial_prompt_answer=""
             ;;
         password-prompt)
             server_auth_args=(--password password)
             password_initial_prompt_answer=$'y\npassword\n'
             password_subsequent_prompt_answer=$'password\n'
+            rejected_password_initial_prompt_answer=$'y\nwrong-password\n'
             ;;
         unencrypted-key)
             server_auth_args=(--authorized-keys ../id_ed25519.pub)
             client_key_answer="../id_ed25519"
+            rejected_client_key_answer="../unauthorized_id_ed25519"
             ;;
         encrypted-key)
             server_auth_args=(--authorized-keys ../id_ed25519.pub --server-key-passphrase password)
@@ -44,6 +55,8 @@ run_test() (
             password="password"
             password_initial_prompt_answer=$'y\npassword\n'
             password_subsequent_prompt_answer=$'password\n'
+            rejected_client_key_answer="../unauthorized_id_ed25519"
+            rejected_password_initial_prompt_answer=$'y\npassword\n'
             ;;
         *)
             echo "Unknown authentication configuration: $auth_mode"
@@ -57,9 +70,11 @@ run_test() (
     cd $temp_dir
 
     ssh-keygen -t ed25519 -f ./id_ed25519 -N "$password" -q
+    ssh-keygen -t ed25519 -f ./unauthorized_id_ed25519 -N "$password" -q
 
     mkdir upstream
     mkdir downstream
+    mkdir rejected
     cd upstream
 
     # Initialize the dolt-annex repository interactively with a local database and filestore
@@ -84,6 +99,29 @@ EOF
 
     sleep 1
 
+    # A client that presents a wrong password or an unauthorized key must be rejected
+    if [ -n "$rejected_sftp_url" ]; then
+        (
+            cd ../../rejected
+
+            rejected_status=0
+            rejected_output=$(dolt-annex 2>&1 <<EOF
+Connect to Remote Database
+mysql://root@127.0.0.1/dolt
+n
+Remote Only
+${rejected_sftp_url}
+${rejected_client_key_answer}
+${rejected_password_initial_prompt_answer}Exit
+EOF
+            ) || rejected_status=$?
+
+            assert_not_eq 0 "$rejected_status" "$auth_mode: rejected client exited successfully"
+            assert_contain "$rejected_output" "Permission denied" "$auth_mode: rejected client did not fail with an authentication error"
+        )
+        log_success "Rejected unauthorized client: $auth_mode"
+    fi
+
     cd ../../downstream
 
     dolt-annex <<EOF
@@ -91,7 +129,7 @@ Connect to Remote Database
 mysql://root@127.0.0.1/dolt
 n
 Remote Only
-$sftp_url
+${sftp_url}
 ${client_key_answer}
 ${password_initial_prompt_answer}Firefox
 ${password_subsequent_prompt_answer}Exit
