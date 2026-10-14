@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing import Any, Iterable
+from typing import Iterable
 
 from typing_extensions import override
 

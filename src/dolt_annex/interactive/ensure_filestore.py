@@ -43,7 +43,7 @@ async def ensure_filestore(config: Config, filestore_name: str) -> FileStoreMode
         return filestore
     
     func = await choices(
-        message=f"""Choose a download strategy:
+        message="""Choose a download strategy:
 
 Local Only - Add files to the local filestore without checking if they already exist remotely. Use this to ensure that downloaded files exist locally.
 

@@ -90,7 +90,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
         source.format_file_metadata(metadata)
         if check_skip(source, metadata):
             metadata["_skip"] = 1
-            context.stdout.write(f"Skipped\n")
+            context.stdout.write("Skipped\n")
         else:
             insert_row = TableRow({
                 "source": source.source_name,
@@ -222,7 +222,7 @@ def gallery_dl_after(metadata: dict[str, Any]):
         subcategory = metadata["subcategory"]
         source = get_source(category, subcategory)
         gallery_dl_import(source, metadata)
-        context.stdout.write(f"Done\n")
+        context.stdout.write("Done\n")
     except DoltAnnexApplicationError as e:
         context.exception.set_exception(e)
         raise gallery_dl.exception.TerminateExtraction()

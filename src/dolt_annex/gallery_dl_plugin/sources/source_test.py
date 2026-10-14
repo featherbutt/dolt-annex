@@ -13,7 +13,7 @@ from dolt_annex.datatypes.async_utils import as_acm
 import gallery_dl
 import pytest
 
-from dolt_annex.file_keys.base import FileKey, MD5HSe, MD5e
+from dolt_annex.file_keys.base import FileKey, MD5HSe
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
 from dolt_annex.gallery_dl_plugin.sources.e621 import E621

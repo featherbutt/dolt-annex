@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from abc import abstractmethod
-from typing import ClassVar, NewType, Optional, override
+from typing import NewType, Optional, override
 from typing_extensions import Any, Iterable
 
 import gallery_dl.extractor.bluesky
@@ -10,7 +10,7 @@ import gallery_dl.extractor.bluesky
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 
-from .base import GalleryDLSource, PathSelector, mutate_remove_fields
+from .base import GalleryDLSource, PathSelector
 
 # PostMetadata describes the metadata for a post, which may contain multiple files and has a page count.
 # FileMetadata describes the metadata for a single file, which may be part of a post, and has a page index.

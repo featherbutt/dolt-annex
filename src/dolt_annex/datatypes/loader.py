@@ -7,7 +7,7 @@ from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 import pathlib
 from typing import Annotated, Any
-from pydantic import ModelWrapValidatorHandler, SerializerFunctionWrapHandler, ValidationError, WrapSerializer, model_serializer, model_validator
+from pydantic import ModelWrapValidatorHandler, SerializerFunctionWrapHandler, ValidationError, WrapSerializer, model_validator
 import pyjson5
 from typing_extensions import Self, Optional, ClassVar
 

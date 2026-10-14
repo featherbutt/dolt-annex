@@ -5,8 +5,6 @@
 import pytest
 
 from dolt_annex.datatypes.async_utils import as_acm
-from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey, Sha256HSe
 from dolt_annex.gallery_dl_plugin import make_default_schema

@@ -4,7 +4,6 @@
 import pytest
 
 from dolt_annex.replicated_db.dolt import DatabaseConnection
-from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.util.test_util import EnvironmentForTest, run, test_dataset_schema
 

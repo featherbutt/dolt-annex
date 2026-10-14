@@ -7,7 +7,6 @@ from asyncio import Future
 import asyncio
 import collections
 from collections.abc import AsyncGenerator, Iterable
-import contextvars
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib

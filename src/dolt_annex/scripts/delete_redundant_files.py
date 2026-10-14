@@ -17,10 +17,9 @@ from plumbum import cli
 
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.repo import Repo, RepoModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys.base import FileKey
-from dolt_annex.filestore.base import FileStore
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 
 logger = logging.getLogger(__name__)

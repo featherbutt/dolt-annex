@@ -20,7 +20,7 @@ import logging
 from fs.base import FS as FileSystem
 import fs.osfs
 
-from dolt_annex.datatypes.async_types import maybe_await, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import Path, async_open

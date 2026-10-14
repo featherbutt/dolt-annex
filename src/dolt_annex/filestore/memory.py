@@ -8,17 +8,15 @@ across restarts.
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Awaitable, Tuple
 from typing_extensions import override
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, ReadableFileObject, ReadableStream
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
-from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys.base import FileKeyPrefix
-from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source, known_key_source_nocheck
+from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source_nocheck
 
 from .base import FileInfo, FileStore, FileStoreModel
 

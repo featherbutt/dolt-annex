@@ -14,7 +14,6 @@ A single SFTP connection can only transfer one file at a time.
 
 from contextlib import _AsyncGeneratorContextManager, asynccontextmanager
 from dataclasses import dataclass
-import getpass
 import hashlib
 import logging
 from pathlib import Path

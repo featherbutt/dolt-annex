@@ -7,7 +7,6 @@ This module defines various types and protocols for async io.
 Definitions here should not depend on any other dolt_annex modules.
 """
 
-from asyncio import Future
 from collections.abc import Awaitable, Buffer, Callable
 import inspect
 import os

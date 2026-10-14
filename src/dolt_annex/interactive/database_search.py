@@ -1,4 +1,3 @@
-from typing import Sequence
 
 from InquirerPy.inquirer import fuzzy
 
@@ -11,7 +10,7 @@ async def prompt_next_column(table: TableReplica, partial_row: TableRow) -> Tabl
             next_column_values = table.get_rows(columns=[key_column], filters=TableFilter.from_table_row(partial_row))
             choices = [row[key_column] for row in next_column_values]
             if not choices:
-                print(f"This repository is empty!")
+                print("This repository is empty!")
                 return partial_row
             choice = await fuzzy(
                 message=f"Enter {key_column}:",

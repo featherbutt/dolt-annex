@@ -6,7 +6,6 @@ from typing_extensions import List
 
 from plumbum import cli
 
-from dolt_annex.application import Application
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.replicated_db.interface import TableFilter

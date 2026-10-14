@@ -20,7 +20,7 @@ from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.filestore_config import FilestoreConfig
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
-from dolt_annex.file_keys import Sha256E, MD5e
+from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.cas import ContentAddressableStorage

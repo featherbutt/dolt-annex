@@ -7,7 +7,7 @@ from plumbum import cli
 
 from dolt_annex.application import Application
 from dolt_annex.datatypes.repo import RepoModel
-from dolt_annex.datatypes.config import Config, DoltConfig, DoltConfig
+from dolt_annex.datatypes.config import Config, DoltConfig
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 from dolt_annex.interactive.ensure_database import create_dolt_directory
 from dolt_annex.interactive.ensure_filestore import make_new_local_filestore
