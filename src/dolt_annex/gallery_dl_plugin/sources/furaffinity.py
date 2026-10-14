@@ -4,10 +4,15 @@
 from typing import Any
 
 from typing_extensions import override
+import gallery_dl.extractor.furaffinity
 
 from .base import GalleryDLSource, mutate_remove_fields
 
-class Furaffinity(GalleryDLSource, source_name = "furaffinity.net"):
+class Furaffinity(
+    GalleryDLSource,
+    source_name = "furaffinity.net",
+    extractor=gallery_dl.extractor.furaffinity.FuraffinityExtractor
+):
     """Support for furaffinity.net"""
 
     @override

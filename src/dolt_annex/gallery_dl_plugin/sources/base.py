@@ -5,6 +5,8 @@ from abc import abstractmethod
 from typing import ClassVar, NewType, Optional
 from typing_extensions import Any, Iterable
 
+import gallery_dl.extractor.common
+
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 
@@ -25,11 +27,23 @@ class GalleryDLSource:
     """A supported gallery-dl source. Methods describe how to parse and process metadata from that source."""
 
     source_name: ClassVar[str]
+    extractor: ClassVar[type[gallery_dl.extractor.common.Extractor]]
 
-    def __init_subclass__(cls, source_name: str, **kwargs):
+    def __init_subclass__(cls, source_name: str, extractor: type[gallery_dl.extractor.common.Extractor], **kwargs):
         super().__init_subclass__(**kwargs)
 
         cls.source_name = source_name
+        cls.extractor = extractor
+
+    @classmethod
+    def uses_cookies(cls) -> bool:
+        """Whether this source requires cookies to access content."""
+        return bool(cls.extractor.cookies_domain)
+
+    @classmethod
+    def uses_login(cls) -> bool:
+        """Whether this source requires login to access content."""
+        return False
 
     @abstractmethod
     def supported_subcategories(self) -> list[str]:
