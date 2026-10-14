@@ -55,8 +55,12 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
             @wraps(func)
             async def asyncgen_wrapper(*args, **kwargs):
                 try:
-                    async for item in func(*args, **kwargs):
-                        yield item
+                    gen = func(*args, **kwargs)
+                    try:
+                        async for item in gen:
+                            yield item
+                    finally:
+                        await gen.aclose()
                 except wrap as e:
                     raise into from e
             return asyncgen_wrapper
