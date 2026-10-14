@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import sys
 from typing import Any, Dict, NamedTuple, Optional, cast
 
 import gallery_dl.extractor
@@ -70,6 +71,7 @@ async def main():
     except Exception as e:
         print("An error occurred: %s", e)
         await text("Press Enter to exit...")
+        sys.exit(1)
         
 
 async def get_filestore_password(filestore_model: FileStoreModel, database_password_needed: bool) -> Optional[str]:

@@ -55,6 +55,7 @@ async def async_main():
     except* DoltAnnexApplicationError as e:
         for exc in e.exceptions:
             print(f"Error: {exc}")
+        sys.exit(1)
     except* KeyboardInterrupt:
         print("Exiting...")
 
