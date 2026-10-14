@@ -15,10 +15,13 @@ import sys
 from pathlib import Path
 from typing import List, TextIO
 
+import gallery_dl
+
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
-import gallery_dl
+from dolt_annex.interactive.ensure_gallery_dl_config import gallery_dl_config_file_location
+
 
 from dolt_annex.datatypes.file_io import DevNull
 from dolt_annex.datatypes.repo import Repo
@@ -158,7 +161,11 @@ async def run_gallery_dl(config: Config, repo: Repo, dataset: Dataset, *args) ->
                 return []
 
     gallery_dl_config: GalleryDLConfig = config.gallery_dl
-    sys.argv = gdl_args + gdl_log_level_flags(config.log_level) +list(args)
+    args = gdl_args + gdl_log_level_flags(config.log_level)
+    if gallery_dl_config_file_location.exists():
+        args += ["--config", str(gallery_dl_config_file_location)]
+    args += list(args)
+    sys.argv = args
 
     if not Path("skip.sqlite3").exists():
         shutil.copy(skip_db_path, "skip.sqlite3")
