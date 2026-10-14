@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import pathlib
 from typing_extensions import override
 
+from dolt_annex import PROGNAME
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, maybe_await
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config
@@ -98,7 +99,7 @@ class LevelDBModel(FileStoreModel):
     async def open(self, config: Config):
         """Connect to a LevelDB database."""
         if not plyvel_imported:
-            raise ImportError("plyvel is required for LevelDB filestore support. Please install dolt-annex with the 'leveldb' extra.")
+            raise ImportError(f"plyvel is required for LevelDB filestore support. Please install {PROGNAME} with the 'leveldb' extra.")
         
         self.root.mkdir(parents=True, exist_ok=True)
         with plyvel.DB(self.root.as_posix(), create_if_missing=True) as db:

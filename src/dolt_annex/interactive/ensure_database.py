@@ -3,6 +3,7 @@ from pathlib import Path
 import shutil
 from typing import cast
 
+from dolt_annex import PROGNAME
 from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 
 from dolt_annex.data import data_dir
@@ -16,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 async def ensure_database() -> DoltConfig:
     func = await choices(
-        message=f"""dolt-annex stores file metadata in a Dolt database. There are several options:
+        message=f"""{PROGNAME} stores file metadata in a Dolt database. There are several options:
         
-Remote Database - dolt-annex will connect to a database running on another device (requires a URL beginning with mysql://). Metadata will not be stored locally, but search functionality will have access to all records on the remote.
+Remote Database - {PROGNAME} will connect to a database running on another device (requires a URL beginning with mysql://). Metadata will not be stored locally, but search functionality will have access to all records on the remote.
 
-Cloned Database - dolt-annex will create a local copy of an existing remote database (requires a URL beginning with https://). Metadata will be stored locally and synchronized with the remote database. Search functionality will have access to all cloned records.
+Cloned Database - {PROGNAME} will create a local copy of an existing remote database (requires a URL beginning with https://). Metadata will be stored locally and synchronized with the remote database. Search functionality will have access to all cloned records.
 
-Local Database - dolt-annex will create and use a Dolt database on the local device. Search functionality will be limited to local records. A remote database can be added later for synchronization. 
+Local Database - {PROGNAME} will create and use a Dolt database on the local device. Search functionality will be limited to local records. A remote database can be added later for synchronization. 
 """,
         choices=[
             Choice(name="Connect to Remote Database", value=make_new_remote_database),

@@ -16,7 +16,6 @@ from dolt_annex.commands.filestore import FilestoreSubcommand
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 
-
 # gallery-dl postprocessor callbacks must be in the top level package, so we import them here
 from .gallery_dl_plugin.postprocessors import gallery_dl_post, gallery_dl_prepare, gallery_dl_after
 from .gallery_dl_plugin.test_postprocessors import gallery_dl_post_test
@@ -30,6 +29,9 @@ Application.subcommand("dataset", DatasetSubcommand)
 Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
 Application.subcommand("script", script.Script)
+
+PROGNAME = "dolt-annex"
+VERSION = "0.10.0"
 
 def main():
     """Entry point for dolt-annex package"""
