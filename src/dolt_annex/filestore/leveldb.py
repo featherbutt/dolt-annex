@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 import pathlib
 from typing_extensions import override
 
-from dolt_annex import PROGNAME
+from dolt_annex.constants import PROGNAME
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, maybe_await
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.datatypes.config import Config

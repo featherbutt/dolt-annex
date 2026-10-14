@@ -30,9 +30,6 @@ Application.subcommand("create", create.Create)
 Application.subcommand("filestore", FilestoreSubcommand)
 Application.subcommand("script", script.Script)
 
-PROGNAME = "dolt-annex"
-VERSION = "0.10.0"
-
 def main():
     """Entry point for dolt-annex package"""
     asyncio.run(async_main())

@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 from typing import cast
 
-from dolt_annex import PROGNAME
+from dolt_annex.constants import PROGNAME
 from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 
 from dolt_annex.data import data_dir

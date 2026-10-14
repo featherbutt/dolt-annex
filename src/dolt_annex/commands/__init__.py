@@ -4,6 +4,7 @@ from typing import Optional
 from plumbum import cli
 
 import dolt_annex
+import dolt_annex.constants
 from dolt_annex.datatypes.async_types import MaybeAwaitable
 from dolt_annex.datatypes.config import Config
 
@@ -40,8 +41,8 @@ class CommandGroup(Command):
     
 class BaseApplication(CommandGroup):
     """The top level CLI command"""
-    PROGNAME = dolt_annex.PROGNAME
-    VERSION = dolt_annex.VERSION
+    PROGNAME = dolt_annex.constants.PROGNAME
+    VERSION = dolt_annex.constants.VERSION
 
     config_file = cli.SwitchAttr(['-c', '--config'], cli.ExistingFile, envname=Env.CONFIG_FILE)
 

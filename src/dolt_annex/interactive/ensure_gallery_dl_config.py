@@ -6,7 +6,7 @@ from InquirerPy.base.control import Choice
 from pydantic import ValidationError
 import pyjson5
 
-from dolt_annex import PROGNAME
+from dolt_annex.constants import PROGNAME
 from dolt_annex.datatypes.config import Config, default_config_file_locations
 from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.loader import validation_error
