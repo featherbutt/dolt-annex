@@ -11,7 +11,7 @@ import contextvars
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
-from typing import AnyStr, Optional
+from typing import IO, AnyStr, Optional, TextIO, overload
 from aiofiles.threadpool.binary import AsyncFileIO
 from aiofiles.base import AiofilesContextManager
 import fs.copy
@@ -58,7 +58,9 @@ class AsyncBytesIO(AsyncFileIO):
         super().__init__(BytesIO(data), None, None)
         self.data = data
 
-file_system_context = contextvars.ContextVar[FS]("file_system_context", default=OSFS('.'))
+type TextModes = Literal['r', 'w', 'a', 'a+', 'r+', 'w+']
+type BinaryModes = Literal['rb', 'wb', 'ab', 'a+b', 'r+b', 'w+b']
+type FileModes = TextModes | BinaryModes
 
 @dataclass
 class Path:
@@ -69,11 +71,13 @@ class Path:
     fs: FS
     path: pathlib.Path = pathlib.Path('/')
 
-    def __init__(self, file_system: FS, path: pathlib.Path | str | None = None) -> None:
+    def __init__(
+        self,
+        file_system: FS = OSFS('.'),
+        path: pathlib.Path | str = '/'
+    ) -> None:
         self.fs = file_system
-        if path is None:
-            self.path = pathlib.Path('/')
-        elif isinstance(path, str):
+        if isinstance(path, str):
             self.path = pathlib.Path(path)
         else:
             self.path = path
@@ -92,16 +96,24 @@ class Path:
     
     def is_dir(self) -> bool:
         return self.fs.isdir(self.path.as_posix())
-
-    def open(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> AwaitOrEnter[AsyncFileIO]:
+    
+    def open(self, mode: BinaryModes = 'rb') -> AwaitOrEnter[AsyncFileIO]:
         # Avoid opening the file synchronously; wait for the async context instead.
         # This helps ensure that every file open is matched with a file close.
         async def open_inner() -> BinaryIO:
             return self.open_sync(mode)
         return async_open(open_inner())
 
-    def open_sync(self, mode: Literal['rb', 'wb', 'ab', 'r+b'] = 'rb') -> BinaryIO:
-        return self.fs.openbin(self.path.as_posix(), mode)
+    @overload
+    def open_sync(self, mode: TextModes) -> TextIO:
+        ...
+
+    @overload
+    def open_sync(self, mode: BinaryModes) -> BinaryIO:
+        ...
+
+    def open_sync(self, mode: FileModes = 'rb') -> IO:
+        return self.fs.open(self.path.as_posix(), mode)
     
     def touch(self) -> None:
         self.fs.create(self.path.as_posix())
