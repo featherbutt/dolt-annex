@@ -1,4 +1,5 @@
 [project]
+name = "dolt_annex"
 requires-python = ">= 3.14"
 
 [tool.poetry]
