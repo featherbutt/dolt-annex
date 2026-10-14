@@ -15,7 +15,9 @@ from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 class E621(
     GalleryDLSource,
     source_name = "e621.net",
-    extractor=gallery_dl.extractor.e621.E621Extractor
+    extractor=gallery_dl.extractor.e621.E621Extractor,
+    uses_login = True,
+    uses_api_key = True,
 ):
     """Support for e621.net"""
 

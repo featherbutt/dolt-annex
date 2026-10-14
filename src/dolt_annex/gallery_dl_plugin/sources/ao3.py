@@ -10,10 +10,11 @@ from .base import GalleryDLSource
 class AO3(
     GalleryDLSource,
     source_name = "archiveofourown.org",
-    extractor=gallery_dl.extractor.ao3.Ao3Extractor
+    extractor=gallery_dl.extractor.ao3.Ao3Extractor,
+    uses_login = True,
 ):
     """Support for archiveofourown.org"""
-
+    
     @override
     def supported_subcategories(self) -> list[str]:
         return ["work", "tag", "search"]

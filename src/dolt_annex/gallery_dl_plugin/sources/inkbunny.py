@@ -16,8 +16,9 @@ CDN_URL = re.compile("https://(\\w+)\\.ib\\.metapix\\.net/(\\S*)")
 class Inkbunny(
     GalleryDLSource,
     source_name = "inkbunny.net",
-    extractor=gallery_dl.extractor.inkbunny.InkbunnyExtractor
-    ):
+    extractor=gallery_dl.extractor.inkbunny.InkbunnyExtractor,
+    uses_login = True,
+):
     """Support for inkbunny.net"""
 
     @override

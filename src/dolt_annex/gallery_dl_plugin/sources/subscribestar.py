@@ -10,8 +10,9 @@ from .base import GalleryDLSource
 class SubscribeStar(
     GalleryDLSource,
     source_name = "subscribestar.com",
-    extractor=gallery_dl.extractor.subscribestar.SubscribestarExtractor
-): 
+    extractor=gallery_dl.extractor.subscribestar.SubscribestarExtractor,
+    uses_login = True,
+):
     """Support for subscribestar.com"""
 
     @override

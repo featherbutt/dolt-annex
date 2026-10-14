@@ -20,9 +20,10 @@ FileMetadata = NewType("FileMetadata", dict[str, Any])
 class Bluesky(
     GalleryDLSource,
     source_name = "bluesky",
-    extractor=gallery_dl.extractor.bluesky.BlueskyExtractor
+    extractor=gallery_dl.extractor.bluesky.BlueskyExtractor,
+    uses_login = True,
 ): 
-   
+
     @override
     def supported_subcategories(self) -> list[str]:
         return ["post"]
