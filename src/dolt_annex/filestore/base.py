@@ -165,7 +165,7 @@ class FileStore(abc.ABC):
         """
         pass
 
-async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=16384) -> int:
+async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=1 << 20) -> int:
     bytes_copied = 0
     while True:
         buf = await src.read(buffer_size)

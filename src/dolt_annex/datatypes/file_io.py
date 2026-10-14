@@ -195,13 +195,13 @@ class Path:
 
 
 class Pipe:
-    queue: asyncio.Queue[bytes]
+    queue: BytesQueue
     event_loop: asyncio.AbstractEventLoop
     done: asyncio.Event
     size: int
 
-    def __init__(self, loop: asyncio.AbstractEventLoop):
-        self.queue = asyncio.Queue()
+    def __init__(self, loop: asyncio.AbstractEventLoop, maxsize=0):
+        self.queue = BytesQueue(maxsize=maxsize)
         self.event_loop = loop
         self.done = asyncio.Event()
         self.size = 0

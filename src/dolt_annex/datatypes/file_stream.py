@@ -69,15 +69,14 @@ def known_key_source[T: FileKey](data_source: AwaitOrEnter[ReadableStream], file
         known_key=file_key
     )
 
-def fork_readable_stream(source: KeyedFileStream, num_forks: int = 2, max_buffer_size: int = 1 << 16, event_loop: Optional[asyncio.AbstractEventLoop] = None) -> list[KeyedFileStream]:
+def fork_readable_stream(source: KeyedFileStream, num_forks: int = 2, max_buffer_size: int = 1 << 20, event_loop: Optional[asyncio.AbstractEventLoop] = None) -> list[KeyedFileStream]:
     if event_loop is None:
         event_loop = asyncio.get_event_loop()
         
-    pipes = [Pipe(event_loop) for _ in range(num_forks)]
+    pipes = [Pipe(event_loop, max_buffer_size) for _ in range(num_forks)]
     pipe_context_managers = [pipe.open() for pipe in pipes]
 
     async def feed_pipes():
-        # TODO: max_buffer_size enforcement for each pipe
         async with source as src:
             while True:
                 chunk = await src.read(max_buffer_size)
