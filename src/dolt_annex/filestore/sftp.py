@@ -30,6 +30,7 @@ from dolt_annex.datatypes.common import SSHConnection
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream
+from dolt_annex.util.prompts import secret
 
 from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wrap_errors
 
@@ -162,10 +163,10 @@ class SftpFileStore(FileStore):
                     extra_opts["password"] = password_value
             case True:
                 if connection.client_key:
-                    passphrase = getpass.getpass("Enter passphrase for SSH key: ")
+                    passphrase = await secret("Enter passphrase for SSH key: ")
                     extra_opts["passphrase"] = passphrase
                 else:
-                    password = getpass.getpass("Enter password for SSH connection: ")
+                    password = await secret("Enter password for SSH connection: ")
                     extra_opts["password"] = password
         
         client_keys = []

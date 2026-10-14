@@ -73,7 +73,9 @@ else:
         return response in ["y", "yes"]
 
     async def secret(message: str) -> str:
-        return getpass.getpass(f"{message}: ")
+        getpass.getpass
+        # If there's no terminal, getpass.getpass won't work.
+        return input(message)
 
     async def filepath(message: str) -> str:
-        return input(f"{message}: ")
+        return input(message)

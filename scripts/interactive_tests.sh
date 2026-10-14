@@ -31,7 +31,7 @@ run_test() (
             ;;
         password-prompt)
             server_auth_args=(--password password)
-            password_initial_prompt_answer=$'y\npassword\npassword\n'
+            password_initial_prompt_answer=$'y\npassword\n'
             password_subsequent_prompt_answer=$'password\n'
             ;;
         unencrypted-key)
@@ -42,7 +42,7 @@ run_test() (
             server_auth_args=(--authorized-keys ../id_ed25519.pub --server-key-passphrase password)
             client_key_answer="../id_ed25519"
             password="password"
-            password_initial_prompt_answer=$'y\npassword\npassword\n'
+            password_initial_prompt_answer=$'y\npassword\n'
             password_subsequent_prompt_answer=$'password\n'
             ;;
         *)
@@ -94,7 +94,7 @@ Remote Only
 $sftp_url
 ${client_key_answer}
 ${password_initial_prompt_answer}Firefox
-Exit
+${password_subsequent_prompt_answer}Exit
 EOF
 
     dolt-annex <<EOF
