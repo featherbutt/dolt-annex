@@ -1,6 +1,5 @@
-from collections.abc import Awaitable
 from pathlib import Path
-from typing import Callable
+from typing import Optional
 import uuid
 
 from InquirerPy.separator import Separator
@@ -10,7 +9,7 @@ from dolt_annex.datatypes.config import Config
 from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel
-from dolt_annex.filestore.base import FileStoreModel
+from dolt_annex.filestore.base import FileStore, FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.filestore.unionfs import UnionFSModel
@@ -143,9 +142,8 @@ async def make_new_local_or_remote_filestore(config: Config, filestore_name: str
     )
     return union_filestore
 
-async def get_remote_filestore_uuid(config: Config, filestore_model: SftpFileStoreModel) -> uuid.UUID:
+async def get_remote_filestore_uuid(config: Config, filestore_model: SftpFileStoreModel) -> Optional[FileStore.Id]:
     async with (
         filestore_model.open(config) as filestore,
-        filestore.sftp.open("uuid", "rb") as f,
     ):
-        return uuid.UUID(bytes=await f.read())
+        return await filestore.get_remote_uuid()
