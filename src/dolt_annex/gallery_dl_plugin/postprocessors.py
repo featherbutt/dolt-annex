@@ -250,5 +250,5 @@ async def import_file(
     for filestore_id in filestore_ids:
         async with replicated_table.with_repo(filestore_id) as table_replica:
             await table_replica.insert(table_row)
-            await collections.insert(table_row)
+    await collections.insert(table_row)
     return file_key
