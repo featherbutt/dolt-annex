@@ -154,9 +154,19 @@ class SftpFileStore(FileStore):
     async def open(cls, filestore_id: Optional[FileStore.Id], connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
         """Connect to an SFTP filestore."""
         extra_opts = {}
-        if connection.password is True:
-            passphrase = getpass.getpass("Enter passphrase for SSH key: ")
-            extra_opts["passphrase"] = passphrase
+        match connection.password:
+            case str(password_value):
+                if connection.client_key:
+                    extra_opts["passphrase"] = password_value
+                else:
+                    extra_opts["password"] = password_value
+            case True:
+                if connection.client_key:
+                    passphrase = getpass.getpass("Enter passphrase for SSH key: ")
+                    extra_opts["passphrase"] = passphrase
+                else:
+                    password = getpass.getpass("Enter password for SSH connection: ")
+                    extra_opts["password"] = password
         
         client_keys = []
         if connection.client_key is not None:
