@@ -14,7 +14,7 @@ from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 from dolt_annex.filestore.sqlite import SQLiteModel
 from dolt_annex.filestore.unionfs import UnionFSModel
-from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, filepath
+from dolt_annex.util.prompts import Choice, choices, text, confirm, filepath
 
 
 import logging

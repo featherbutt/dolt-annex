@@ -50,9 +50,16 @@ else:
             else:
                 print(f"{i + 1}) {choice.name}")
 
-        selection = int(input())
-        choice = choices[selection-1]
-        return cast(Choice, choice).value
+        selection = input()
+        try:
+            index = int(selection)
+            choice = choices[index-1]
+            return cast(Choice, choice).value
+        except ValueError:
+            for choice in choices:
+                if isinstance(choice, Choice) and choice.name == selection:
+                    return choice.value
+        raise ValueError("Invalid selection.")
 
 
     async def confirm(message: str, default: bool = False) -> bool:

@@ -18,7 +18,7 @@ from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
 from dolt_annex.gallery_dl_plugin.sources.base import GalleryDLSource
 from dolt_annex.replicated_db.dolt import DatabaseConnection, Dataset
 from dolt_annex.replicated_db.interface import TableFilter
-from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, secret
+from dolt_annex.util.prompts import Choice, choices, text, confirm, secret
 from dolt_annex.gallery_dl_plugin.sources import category_to_source
 
 from dolt_annex.interactive.ensure_config import ensure_config

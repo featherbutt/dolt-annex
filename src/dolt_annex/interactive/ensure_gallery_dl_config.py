@@ -7,7 +7,7 @@ from dolt_annex.constants import PROGNAME
 
 import logging
 
-from dolt_annex.util.inquirerpy import choices
+from dolt_annex.util.prompts import choices
 logger = logging.getLogger(__name__)
 
 gallery_dl_config_file_location = pathlib.Path("gallery-dl.conf")

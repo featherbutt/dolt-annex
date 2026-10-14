@@ -4,7 +4,7 @@ import shutil
 from typing import cast
 
 from dolt_annex.constants import PROGNAME
-from dolt_annex.util.inquirerpy import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
+from dolt_annex.util.prompts import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 
 from dolt_annex.data import data_dir
 from dolt_annex.datatypes.common import MySQLConnection
