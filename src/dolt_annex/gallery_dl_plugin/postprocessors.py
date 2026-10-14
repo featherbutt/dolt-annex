@@ -20,13 +20,14 @@ from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.datatypes.file_stream import KeyedFileStream, bytes_file_source, file_source
+from dolt_annex.gallery_dl_plugin.context import GalleryDLContext
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
 from dolt_annex.replicated_db.interface import ReplicatedDataset, ReplicatedTable, TableFilter
 
 
 from dolt_annex.datatypes import TableRow
 
-from dolt_annex.gallery_dl_plugin import GalleryDLContext, _gallery_dl_context
+from dolt_annex.gallery_dl_plugin import _gallery_dl_context
 
 from .sources import GalleryDLSource, get_source
 
