@@ -185,7 +185,7 @@ class SftpFileStore(FileStore):
             async with conn.start_sftp_client() as sftp:
                 await sftp.chdir(connection.path.as_posix())
                 filestore = cls(uuid=filestore_id, sftp=sftp)
-                if filestore.uuid != None:
+                if filestore.uuid is not None:
                     remote_uuid = await filestore.get_remote_uuid()
                     if remote_uuid and remote_uuid != filestore.uuid:
                         raise FileStoreError("Local UUID does not match remote UUID")

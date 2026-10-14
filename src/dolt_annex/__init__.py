@@ -4,7 +4,6 @@
 import asyncio
 import inspect
 import sys
-from typing import Literal
 import setproctitle
 
 from dolt_annex import interactive
@@ -16,7 +15,6 @@ from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
 from dolt_annex.commands.filestore import FilestoreSubcommand
 from dolt_annex.constants import PROGNAME
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 
 # gallery-dl postprocessor callbacks must be in the top level package, so we import them here

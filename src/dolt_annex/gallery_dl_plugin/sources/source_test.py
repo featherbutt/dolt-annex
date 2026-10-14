@@ -257,7 +257,6 @@ async def test_source_database(setup: EnvironmentForTest, site: type[GalleryDLSo
 
 
     dataset_schema = make_default_schema("gallery-dl")
-    BATCH_SIZE = 1000
 
     for test in tests[site].import_tests:
 
@@ -306,7 +305,6 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
     when downloading the first url. While downloading the second url, we construct
     the key before downloading the image, see that it already exists, and skip the download.
     """
-    BATCH_SIZE = 1000
     dataset_schema = make_default_schema("gallery-dl")
     # download https://inkbunny.net/s/3783696
     # download https://e621.net/posts/6086319 and confirm it gets skipped

@@ -6,7 +6,7 @@ from __future__ import annotations
 from asyncio import Future
 import asyncio
 import collections
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Buffer, Iterable
 from dataclasses import dataclass
 from io import BytesIO
 import pathlib
@@ -21,7 +21,7 @@ import fs.errors
 from fs.base import FS
 from fs.osfs import OSFS
 
-from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_types import AwaitOrEnter, MaybeAwaitable, ReadableStream, SizedBuffer, maybe_await
 from dolt_annex.datatypes.async_utils import await_or_enter
 
 @dataclass

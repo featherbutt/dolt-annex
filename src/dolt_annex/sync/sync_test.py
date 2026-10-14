@@ -75,7 +75,7 @@ async def test_detect_corruption(
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(from_repo.uuid) as from_repo_dataset,
-        dataset.with_repo(to_repo.uuid) as to_repo_dataset,
+        dataset.with_repo(to_repo.uuid),
     ):
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
@@ -107,7 +107,7 @@ async def test_async_move(
         DatabaseConnection.open(test_config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
         dataset.with_repo(from_repo.uuid) as from_repo_dataset,
-        dataset.with_repo(to_repo.uuid) as to_repo_dataset,
+        dataset.with_repo(to_repo.uuid),
     ):
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")

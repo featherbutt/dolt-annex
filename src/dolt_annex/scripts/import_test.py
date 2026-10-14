@@ -21,7 +21,7 @@ async def test_import(temp_dir, setup):
 
     expected_file_key = str(Sha256E.from_bytes(b"test image data", extension="json"))
 
-    dataset_schema = make_default_schema("gallery-dl")
+    make_default_schema("gallery-dl")
     
     await run(
         args=[

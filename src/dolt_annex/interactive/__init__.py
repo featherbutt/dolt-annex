@@ -41,7 +41,7 @@ async def main():
     parser.add_argument("--dataset", help="Dataset name", default="gallery-dl")
     parser.add_argument("--dolt-binary", help="Path to the Dolt binary")
     parsed_args = parser.parse_args()
-    config_file, repo_name, dataset_name, dolt_binary = parsed_args.config, parsed_args.repo, parsed_args.dataset, parsed_args.dolt_binary
+    config_file, repo_name, dataset_name, _dolt_binary = parsed_args.config, parsed_args.repo, parsed_args.dataset, parsed_args.dolt_binary
 
     try:
         config = await ensure_config(config_file, repo_name)

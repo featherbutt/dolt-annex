@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from copy import deepcopy
 import json
 import pathlib
-from typing import Any, Dict
+from typing import Dict
 
 import pyjson5
 

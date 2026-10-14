@@ -7,7 +7,7 @@ from dolt_annex.filestore.annexfs import AnnexFSModel
 
 def test_repo_with_named_filestore():
 
-    named_filestore = AnnexFSModel(
+    AnnexFSModel(
         name="test_filestore",
         root=pathlib.Path("/tmp/test_repo"),
     )
