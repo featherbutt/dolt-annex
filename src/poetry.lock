@@ -2142,6 +2142,119 @@ files = [
 ]
 
 [[package]]
+name = "setproctitle"
+version = "1.3.8"
+description = "A Python module to customize the process title"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "setproctitle-1.3.8-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:78cbc62de67dad0a1dbadb1b2bed1bb4b283d73b460ba5fdce16727d27396dd6"},
+    {file = "setproctitle-1.3.8-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:6579e2a6fd0bf3128c06141a87a49423e145a3ad1631fa9cd43886668ce4ea8c"},
+    {file = "setproctitle-1.3.8-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:bbe67d7ac416087996e39494325d94ef9f4ac1ed33823f90de83c73925665cd2"},
+    {file = "setproctitle-1.3.8-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:199c2c674af749003596d3a5ccf35112d28a7cfe95a363eae5fd042c33e0253e"},
+    {file = "setproctitle-1.3.8-cp310-cp310-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:53c92b933a47fdc9bcf5033834ebd640bdba8ddc8437e1ab2310682806c31c0e"},
+    {file = "setproctitle-1.3.8-cp310-cp310-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:e5e6208cd0ce0562887925850d22bffd85aa6d5709f6890d3cdac8668e5aefb9"},
+    {file = "setproctitle-1.3.8-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:0b15200dc328020f498b196eb59a3b3e35cb08f17bfe05b2e63e5ed47110d254"},
+    {file = "setproctitle-1.3.8-cp310-cp310-musllinux_1_2_ppc64le.whl", hash = "sha256:3b256ac72a3855b434506a85cf5ca6e25441657d5dc56eb73df6e279193cb35b"},
+    {file = "setproctitle-1.3.8-cp310-cp310-musllinux_1_2_riscv64.whl", hash = "sha256:7c8a2beab229c818ae36ca3f7d769db95dd748c76b857851e0a883d947419ba5"},
+    {file = "setproctitle-1.3.8-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:5b6372be8ff8afc56e0d50036ff618a29bfef72f52946f316e3a65fe25266800"},
+    {file = "setproctitle-1.3.8-cp310-cp310-win32.whl", hash = "sha256:66656b71c3eb1f7f57feb4579822bebc750c2a71e6090bc0aa7ec161cdecd30b"},
+    {file = "setproctitle-1.3.8-cp310-cp310-win_amd64.whl", hash = "sha256:4151e5b53f7fb6a39fac2e3db35d70761bac27c0f6b924aeb4a6f67e92ad56e3"},
+    {file = "setproctitle-1.3.8-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:cc711e639a3e978978ab3bbb01f8f106715f5c23bbd99ced5af2404528bbaa6c"},
+    {file = "setproctitle-1.3.8-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:50f9bce172b6f9ead1c8fe813d85b1dde57ab503a445f982026ac3a16c719e1e"},
+    {file = "setproctitle-1.3.8-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:1a6f6a3b2920f4362e8d924f9e5b084f0b2692a2c140e348abd2e3a07a1def73"},
+    {file = "setproctitle-1.3.8-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:861380b2244983d12b6fe00e4a49f16f9946932245a252dd16c1f5ef7d1be632"},
+    {file = "setproctitle-1.3.8-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:e03a3bdd844e20a611518f7532e951c63d25bb27ccae7d7eb02100542540c14f"},
+    {file = "setproctitle-1.3.8-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:ecb5101325e0254694e55d46ff936926296626bf81c902b60328ead152170bfd"},
+    {file = "setproctitle-1.3.8-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:f7bd9f7a369a2914102c375d98998c97d669306372732c850dd8319d5a92f515"},
+    {file = "setproctitle-1.3.8-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:c3cb92b3239e8094c2454a2160e45417490d4fce69cd09ac846a0c3e43360fb4"},
+    {file = "setproctitle-1.3.8-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:eadfb2ec0948a791846f7cc411c18ff5bd8359e8102cf78d39b8a28bd98b7c6a"},
+    {file = "setproctitle-1.3.8-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:23a193a32a9cca10c4062e2efa3377e804d0209903c734940cc6626d6dfd018a"},
+    {file = "setproctitle-1.3.8-cp311-cp311-win32.whl", hash = "sha256:3a6337e7c0f50a702106e6652764117c442a0468292afb8a7406ff7c483bfc8a"},
+    {file = "setproctitle-1.3.8-cp311-cp311-win_amd64.whl", hash = "sha256:66aad6ca59e4197d8e49de384474d8b9ecc6e10989523ca7339cecf7ef2a34bf"},
+    {file = "setproctitle-1.3.8-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:f9a49d8103df362272c625641a4f7b104ae584db21d0f1eec3b7a5d0d7750ed8"},
+    {file = "setproctitle-1.3.8-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:823d7d8790a4f8484c7fa65468fcd9d009f13ffe5f0bc89ec0e0d2c165ac0335"},
+    {file = "setproctitle-1.3.8-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4a765e0c80a2453480be27c4fc22ba1c0771867040c5f91e4221940d78a4abfb"},
+    {file = "setproctitle-1.3.8-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f61345393548bc72844d837d62fcf63444b0f5dac418544beb6d4f628a1c5df3"},
+    {file = "setproctitle-1.3.8-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:ba59516fcab4b621b80966a32f1195770696c113a948d00845f35b762e335db7"},
+    {file = "setproctitle-1.3.8-cp312-cp312-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:f523d34ad72b811be61e5027a046ad4670b54fc3c6384056f06b59f77d671af0"},
+    {file = "setproctitle-1.3.8-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:c667cc9c4cd949814b4ba8be70632a6454637647f3feea2724e02d3d3e35c66d"},
+    {file = "setproctitle-1.3.8-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:0d2f756ede847e05e7759af4f2d87dedf3ed34004092216be85acd8301b1d385"},
+    {file = "setproctitle-1.3.8-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:191888bdf7c223c8b00eaa935947de0904165dee5e84d2055aecbb473d9c3f51"},
+    {file = "setproctitle-1.3.8-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:9c7b9b6ba3d0f6e504be5978854966168fb95b17ce126eab9a6132fe15f3e540"},
+    {file = "setproctitle-1.3.8-cp312-cp312-win32.whl", hash = "sha256:349499c0b21a940c3cb93d938013d40313711911e2fbaecd4700e2b7c236ca57"},
+    {file = "setproctitle-1.3.8-cp312-cp312-win_amd64.whl", hash = "sha256:f599401675bdcac21176ca385ea3139fc04c1f8e26724dc59f4fc9df1d1528ef"},
+    {file = "setproctitle-1.3.8-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:a4a782f9ab26e662a890c1a7d865c452c83ed554de44aa83da35fa5bdcc79921"},
+    {file = "setproctitle-1.3.8-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:d63adfa4be8f9dbac4be6b359e2a8eb15a733545ef613d02a12ae27a4d40e975"},
+    {file = "setproctitle-1.3.8-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:d4289e209e805d7d276a534f062092974fbe6814889d4c132c247205ebb49a65"},
+    {file = "setproctitle-1.3.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8bb543b4b58ad839f7f0d335a7f4b40cef6989952e7239de3532de0b7771607e"},
+    {file = "setproctitle-1.3.8-cp313-cp313-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:b705f01a531dba8fbbab90e30d432af4cc70a79c0a33b238e2c061816140cad0"},
+    {file = "setproctitle-1.3.8-cp313-cp313-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:8e286e4c4e90063072a6e088a8d6526a7ffceb47429db88ba50ba58eeebcc758"},
+    {file = "setproctitle-1.3.8-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:7b77c8671974288cf192e481ed63e928f1086762e97e8845d09d65ba121f8aaa"},
+    {file = "setproctitle-1.3.8-cp313-cp313-musllinux_1_2_ppc64le.whl", hash = "sha256:0e85b55eac9abfa3166ab00dac21e718ac2624a1df7d0b75559a2d3e3781cb33"},
+    {file = "setproctitle-1.3.8-cp313-cp313-musllinux_1_2_riscv64.whl", hash = "sha256:f215ec9237d5f8e96d0205be6e2141292c20b133343c2153b6d4934f523ef422"},
+    {file = "setproctitle-1.3.8-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:b0e70a5d294e4c8cf7dc94e015fca6d4913779a424937e66b429fba82d8eb5e2"},
+    {file = "setproctitle-1.3.8-cp313-cp313-win32.whl", hash = "sha256:f85b4d87273e0ec63568433bbb8ccf160b548c49b53576fe010bad9f698b8586"},
+    {file = "setproctitle-1.3.8-cp313-cp313-win_amd64.whl", hash = "sha256:bcdf74fe8a6e3b31bed1bc7d3e2a38cfbda3263d2750492ea0725dbc2db5aacf"},
+    {file = "setproctitle-1.3.8-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:f5f1d7e0d57cd75febd70c6fc26c2ea06024ab2006011abb3094b9fea54801ee"},
+    {file = "setproctitle-1.3.8-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:b8954fc72fdd49588c8b8d615eabc27dfd8eb6d0cffe987fc5df02934816fb19"},
+    {file = "setproctitle-1.3.8-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4d6a0245679b74e0fda974edb672cd1f2351b0d762279b6776ca3a065c9322a4"},
+    {file = "setproctitle-1.3.8-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:394aca04e9f11c469f4f29d25a40a79eb4b8c9a72f438ba6390b776590f89757"},
+    {file = "setproctitle-1.3.8-cp314-cp314-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:f92f6ded50c0ae7b0fed612be77c5345ed4a4578f99b98c7f8258d0e599eff16"},
+    {file = "setproctitle-1.3.8-cp314-cp314-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:c09f15930910dd895ac113b16c0b3ac2051dcbd44b0f017f94cb51349ba11583"},
+    {file = "setproctitle-1.3.8-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:4756a96435917494ec2f27f0da46bc05eecaa1a7e072d57220ecb2d46ea8a3d3"},
+    {file = "setproctitle-1.3.8-cp314-cp314-musllinux_1_2_ppc64le.whl", hash = "sha256:65279b2df2951b64878da5382363e730d242486179c440c8653fe39aa3cc9e62"},
+    {file = "setproctitle-1.3.8-cp314-cp314-musllinux_1_2_riscv64.whl", hash = "sha256:3d2ced815b940c88097e07182c57cbfe1a0156839d1edc9be2bc0e4c74ab4eed"},
+    {file = "setproctitle-1.3.8-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:37a91697c3b96bac58b6936b3bf0366af96a2a6cef963fdd9aaf0593a4bd1ff2"},
+    {file = "setproctitle-1.3.8-cp314-cp314-win32.whl", hash = "sha256:7cdd3d6e5e8abcee233157615d88dbb80527a5a4eccb95a93fbf92e6d2c8f9dd"},
+    {file = "setproctitle-1.3.8-cp314-cp314-win_amd64.whl", hash = "sha256:5cff3bdbe6be556cc19bd072ff1ed9b5a8f4cbf356cd19b1ca94506b3e2b29f6"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:84320e61f3906cc550b900ab1ba02ec53edd2d2e1e917f0873cba16592801c89"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:8086259943fc75eb07e11c1d08600709b9ce4fb2ec9bbd2490556c47d3ead135"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:8879d303d4e3559efdba033ff198c6869010f7958412ec2047674881859fdd7f"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f7de4da27fa4481e8a7a4ef58c908ffd2b996847c3d7fbf27b5c53ce0984c408"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:741b1ae7e1cd68745b8b677daba73685dab2d1b8bb12500e6537f3482a91150f"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:c85ff5b000eef8a280333ca158483a76f86bd374816add5c016a9f4294471289"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:656ffe282ec0ca18308eebb100898c79b4f5698a93228d50d2f2a4a09474d7e0"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-musllinux_1_2_ppc64le.whl", hash = "sha256:ae87e7b3e6414b3dd887adb72d2c4ea9f210c5f48efafd295ade4a58c760d29d"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-musllinux_1_2_riscv64.whl", hash = "sha256:09cb645c6ae440286391e256203fc03522b3b0f55fda8219f698abb5c447cce7"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:84003eeaf2d7460390bbff1dbd7bee5b1213e7ae47a489f0fb7aad6acd2b045c"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-win32.whl", hash = "sha256:ac4e037d276ce27069cad0083c4611b45232278bd2fbac33f06ef9438c171a1e"},
+    {file = "setproctitle-1.3.8-cp314-cp314t-win_amd64.whl", hash = "sha256:c284642b229ba7b7b927fb044aba03694b880ab572db3f07a10adc786db1ff7b"},
+    {file = "setproctitle-1.3.8-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:63348d86ae60b071a898e4241b41da1346d8c36f1a60bf3b698ae5eb35b79865"},
+    {file = "setproctitle-1.3.8-cp315-cp315-macosx_11_0_arm64.whl", hash = "sha256:59239b6e5007b1bec79ef444a390b3bcd59cbcb2686c9910da5a42f1e99f738c"},
+    {file = "setproctitle-1.3.8-cp315-cp315-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:38310d9cf94959e39d22fdc0154c66c8bdbadfa790c524b04cb36da6333c7507"},
+    {file = "setproctitle-1.3.8-cp315-cp315-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a279b136ed97407209d2dc9c30d1e65405d1a4a06ab162cedd9c4159b51f8f20"},
+    {file = "setproctitle-1.3.8-cp315-cp315-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:26997a85aa70bb088e86f0b7899fb0c909be824d22fc025e87b0005afbe59261"},
+    {file = "setproctitle-1.3.8-cp315-cp315-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:35fc5e10fcba6df25d676ef908b44a36c17e7f167738ed016561185e24f4d274"},
+    {file = "setproctitle-1.3.8-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:f5df0503093ec8c3c7e1da53920e79c62ab653b51b136c4736caa252552a8732"},
+    {file = "setproctitle-1.3.8-cp315-cp315-musllinux_1_2_ppc64le.whl", hash = "sha256:0a582308ba43afa7233d28243d9d1212e11c81d3c187a43929ec0cb70c4781c5"},
+    {file = "setproctitle-1.3.8-cp315-cp315-musllinux_1_2_riscv64.whl", hash = "sha256:ce48dbf74e8ec618d74cbaffe1159a4c32a4428de598f0ccdb0782bae618a72a"},
+    {file = "setproctitle-1.3.8-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:dd3a8fcee7d8a23e44781144830dee97b53ca4e0380bdd2a0e05b13913ce5725"},
+    {file = "setproctitle-1.3.8-cp315-cp315-win32.whl", hash = "sha256:50beee618377ce6fd35767a9327f2da594b36778eb10b503ee2dc9b7c801f433"},
+    {file = "setproctitle-1.3.8-cp315-cp315-win_amd64.whl", hash = "sha256:f5916010de8b6045d7c63d98bb3f7a1e13f8c9c1046e859f2fd8de79c4e2d865"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:e9f643bd97374aeb7e4274e5c361277bf1428e8e55246cee6823fa3525dc2c04"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:fbd9ceb8c091c125e5892757e4d16af06674dc96edd7b5bf1e627b1ae7650c66"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:322b4643f98c824b17dbf2ddb07ea7a37def8cc9e18adee320befce4bdffa271"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9e36ee7300584a53fd7ac5f3853323411bde1cf6c081921bd3754a73b4071245"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:5c05aff52e6eb9c4d2ea86cf0d0a60b1487ed570263a1b13bb30d9f96aa8ba97"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:df807e7f036c19235320b6b5137291891d660f10ccb0b50dc46bc8385be18379"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:bef8c5f8820c70e8761171409052056ffd247023b001a6254287a0694c3d8b1c"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-musllinux_1_2_ppc64le.whl", hash = "sha256:7855290194637a3c5a2e37c423efbf5813fde97a6b63ab99feade5e05d73dc6c"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-musllinux_1_2_riscv64.whl", hash = "sha256:8c0a7753f5ddaf0ecd1fc8df3e2106611d4290f0508e643e723cb5000b7d6c2f"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:97b35b15f81363a314baca76674c19027dce19eed1590abd51c2d285830efd50"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-win32.whl", hash = "sha256:ecf44731e351c6100885120cecf53a0f43a1bb975a92480de1f9e022ab542bc1"},
+    {file = "setproctitle-1.3.8-cp315-cp315t-win_amd64.whl", hash = "sha256:61aac898128dade36438da9387fea570f00cd519ad5231d3b268913afc2fc329"},
+    {file = "setproctitle-1.3.8-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:26da5ad9883d825b9d732fd1dcb99268a4ee545b1edd0aaa5c56f16009cccaf8"},
+    {file = "setproctitle-1.3.8-pp311-pypy311_pp73-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:15aaec002066f6dd7d920c46d3bffc3e529cb4a9fac961f2dd878aad64b0e29e"},
+    {file = "setproctitle-1.3.8-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:6a740a6de2675da29594612eca3c962ceefc063fb62f43fc5a8f84d547ce0d7a"},
+    {file = "setproctitle-1.3.8.tar.gz", hash = "sha256:cafe209d064a6efb88cb45a03e97981ff8832802b2b5d009dde0197a3b7b41c8"},
+]
+
+[package.extras]
+test = ["pytest"]
+
+[[package]]
 name = "setuptools"
 version = "84.0.0"
 description = "Most extensible Python build backend with support for C/C++ extension modules"
@@ -2399,4 +2512,4 @@ leveldb = ["plyvel"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<3.16"
-content-hash = "634118bec31969e8aedff788c7480f14ceffe9a5a86c660eb728bce3c5921c7c"
+content-hash = "0ee9048d043a5757871a9de2dbfa4749ae1314ab528d325350b583c4c3f8aa48"

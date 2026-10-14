@@ -4,6 +4,8 @@
 import asyncio
 import inspect
 import sys
+from typing import Literal
+import setproctitle
 
 from dolt_annex import interactive
 from dolt_annex.application import Application
@@ -13,6 +15,7 @@ from dolt_annex.commands.gallery_dl import gallery_dl_command
 from dolt_annex.commands.sync import push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
 from dolt_annex.commands.filestore import FilestoreSubcommand
+from dolt_annex.constants import PROGNAME
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 
@@ -35,6 +38,7 @@ def main():
     asyncio.run(async_main())
 
 async def async_main():
+    setproctitle.setproctitle(PROGNAME)
     try:
         # If no command-line arguments are provided, launch the interactive shell.
         # TODO: The interactive shell takes command line arguments which can't be passed in here.
