@@ -18,6 +18,7 @@ dolt-annex <<EOF
 3
 
 1
+1
 3
 EOF
 
