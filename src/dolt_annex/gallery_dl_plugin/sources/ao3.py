@@ -3,9 +3,15 @@
 
 from typing_extensions import Any, override
 
+import gallery_dl.extractor.ao3
+
 from .base import GalleryDLSource
 
-class AO3(GalleryDLSource, source_name = "archiveofourown.org"):
+class AO3(
+    GalleryDLSource,
+    source_name = "archiveofourown.org",
+    extractor=gallery_dl.extractor.ao3.Ao3Extractor
+):
     """Support for archiveofourown.org"""
 
     @override

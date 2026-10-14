@@ -3,9 +3,16 @@
 
 from typing_extensions import Any, override
 
+import gallery_dl.extractor.nhentai
+
 from .base import GalleryDLSource
 
-class NHentai(GalleryDLSource, source_name = "nhentai.net"):
+
+class NHentai(
+    GalleryDLSource,
+    source_name = "nhentai.net",
+    extractor=gallery_dl.extractor.nhentai.NhentaiGalleryExtractor
+):
     """Support for nhentai.net"""
 
     @override

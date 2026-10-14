@@ -5,13 +5,19 @@ import re
 from typing import Iterable
 from typing_extensions import Any, override
 
+import gallery_dl.extractor.inkbunny
+
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 
 from .base import FileMetadata, GalleryDLSource, UnionPathSelector, mutate_remove_fields
 
 CDN_URL = re.compile("https://(\\w+)\\.ib\\.metapix\\.net/(\\S*)")
 
-class Inkbunny(GalleryDLSource, source_name = "inkbunny.net"):
+class Inkbunny(
+    GalleryDLSource,
+    source_name = "inkbunny.net",
+    extractor=gallery_dl.extractor.inkbunny.InkbunnyExtractor
+    ):
     """Support for inkbunny.net"""
 
     @override

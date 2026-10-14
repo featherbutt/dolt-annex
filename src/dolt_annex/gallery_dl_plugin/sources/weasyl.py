@@ -3,9 +3,15 @@
 
 from typing_extensions import Any, override
 
+import gallery_dl.extractor.weasyl
+
 from .base import GalleryDLSource
 
-class Weasyl(GalleryDLSource, source_name = "weasyl.com"):
+class Weasyl(
+    GalleryDLSource,
+    source_name = "weasyl.com",
+    extractor=gallery_dl.extractor.weasyl.WeasylExtractor
+):
     """Support for weasyl.com"""
 
     @override

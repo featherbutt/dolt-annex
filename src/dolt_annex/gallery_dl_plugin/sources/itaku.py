@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import gallery_dl.extractor.itaku
 from typing_extensions import Any, Iterable, override
 
 from dolt_annex.datatypes.common import TableRow
 from .base import GalleryDLSource, mutate_remove_fields
 
-class Itaku(GalleryDLSource, source_name = "itaku.ee"):
+class Itaku(
+    GalleryDLSource,
+    source_name = "itaku.ee",
+    extractor=gallery_dl.extractor.itaku.ItakuExtractor
+):
     """Support for itaku.ee"""
 
     @override

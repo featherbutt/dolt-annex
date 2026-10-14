@@ -161,11 +161,11 @@ async def run_gallery_dl(config: Config, repo: Repo, dataset: Dataset, *args) ->
                 return []
 
     gallery_dl_config: GalleryDLConfig = config.gallery_dl
-    args = gdl_args + gdl_log_level_flags(config.log_level)
+    sys_args = gdl_args + gdl_log_level_flags(config.log_level)
     if gallery_dl_config_file_location.exists():
-        args += ["--config", str(gallery_dl_config_file_location)]
-    args += list(args)
-    sys.argv = args
+        sys_args += ["--config", str(gallery_dl_config_file_location)]
+    sys_args += list(args)
+    sys.argv = sys_args
 
     if not Path("skip.sqlite3").exists():
         shutil.copy(skip_db_path, "skip.sqlite3")

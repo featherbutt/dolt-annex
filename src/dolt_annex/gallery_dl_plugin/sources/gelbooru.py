@@ -5,12 +5,18 @@ from typing import Any, Iterable
 
 from typing_extensions import override
 
+import gallery_dl.extractor.gelbooru
+
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 from dolt_annex.file_keys.base import MD5HSe
 
 from .base import FileMetadata, GalleryDLSource, PathSelector, PostMetadata, mutate_remove_fields
 
-class Gelbooru(GalleryDLSource, source_name = "gelbooru.com"):
+class Gelbooru(
+    GalleryDLSource,
+    source_name = "gelbooru.com",
+    extractor=gallery_dl.extractor.gelbooru.GelbooruPostExtractor
+):
     """Support for gelbooru.com"""
 
     @override

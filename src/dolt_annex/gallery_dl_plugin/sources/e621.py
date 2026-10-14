@@ -5,12 +5,18 @@ from typing import Iterable
 
 from typing_extensions import Any, override
 
+import gallery_dl.extractor.e621
+
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 from dolt_annex.file_keys.base import MD5HSe
 
 from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 
-class E621(GalleryDLSource, source_name = "e621.net"):
+class E621(
+    GalleryDLSource,
+    source_name = "e621.net",
+    extractor=gallery_dl.extractor.e621.E621Extractor
+):
     """Support for e621.net"""
 
     @override

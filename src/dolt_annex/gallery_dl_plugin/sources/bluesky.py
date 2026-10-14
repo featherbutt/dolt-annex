@@ -5,6 +5,8 @@ from abc import abstractmethod
 from typing import ClassVar, NewType, Optional, override
 from typing_extensions import Any, Iterable
 
+import gallery_dl.extractor.bluesky
+
 from dolt_annex.datatypes.common import TableRow
 from dolt_annex.file_keys.base import FileKey, FileKeyPrefix
 
@@ -15,7 +17,11 @@ from .base import GalleryDLSource, PathSelector, mutate_remove_fields
 PostMetadata = NewType("PostMetadata", dict[str, Any])
 FileMetadata = NewType("FileMetadata", dict[str, Any])
 
-class Bluesky(GalleryDLSource, source_name = "bluesky"):
+class Bluesky(
+    GalleryDLSource,
+    source_name = "bluesky",
+    extractor=gallery_dl.extractor.bluesky.BlueskyExtractor
+): 
    
     @override
     def supported_subcategories(self) -> list[str]:

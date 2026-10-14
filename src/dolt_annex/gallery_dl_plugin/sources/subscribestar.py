@@ -3,10 +3,15 @@
 
 from typing import Any
 from typing_extensions import override
+import gallery_dl.extractor.subscribestar
 
 from .base import GalleryDLSource
 
-class SubscribeStar(GalleryDLSource, source_name = "subscribestar.com"):
+class SubscribeStar(
+    GalleryDLSource,
+    source_name = "subscribestar.com",
+    extractor=gallery_dl.extractor.subscribestar.SubscribestarExtractor
+): 
     """Support for subscribestar.com"""
 
     @override

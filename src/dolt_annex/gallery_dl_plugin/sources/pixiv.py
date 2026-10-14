@@ -3,9 +3,15 @@
 
 from typing_extensions import override
 
+import gallery_dl.extractor.pixiv
+
 from .base import GalleryDLSource, PathSelector
 
-class Pixiv(GalleryDLSource, source_name = "pixiv.net"):
+class Pixiv(
+    GalleryDLSource,
+    source_name = "pixiv.net",
+    extractor=gallery_dl.extractor.pixiv.PixivExtractor
+): 
     """Support for pixiv.net"""
 
     @override
