@@ -44,7 +44,7 @@ else:
         sys.stdin.reconfigure = lambda *args, **kwargs: None
     
     async def text(message: str) -> str:
-        return input(f"{message}: ")
+        return input(message)
 
     async def choices(message: str, choices: list[Choice | Separator]):
         print(message)
@@ -63,7 +63,7 @@ else:
             for choice in choices:
                 if isinstance(choice, Choice) and choice.name == selection:
                     return choice.value
-        raise ValueError("Invalid selection.")
+        raise ValueError(f"Invalid selection: {selection}")
 
 
     async def confirm(message: str, default: bool = False) -> bool:
