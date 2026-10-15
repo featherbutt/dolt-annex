@@ -11,7 +11,7 @@ from dolt_annex.commands.application import Application
 from dolt_annex.commands import init, server_command, script
 from dolt_annex.commands.config import create
 from dolt_annex.commands.gallery_dl import gallery_dl_command
-from dolt_annex.commands.sync import push, pull
+from dolt_annex.commands.sync import sync, push, pull
 from dolt_annex.commands.dataset import DatasetSubcommand
 from dolt_annex.commands.filestore import FilestoreSubcommand
 from dolt_annex.constants import PROGNAME
@@ -22,6 +22,7 @@ from .gallery_dl_plugin.postprocessors import gallery_dl_post, gallery_dl_prepar
 from .gallery_dl_plugin.test_postprocessors import gallery_dl_post_test
 
 Application.subcommand("init", init.Init)
+Application.subcommand("sync", sync.Sync)
 Application.subcommand("push", push.Push)
 Application.subcommand("pull", pull.Pull)
 Application.subcommand("server", server_command.Server)
