@@ -158,11 +158,6 @@ class SyncOperation:
                 for _ in range(num_workers):
                     await sync_op.work_queue.put(None)
     
-class FileModifiedError(Exception):
-    def __init__(self, key: FileKey, repo1: Repo, repo2: Repo) -> None:
-        self.key = key
-        super().__init__(f"File with annex key {key} exists in both {repo1.name} and {repo2.name} but has different contents.")
-
 async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Repo, where: List[TableFilter], limit: Optional[int] = None, ignore_missing = False) -> int:
     # TODO: Separate the concept of a Dolt remote from a Dolt-annex remote.
     # There may not be A Dolt remote to pull from

@@ -14,6 +14,7 @@ import pathlib
 from typing import TYPE_CHECKING, Optional, Sequence
 import logging
 import typing
+from dolt_annex.datatypes.errors import StorageError
 from uuid import UUID
 
 from dolt_annex.datatypes.async_types import AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
@@ -28,7 +29,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-class FileStoreError(Exception):
+class FileStoreError(StorageError):
+    """Raised when an file store operation fails."""
     pass
 
 def wrap_errors(*, wrap: type[Exception], into: type[Exception]):

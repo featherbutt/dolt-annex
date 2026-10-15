@@ -10,15 +10,18 @@ class DoltAnnexApplicationError(Exception):
 
 class InvalidFileKeyError(DoltAnnexApplicationError):
     pass
-class StorageError(DoltAnnexApplicationError):
-    pass
 
-class ConfigurationError(DoltAnnexApplicationError):
+class StorageError(DoltAnnexApplicationError):
     pass
 
 class ContentAddressableStorageError(StorageError):
     """Raised when a provided FileKey does not match the computed FileKey of the data being uploaded."""
     pass
 
+class ConfigurationError(DoltAnnexApplicationError):
+    pass
+
 class GalleryDlError(DoltAnnexApplicationError):
     pass
+
+
