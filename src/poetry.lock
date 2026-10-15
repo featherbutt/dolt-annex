@@ -2589,4 +2589,4 @@ leveldb = ["plyvel"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14,<3.16"
-content-hash = "800c98a7eb7ff72830b079790e5c1aceabc168197966f488235a0cd7b1068ad1"
+content-hash = "054f714e9dafc865bd79272e248461eb4b7f2300bf11ba96581fe9b291e8a3aa"
