@@ -11,7 +11,6 @@ class FileTableSchema(Loadable, extension="schema", config_dir=pathlib.Path(".")
     The schema describing a table with a file column.
     Contains all the information needed to diff file keys between two remotes.
     """
-    name: str
     file_column: str
     key_columns: List[str]
 
@@ -25,7 +24,6 @@ class DatasetSchema(Loadable, extension="dataset", config_dir=pathlib.Path("."))
     The schema describing one or more tables that are version controlled together.
     Contains all the information needed to diff file keys between two remotes.
     """
-    name: str
     tables: List[FileTableSchema]
     empty_table_ref: str
 

@@ -4,7 +4,6 @@ import sys
 
 from plumbum import cli
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.async_types import maybe_await
 
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
@@ -32,7 +31,7 @@ class WhereIs(SubCommand):
                 locations = []
                 queried_key = FileKey(bytes(file_key.strip(), encoding='utf-8'))
                 for filestore, repo in zip(filestores, repo_models):
-                    if await maybe_await(filestore.exists(queried_key)):
+                    if await filestore.exists(queried_key):
                         locations.append({"name": repo.name, "uuid": str(repo.uuid)})
 
                 print(json.dumps(locations))

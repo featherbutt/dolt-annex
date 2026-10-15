@@ -4,7 +4,6 @@ from typing import List, Tuple
 from typing_extensions import Optional
 import logging
 
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.errors import ContentAddressableStorageError
 from dolt_annex.config.filestore import FilestoreConfig
 from dolt_annex.file_keys import FileKeyType
@@ -149,7 +148,7 @@ class ContentAddressableStorage:
         Insert a new key that references the same content as an existing key.
         """
         if self.content_addressed and self.filestore_config.verify_existing_files_on_write:
-            exists = await maybe_await(self.file_store.exists(new_key))
+            exists = await self.file_store.exists(new_key)
             if exists:
                 is_valid, _ = await self.contains_valid_file(new_key)
                 if not is_valid:
@@ -165,7 +164,7 @@ class ContentAddressableStorage:
         if self.content_addressed and self.filestore_config.verify_existing_files_on_write:
             is_valid, _ = await self.contains_valid_file(file_key)
             return is_valid
-        return await maybe_await(self.file_store.exists(file_key))
+        return await self.file_store.exists(file_key)
 
     async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         async for known_key_stream in self.file_store.get_files(prefix):
@@ -177,7 +176,7 @@ class ContentAddressableStorage:
 
         If a key mismatch is detected, this returns False, and the computed key of the existing file.
         """
-        if not await maybe_await(self.file_store.exists(file_key)):
+        if not await self.file_store.exists(file_key):
             return False, None
         # TODO: Files that end in a . currently don't verify correctly, but they're rare in practice.
         if str(file_key)[-1] == '.':

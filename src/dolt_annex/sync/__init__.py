@@ -12,7 +12,6 @@ from typing_extensions import Iterable, Optional, Tuple, List
 
 from dolt_annex.replicated_db.interface import ReplicatedDataset, TableFilter, TableReplica
 from dolt_annex.datatypes import TableRow
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
@@ -108,13 +107,13 @@ class SyncOperation:
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow):
         logger.info("moving %s: %s", table_row, key)
 
-        if await maybe_await(self.to_repo.filestore.exists(key)):
+        if await self.to_repo.filestore.exists(key):
             logger.debug("file %s already exists in destination filestore", key)
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.to_table.insert(table_row)
             return
-        if self.ignore_missing and not await maybe_await(self.from_repo.filestore.file_store.exists(key)):
+        if self.ignore_missing and not await self.from_repo.filestore.file_store.exists(key):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return
         if key in self.in_flight_keys:

@@ -16,7 +16,7 @@ import logging
 import typing
 from uuid import UUID
 
-from dolt_annex.datatypes.async_types import maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
+from dolt_annex.datatypes.async_types import AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
 from dolt_annex.datatypes.file_io import FileInfo, async_bytes_io
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
@@ -186,7 +186,7 @@ class FileStoreModel(Loadable, AbstractBaseModel, extension="filestore", config_
         try:
             yield filestore
         finally:
-            await maybe_await(filestore.flush())
+            await filestore.flush()
 
     def create(self, config: Config) -> FileStore:
         """

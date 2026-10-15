@@ -12,7 +12,7 @@ from dolt_annex.datatypes.loader import Named
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, fork_readable_stream
 
-from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, maybe_await
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel
 
 class UnionFS(FileStore):
     """
@@ -62,7 +62,7 @@ class UnionFS(FileStore):
         Returns whether the key exists in the filestore.
         """
         for child in self.children:
-            if await maybe_await(child.exists(file_key)):
+            if await child.exists(file_key):
                 return True
         return False
     
@@ -70,7 +70,7 @@ class UnionFS(FileStore):
     async def flush(self) -> None:
         """Flush any pending operations to the filestore."""
         for child in self.children:
-            await maybe_await(child.flush())
+            await child.flush()
 
     @override
     async def stat(self, file_key: FileKey) -> FileInfo:
@@ -83,7 +83,7 @@ class UnionFS(FileStore):
     async def fstat(self, file_obj: ReadableStream) -> FileInfo:
         for child in self.children:
             try:
-                return await maybe_await(child.fstat(file_obj))
+                return await child.fstat(file_obj)
             except FileNotFoundError:
                 continue
         raise FileNotFoundError("File object not found in any child filestore.")

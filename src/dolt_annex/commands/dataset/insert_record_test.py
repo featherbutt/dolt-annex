@@ -7,7 +7,6 @@ from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.file_keys import Sha256E
-from dolt_annex.filestore.cas import maybe_await
 from dolt_annex.util.test_util import EnvironmentForTest, run, test_dataset_schema
 
 @pytest.mark.asyncio
@@ -21,7 +20,7 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted row"
     )
 
-    assert await maybe_await(local_file_store.exists(key))
+    assert await local_file_store.exists(key)
     async with local_file_store.with_file_object(key) as file_obj:
         content = await file_obj.read()
         assert content == b"new file content"

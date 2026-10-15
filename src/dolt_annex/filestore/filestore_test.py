@@ -17,7 +17,6 @@ import asyncssh
 import fs.memoryfs
 
 from dolt_annex.util import test_util
-from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.config.base import Config
 from dolt_annex.config.connection import SSHConnection
 from dolt_annex.datatypes.file_io import Path
@@ -161,9 +160,9 @@ async def test_put_other_key_type(cas: ContentAddressableStorage):
     assert MD5e not in cas.supported_key_formats
     file_bytes = b"test"
     md5_key, _ = await cas.put_file(bytes_file_source(file_bytes, MD5e))
-    assert await maybe_await(cas.file_store.exists(md5_key))
+    assert await cas.file_store.exists(md5_key)
     async with cas.file_store.with_file_object(md5_key) as f:
-        file_info = await maybe_await(cas.file_store.fstat(f))
+        file_info = await cas.file_store.fstat(f)
         assert file_info.size == 4
         read_bytes = await f.read()
         assert read_bytes == file_bytes
@@ -182,13 +181,13 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     # TODO: Test that putting the same key again short-circuits
     # TODO: Test having the cas generate both keys, check that the provided key is among the computed keys
     await cas.create_alias(sha256_key, md5_key)
-    await maybe_await(cas.file_store.flush())
+    await cas.file_store.flush()
     for key in (sha256_key, md5_key, sha1_key, sha256hs_key):
-        assert await maybe_await(cas.file_store.exists(key)), f"File with key {key} does not exist"
-        file_info = await maybe_await(cas.file_store.stat(key))
+        assert await cas.file_store.exists(key), f"File with key {key} does not exist"
+        file_info = await cas.file_store.stat(key)
         assert file_info.size == 4
         async with cas.file_store.with_file_object(key) as f:
-            file_info = await maybe_await(cas.file_store.fstat(f))
+            file_info = await cas.file_store.fstat(f)
             assert file_info.size == 4
             read_bytes = await f.read()
             assert read_bytes == b"test"
@@ -212,17 +211,17 @@ async def test_file_stores(cas: ContentAddressableStorage, second_cas: ContentAd
     if not isinstance(cas.file_store, SftpFileStore):
         wrong_sha256_key = Sha256E.from_bytes(b"wrong bytes")
         await cas.file_store.put_file_bytes(file_bytes, wrong_sha256_key)
-        await maybe_await(cas.file_store.flush())
+        await cas.file_store.flush()
         with pytest.RaisesGroup(AssertionError, flatten_subgroups=True, allow_unwrapped=True):
             await cas.verify_file(wrong_sha256_key)
 
     # Check that exist for non-existent file returns false
-    assert not await maybe_await(cas.file_store.exists(Sha256E.from_bytes(b"nonexistent")))
+    assert not await cas.file_store.exists(Sha256E.from_bytes(b"nonexistent"))
 
     # Test that delete removes a file from the filestore, if implemented.
     if type(cas.file_store).delete is not FileStore.delete:
         cas.file_store.delete(sha256_key)
-        assert not await maybe_await(cas.file_store.exists(sha256_key))
+        assert not await cas.file_store.exists(sha256_key)
 
 
 @pytest.mark.asyncio
@@ -354,9 +353,9 @@ async def test_archivefs_finalization(temp_dir: pathlib.Path, test_config: Confi
         # Adding another file should write to the new archive file, without affecting the finalized archive.
 
         content = b"file_5_"
-        await maybe_await(archive_filestore.put_file_object(bytes_file_source(content, Sha256E)))
+        await archive_filestore.put_file_object(bytes_file_source(content, Sha256E))
 
-        await maybe_await(archive_filestore.flush())
+        await archive_filestore.flush()
 
         assert_single_tarfile_has_members(archive_filestore.finalized_archives_dir, 3)
 

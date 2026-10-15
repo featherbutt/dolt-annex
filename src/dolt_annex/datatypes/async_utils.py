@@ -1,52 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from asyncio import Future, sleep
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from asyncio import sleep
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
-from typing_extensions import Self
 
-from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ContextManager, MaybeAwaitable, maybe_await
-
-class Result[T = None]:
-    """
-    The eventual result of a file operation.
-    
-    It wraps a Future that can be awaited on, but the result is not itself awaitable.
-    This avoids ambiguity when MaybeAwaitable functions return Results.
-    """
-
-    future: Awaitable[T]
-
-    def __init__(self, future: Awaitable[T]) -> None:
-        self.future = future
-
-    @classmethod
-    def of(cls, value: T) -> Self:
-        fut: Future[T] = Future()
-        fut.set_result(value)
-        return cls(fut)
-    
-    @staticmethod
-    def done() -> 'Result[None]':
-        return Result.of(None)
-    
-    async def wait_for_complete(self) -> T:
-        return await self.future
-    
-    def map[S](self, func: 'Callable[[T], MaybeAwaitable[S | Result[S]]]') -> 'Result[S]':
-
-        async def _map() -> S:
-            result = await maybe_await(func(await self.wait_for_complete()))
-            if isinstance(result, Result):
-                return await result.wait_for_complete()
-            else:
-                return result
-
-        return Result(_map())
-    
-    def and_then[S](self, func: 'Callable[[], MaybeAwaitable[S | Result[S]]]') -> 'Result[S]':
-        return self.map(lambda _: func())
+from dolt_annex.datatypes.async_types import AsyncContextManager, AwaitOrEnter, Closable, ContextManager
 
 def await_or_enter[T: Closable, **P](coro: Callable[P, AsyncGenerator[T, None]]) -> Callable[P, AwaitOrEnter[T]]:
     """

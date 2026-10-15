@@ -14,7 +14,7 @@ import pathlib
 from typing_extensions import override
 
 from dolt_annex.constants import PROGNAME
-from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, maybe_await
+from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
 from dolt_annex.config.base import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
@@ -41,7 +41,7 @@ class LevelDB(FileStore):
     @override
     async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
         async with data_source as in_fd:
-            value = await maybe_await(in_fd.read())
+            value = await in_fd.read()
         file_key = await data_source.file_key()
         if overwrite_existing or self.db.get(bytes(file_key)) is None:
             self.db.put(bytes(file_key), value, sync=True)
