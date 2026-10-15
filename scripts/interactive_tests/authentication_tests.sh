@@ -8,7 +8,7 @@
 set -e
 
 cd "$(dirname "$0")"
-source ./assert.sh
+source ../assert.sh
 
 # Runs the full end-to-end test for one authentication configuration. The body is
 # a subshell so its `cd`s don't leak into the next configuration.

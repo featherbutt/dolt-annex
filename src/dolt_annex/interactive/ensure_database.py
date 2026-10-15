@@ -2,12 +2,14 @@
 from pathlib import Path
 import shutil
 
+from plumbum import local
+
 from dolt_annex.constants import PROGNAME
 from dolt_annex.util.prompts import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 
 from dolt_annex.data import data_dir
 from dolt_annex.config.base import DoltConfig
-from dolt_annex.config.connection import MySQLConnection
+from dolt_annex.config.connection import HTTPSConnection, MySQLConnection
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 
 import logging
@@ -55,22 +57,28 @@ async def make_new_remote_database() -> DoltConfig:
 async def clone_existing_database() -> DoltConfig:
     dolt_binary_path = await ensure_dolt_binary()
     while True:
-        url = await text("Enter the clonable database URL (either a doltlab name like user/db or a full URL like https://doltlab.hostname:port/user/db):")
+        url = await text("Enter the clonable database URL (either a DoltHub name like user/db or a full URL like https://doltlab.hostname:port/user/db or https://www.dolthub.com/repositories/user/db):")
+        if url.count("/") == 1 and not url.startswith("http"):
+            url = f"https://www.dolthub.com/repositories/{url}"
         try:
-            db_conn = MySQLConnection.parse_url(url)
+            # Validate the URL by attempting to parse it.
+            # But we don't actually need to store the result.
+            _ = HTTPSConnection.parse_url(url)
             break
         except ValueError as e:
             print(f"Error: {e}")
-    if db_conn.password is False:
-        db_conn.password = await confirm(
-            message="Is a password required for the new remote database?",
-            default=True
-        )
-    
+
+    dolt_dir = Path.cwd() / "dolt"
+    if dolt_dir.exists():
+        raise FileExistsError(f"Cannot clone into {dolt_dir} because it already exists.")
+    print(f"Cloning {url} into {dolt_dir}...")
+    local[dolt_binary_path.as_posix()].run(["clone", url, dolt_dir.as_posix()])
+    print(f"Cloned database into {dolt_dir}")
+
     return DoltConfig(
-        spawn_dolt_server=False,
-        connection=db_conn,
+        spawn_dolt_server=True,
         dolt_binary=dolt_binary_path,
+        dolt_dir=dolt_dir,
     )
 
 async def make_new_local_database() -> DoltConfig:

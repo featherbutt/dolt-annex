@@ -115,3 +115,22 @@ class MySQLConnection(Connection):
             database=database,
             **args,
         )
+
+class HTTPSConnection(Connection):
+    port: int = 443
+    path: str
+
+    @classmethod
+    def parse_url(
+        cls,
+        url: str,
+        url_scheme="https://",
+    ) -> Self:
+        host, args = cls._parse_url(
+            url=url,
+            url_scheme=url_scheme,
+        )
+        return cls(
+            hostname=host,
+            **args,
+        )
