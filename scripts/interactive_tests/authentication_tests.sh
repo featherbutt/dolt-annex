@@ -12,7 +12,7 @@ source ./assert.sh
 
 # Runs the full end-to-end test for one authentication configuration. The body is
 # a subshell so its `cd`s don't leak into the next configuration.
-run_test() (
+run_authentication_test() (
     local auth_mode=$1
 
     sftp_url="sftp://127.0.0.1:2222/"
@@ -157,7 +157,7 @@ if [ $# -eq 0 ]; then
 fi
 
 for auth_mode in "$@"; do
-    run_test "$auth_mode"
+    run_authentication_test "$auth_mode"
 done
 
 log_success "All tests passed!"
