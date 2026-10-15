@@ -33,7 +33,10 @@ Application.subcommand("script", script.Script)
 
 def main():
     """Entry point for dolt-annex package"""
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except* KeyboardInterrupt:
+        print("Exiting...")
 
 async def async_main():
     setproctitle.setproctitle(PROGNAME)
@@ -54,8 +57,6 @@ async def async_main():
         for exc in e.exceptions:
             print(f"Error: {exc}")
         sys.exit(1)
-    except* KeyboardInterrupt:
-        print("Exiting...")
 
 __all__ = ["gallery_dl_post", "gallery_dl_prepare", "gallery_dl_after", "gallery_dl_post_test"]
 
