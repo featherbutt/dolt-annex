@@ -7,7 +7,7 @@ import sys
 import setproctitle
 
 from dolt_annex import interactive
-from dolt_annex.application import Application
+from dolt_annex.commands.application import Application
 from dolt_annex.commands import init, server_command, script
 from dolt_annex.commands.config import create
 from dolt_annex.commands.gallery_dl import gallery_dl_command

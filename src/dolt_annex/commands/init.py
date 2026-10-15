@@ -5,7 +5,7 @@ import uuid
 
 from plumbum import cli
 
-from dolt_annex.application import Application
+from dolt_annex.commands.application import Application
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.config.base import Config, DoltConfig
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary

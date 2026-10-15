@@ -8,7 +8,7 @@ from dolt_annex.datatypes.common import TableRow
 from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
-from dolt_annex.application import Application
+from dolt_annex.commands.application import Application
 from dolt_annex.file_keys import get_file_key_type
 from dolt_annex.datatypes.file_stream import bytes_file_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection

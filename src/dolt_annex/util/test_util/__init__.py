@@ -12,7 +12,7 @@ from typing_extensions import Optional
 from plumbum import cli # type: ignore[import]
 import pytest
 
-from dolt_annex.application import Application
+from dolt_annex.commands.application import Application
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
