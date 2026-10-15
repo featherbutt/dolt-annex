@@ -6,7 +6,7 @@ from plumbum import cli
 import dolt_annex
 import dolt_annex.constants
 from dolt_annex.datatypes.async_types import MaybeAwaitable
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 
 class Env:
     CONFIG_FILE = "DA_CONFIG"
@@ -48,12 +48,12 @@ class BaseApplication(CommandGroup):
 
     config: Config
 
-class SubCommand(Command):
+class SubCommand[Parent: CommandGroup](Command):
     """
     A base class for all subcommands, including middle-level command groups, but not the top-level application.
     """
 
-    parent: CommandGroup     # The parent command group. Set automatically by plumbum.
+    parent: Parent     # The parent command group. Set automatically by plumbum.
 
     @property
     def config(self) -> Config:

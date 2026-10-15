@@ -18,8 +18,8 @@ import fs.memoryfs
 
 from dolt_annex.util import test_util
 from dolt_annex.datatypes.async_types import maybe_await
-from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.common import SSHConnection
+from dolt_annex.config.base import Config
+from dolt_annex.config.connection import SSHConnection
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys import Sha256E, MD5e, SHA1e, Sha256HSe
 from dolt_annex.filestore.annexfs import AnnexFSModel

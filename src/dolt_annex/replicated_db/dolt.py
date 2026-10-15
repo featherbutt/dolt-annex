@@ -12,9 +12,10 @@ import time
 from typing import Self, override
 from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable, Any
 
+from dolt_annex.file_keys.base import FileKey
 from dolt_annex.replicated_db.interface import TableFilter
-from dolt_annex.datatypes import FileKey, TableRow
-from dolt_annex.datatypes.config import Config
+from dolt_annex.datatypes import TableRow
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 import dolt_annex.replicated_db.interface as interface

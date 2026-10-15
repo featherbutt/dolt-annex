@@ -9,7 +9,7 @@ from gallery_dl.extractor.common import Extractor
 from dolt_annex.config import open_json
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys.base import FileKey

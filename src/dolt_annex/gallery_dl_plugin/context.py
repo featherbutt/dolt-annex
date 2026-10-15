@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import List, TextIO
 
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
+from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.replicated_db.interface import DatasetReplica, ReplicatedDataset, TableReplica
 

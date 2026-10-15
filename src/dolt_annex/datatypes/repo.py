@@ -20,7 +20,7 @@ from dolt_annex.filestore.cas import ContentAddressableStorage
 from .loader import Loadable, Named
 
 if TYPE_CHECKING:
-    from dolt_annex.datatypes.config import Config
+    from dolt_annex.config.base import Config
     from typing_extensions import Self
     
 class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):

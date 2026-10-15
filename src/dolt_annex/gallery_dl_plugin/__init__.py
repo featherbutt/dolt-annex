@@ -16,8 +16,8 @@ from pathlib import Path
 
 import gallery_dl
 
-from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
+from dolt_annex.config.base import Config
+from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.gallery_dl_plugin.context import GalleryDLContext
 from dolt_annex.interactive.ensure_gallery_dl_config import gallery_dl_config_file_location
 

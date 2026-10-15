@@ -12,7 +12,7 @@ from dolt_annex.datatypes.loader import Named
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, fork_readable_stream
 
-from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, YesNoMaybe, maybe_await
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, maybe_await
 
 class UnionFS(FileStore):
     """
@@ -62,37 +62,9 @@ class UnionFS(FileStore):
         Returns whether the key exists in the filestore.
         """
         for child in self.children:
-            match await child.possibly_exists(file_key):
-                case YesNoMaybe.YES:
-                    return True
-                case YesNoMaybe.MAYBE:
-                    if await maybe_await(child.exists(file_key)):
-                        return True
-                case YesNoMaybe.NO:
-                    continue
+            if await maybe_await(child.exists(file_key)):
+                return True
         return False
-
-    @override
-    async def possibly_exists(self, file_key: FileKey) -> YesNoMaybe:
-        """
-        Returns Yes if the file definitely exists in the filestore,
-        No if the file definitely does not exist in the filestore,
-        and Maybe if the file might exist in the filestore.
-
-        This is often more efficient than calling exists.
-
-        For instance, filestores that use a bloom filter can quickly
-        return No or Maybe, at the cost of never returning Yes.
-        """
-        for child in self.children:
-            match await child.possibly_exists(file_key):
-                case YesNoMaybe.YES:
-                    return YesNoMaybe.YES
-                case YesNoMaybe.MAYBE:
-                    return YesNoMaybe.MAYBE
-                case YesNoMaybe.NO:
-                    continue
-        return YesNoMaybe.NO
     
     @override
     async def flush(self) -> None:

@@ -15,7 +15,7 @@ from plumbum import cli # type: ignore
 from dolt_annex import importers
 from dolt_annex.commands import CommandGroup
 from dolt_annex.datatypes.async_utils import as_acm
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.file_keys import FileKeyType, get_file_key_type

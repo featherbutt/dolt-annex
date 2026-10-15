@@ -22,7 +22,7 @@ import fs.osfs
 
 from dolt_annex.datatypes.async_types import ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.file_io import Path, async_open
 from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.locking import FailedToAcquireLock, LockManager, new_lock_manager

@@ -11,7 +11,7 @@ import pytest_asyncio
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.errors import ContentAddressableStorageError
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.file_keys import Sha256E

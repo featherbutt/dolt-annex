@@ -41,7 +41,7 @@ else:
 
     # gallery-dl will attempt to reconfigure stdin, which can cause issues if stdin has already been read from
     if hasattr(sys.stdin, "reconfigure"):
-        sys.stdin.reconfigure = lambda *args, **kwargs: None
+        sys.stdin.reconfigure = lambda *args, **kwargs: None # pyright: ignore[reportAttributeAccessIssue]
     
     async def text(message: str) -> str:
         return input(message)

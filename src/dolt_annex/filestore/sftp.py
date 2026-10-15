@@ -24,8 +24,8 @@ from typing_extensions import AsyncGenerator, override
 
 from asyncssh.sftp import SFTPError
 from dolt_annex.datatypes.async_utils import await_or_enter
-from dolt_annex.datatypes.config import Config, resolve_path
-from dolt_annex.datatypes.common import SSHConnection
+from dolt_annex.config.base import Config, resolve_path
+from dolt_annex.config.connection import SSHConnection
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream

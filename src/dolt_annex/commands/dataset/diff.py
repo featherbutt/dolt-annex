@@ -9,7 +9,7 @@ from plumbum import cli
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.replicated_db.interface import TableFilter
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.datatypes.repo import RepoModel

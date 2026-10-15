@@ -16,7 +16,7 @@ from typing_extensions import Any, Dict, Tuple
 from plumbum import local
 import pymysql
 
-from dolt_annex.datatypes.config import DoltConfig
+from dolt_annex.config.base import DoltConfig
 from dolt_annex.datatypes.repo import Repo
 
 logger = logging.getLogger(__name__)

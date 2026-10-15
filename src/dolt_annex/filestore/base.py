@@ -17,7 +17,6 @@ import typing
 from uuid import UUID
 
 from dolt_annex.datatypes.async_types import maybe_await, AwaitOrEnter, ReadableFileObject, ReadableStream, WritableStream
-from dolt_annex.datatypes.common import YesNoMaybe
 from dolt_annex.datatypes.file_io import FileInfo, async_bytes_io
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.pydantic import AbstractBaseModel
@@ -25,7 +24,7 @@ from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source_nocheck
 
 if TYPE_CHECKING:
-    from dolt_annex.datatypes.config import Config
+    from dolt_annex.config.base import Config
 
 logger = logging.getLogger(__name__)
 
@@ -127,15 +126,6 @@ class FileStore(abc.ABC):
         """
         Returns information about a file-like object previously returned by with_file_object.
         """
-
-    async def possibly_exists(self, file_key: FileKey) -> YesNoMaybe:
-        """
-        If false, the file definitely does not exist in the filestore.
-        This is often more efficient than calling exists.
-        """
-        if await maybe_await(self.exists(file_key)):
-            return YesNoMaybe.YES
-        return YesNoMaybe.NO
 
     async def flush(self) -> None:
         """Flush any pending operations to the filestore."""

@@ -4,8 +4,8 @@ import uuid
 
 from InquirerPy.separator import Separator
 
-from dolt_annex.datatypes.common import SSHConnection
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.connection import SSHConnection
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.filestore.archivefs import ArchiveFSModel

@@ -4,7 +4,7 @@
 from plumbum import cli
 
 from dolt_annex.commands import CommandGroup, SubCommand
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys import get_file_key_type
 from dolt_annex.datatypes.file_stream import bytes_file_source

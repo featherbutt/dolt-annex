@@ -6,7 +6,7 @@ import logging
 
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.datatypes.errors import ContentAddressableStorageError
-from dolt_annex.datatypes.filestore_config import FilestoreConfig
+from dolt_annex.config.filestore import FilestoreConfig
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import FileKey, FileKeyGeneratingReader, FileKeyGenerator
 from dolt_annex.filestore.base import FileStore

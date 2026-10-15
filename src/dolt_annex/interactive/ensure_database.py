@@ -6,8 +6,8 @@ from dolt_annex.constants import PROGNAME
 from dolt_annex.util.prompts import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
 
 from dolt_annex.data import data_dir
-from dolt_annex.datatypes.common import MySQLConnection
-from dolt_annex.datatypes.config import DoltConfig
+from dolt_annex.config.base import DoltConfig
+from dolt_annex.config.connection import MySQLConnection
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 
 import logging

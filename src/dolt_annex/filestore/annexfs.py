@@ -25,7 +25,7 @@ import fs.osfs
 
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
 from dolt_annex.datatypes.async_utils import await_or_enter
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.file_io import Path
 from dolt_annex.file_keys import FileKey
 from dolt_annex.filestore.base import copy

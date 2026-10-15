@@ -13,6 +13,6 @@ Other filestores could be added in the future. Possible candidates include:
 - IPFS
 """
 
-from .base import FileStore, YesNoMaybe
+from .base import FileStore
 
-__all__ = ['FileStore', 'YesNoMaybe']
+__all__ = ['FileStore']

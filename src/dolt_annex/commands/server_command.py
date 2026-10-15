@@ -6,7 +6,7 @@ import logging
 from plumbum import cli
 
 from dolt_annex.commands import SubCommand
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.server.ssh import server_context
 

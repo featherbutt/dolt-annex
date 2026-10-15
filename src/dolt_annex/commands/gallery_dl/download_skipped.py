@@ -1,21 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import dataclasses
 import json
 import logging
 from typing import cast
-from urllib import response
-from plumbum import cli
-import requests # type: ignore
 
 from dolt_annex.commands import SubCommand
 from dolt_annex.commands.gallery_dl.gallery_dl_command import GalleryDL
 from dolt_annex.datatypes.async_utils import as_acm
-from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
-from dolt_annex.datatypes.file_io import async_open
-from dolt_annex.datatypes.repo import Repo, RepoModel
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
+from dolt_annex.gallery_dl_plugin import run_gallery_dl
 from dolt_annex.gallery_dl_plugin.sources import category_to_source
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata
 from dolt_annex.replicated_db.dolt import DatabaseConnection
@@ -23,7 +18,7 @@ from dolt_annex.replicated_db.interface import TableFilter
 
 logger = logging.getLogger(__name__)
 
-class DownloadSkipped(SubCommand):
+class DownloadSkipped(SubCommand[GalleryDL]):
     """
     Download files that were skipped in a previous gallery-dl run. This command will look for rows in the
     metadata table that don't have the expected number of corresponding rows in the submissions table,
@@ -67,16 +62,6 @@ class DownloadSkipped(SubCommand):
                         )):
                             continue
                         logger.info("Downloading skipped file from URL: %s", url)
-                        with requests.get(url, stream=True) as response:
-                            response.raise_for_status()
-                            # Using raw might not work for deflated text.
-                            await repo.filestore.put_file(
-                                async_open(response.raw),
-                                # TODO: We need the key before we can write?
-                                # We can if we use the key from the metadata.
-                                
-
-                        
-                    
+                        await run_gallery_dl(self.config, repo, dataset, url)
 
         return 0

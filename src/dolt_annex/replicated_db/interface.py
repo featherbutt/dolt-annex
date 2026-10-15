@@ -23,7 +23,7 @@ from typing_extensions import Any
 
 from dolt_annex.datatypes.async_types import AsyncContextManager, ContextManager
 from dolt_annex.datatypes.common import TableRow
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.base import FileKey

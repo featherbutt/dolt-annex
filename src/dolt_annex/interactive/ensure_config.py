@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import ValidationError
 import pyjson5
 
-from dolt_annex.datatypes.config import Config, default_config_file_locations
+from dolt_annex.config.base import Config, default_config_file_locations
 from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.datatypes.loader import validation_error
 from dolt_annex.interactive.ensure_database import ensure_database

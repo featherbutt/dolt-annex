@@ -11,10 +11,10 @@ from dolt_annex.filestore.annexfs import AnnexFSModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 import pyjson5
 
-from dolt_annex.datatypes.common import MySQLConnection, SSHConnection
+from dolt_annex.config.base import Config, UserConfig, DoltConfig, SshSettings
+from dolt_annex.config.connection import MySQLConnection, SSHConnection
 from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
-from dolt_annex.datatypes.config import Config, UserConfig, DoltConfig, SshSettings
 from dolt_annex.file_keys import Sha256E
 
 def test_example_config():

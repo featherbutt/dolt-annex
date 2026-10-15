@@ -8,9 +8,9 @@ from typing_extensions import Annotated, Optional, deprecated
 
 from pydantic import AliasChoices, Field
 
-from dolt_annex.datatypes.common import MySQLConnection
-from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
-from dolt_annex.datatypes.filestore_config import FilestoreConfig
+from dolt_annex.config.filestore import FilestoreConfig
+from dolt_annex.config.connection import MySQLConnection
+from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.pydantic import StrictBaseModel
 from dolt_annex.datatypes.repo import Repo, RepoModel
@@ -50,6 +50,7 @@ class SshSettings(StrictBaseModel):
     known_hosts: Optional[Path] = None
     encrypted_ssh_key: bool = False
     client_key: Optional[Path] = None
+
 
 class Config(StrictBaseModel):
     """Global configuration settings"""

@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 
 from dolt_annex.datatypes.file_stream import bytes_file_source
-from dolt_annex.datatypes.filestore_config import FilestoreConfig
+from dolt_annex.config.filestore import FilestoreConfig
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.filestore.cas import ContentAddressableStorage
 from dolt_annex.filestore.memory import MemoryFS

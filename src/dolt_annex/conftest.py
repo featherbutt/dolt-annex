@@ -16,8 +16,8 @@ import pytest
 import pytest_asyncio
 
 from dolt_annex.data import data_dir
-from dolt_annex.datatypes.config import Config
-from dolt_annex.datatypes.filestore_config import FilestoreConfig
+from dolt_annex.config.base import Config
+from dolt_annex.config.filestore import FilestoreConfig
 from dolt_annex.datatypes.loader import Loadable
 from dolt_annex.datatypes.repo import Repo, RepoModel
 from dolt_annex.file_keys import Sha256E

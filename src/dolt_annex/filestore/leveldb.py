@@ -16,7 +16,7 @@ from typing_extensions import override
 from dolt_annex.constants import PROGNAME
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream, maybe_await
 from dolt_annex.datatypes.async_utils import await_or_enter
-from dolt_annex.datatypes.config import Config
+from dolt_annex.config.base import Config
 from dolt_annex.datatypes.file_io import AsyncBytesIO, async_bytes_io
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, known_key_source_nocheck

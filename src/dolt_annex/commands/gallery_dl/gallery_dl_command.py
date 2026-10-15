@@ -9,7 +9,7 @@ from plumbum import cli
 from dolt_annex.commands import SubCommand
 from dolt_annex.datatypes.async_utils import as_acm
 from dolt_annex.datatypes.collection import Collection
-from dolt_annex.datatypes.config.gallerydl_config import GalleryDLConfig
+from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.gallery_dl_plugin import make_default_schema, run_gallery_dl
