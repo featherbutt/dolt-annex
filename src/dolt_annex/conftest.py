@@ -59,10 +59,6 @@ def key_format() -> type[FileKey]:
     return Sha256E
 
 @pytest.fixture
-def alternate_key_formats() -> list[type[FileKey]]:
-    return []
-
-@pytest.fixture
 def is_content_addressed() -> bool:
     return True
 
@@ -71,13 +67,11 @@ def local_repo_model(
     local_uuid: UUID,
     local_filestore_model: FileStoreModel,
     key_format: type[FileKey],
-    alternate_key_formats: list[type[FileKey]],
     is_content_addressed: bool,
 ) -> RepoModel:
     return RepoModel(
         name="__local__",
         uuid=local_uuid,
-        alternate_key_formats=alternate_key_formats,
         filestore=local_filestore_model,
         content_addressed=is_content_addressed
     )
@@ -87,13 +81,11 @@ def remote_repo_model(
     remote_uuid: UUID, 
     remote_filestore_model: FileStoreModel,
     key_format: type[FileKey],
-    alternate_key_formats: list[type[FileKey]],
     is_content_addressed: bool,
 ) -> RepoModel:
     return RepoModel(
         name="test_remote",
         uuid=remote_uuid,
-        alternate_key_formats=alternate_key_formats,
         filestore= remote_filestore_model,
         content_addressed=is_content_addressed
     )
@@ -126,7 +118,7 @@ def init_dolt(temp_dir: pathlib.Path, init_session_dolt: pathlib.Path):
 @contextlib.asynccontextmanager
 async def create_test_filestore(config: Config, repo_model: RepoModel, files: Iterable[bytes]) -> AsyncGenerator[ContentAddressableStorage]:
     async with repo_model.filestore.open(config) as filestore:
-        cas = ContentAddressableStorage(config.filestore, filestore, repo_model.alternate_key_formats, content_addressed=repo_model.content_addressed)
+        cas = ContentAddressableStorage(config.filestore, filestore, config.default_alternate_key_types, content_addressed=repo_model.content_addressed)
         for file_content in files:
             await cas.put_file(bytes_file_source(file_content, Sha256E))
         yield cas
@@ -152,7 +144,6 @@ def local_repo(local_repo_model: RepoModel, local_filestore: ContentAddressableS
         name=local_repo_model.name,
         uuid=local_repo_model.uuid,
         filestore=local_filestore,
-        alternate_key_formats=local_repo_model.alternate_key_formats,
     )
 
 @pytest.fixture
@@ -161,7 +152,6 @@ def remote_repo(remote_repo_model: RepoModel, remote_filestore: ContentAddressab
         name=remote_repo_model.name,
         uuid=remote_repo_model.uuid,
         filestore=remote_filestore,
-        alternate_key_formats=remote_repo_model.alternate_key_formats,
     )
 
 @pytest_asyncio.fixture 

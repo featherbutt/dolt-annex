@@ -26,14 +26,12 @@ async def test_delete_redundant_files(tmp_path, setup: EnvironmentForTest):
         name="test_remote_1",
         uuid=uuid.uuid4(),
         filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
-        alternate_key_formats=[],
     )
 
     remote2 = RepoModel(
         name="test_remote_2",
         uuid=uuid.uuid4(),
         filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
-        alternate_key_formats=[],
     )
 
     remote_name_1 = "test_remote_1"

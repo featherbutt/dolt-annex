@@ -32,7 +32,7 @@ class MakeAlias(SubCommand):
         async with Repo.open(self.config, self.repo) as repo:
             key_types = [get_file_key_type(key_type_str) for key_type_str in self.key_type]
             if not key_types:
-                key_types = repo.alternate_key_formats
+                key_types = self.config.default_alternate_key_types
             for file_key in args or sys.stdin.readlines():
                 queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
                 if not await repo.filestore.exists(queried_key):

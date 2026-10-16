@@ -33,7 +33,6 @@ async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
         name=repo_name,
         uuid=filestore.uuid or uuid.uuid4(),
         filestore=filestore,
-        alternate_key_formats=[config.default_file_key_type] + config.default_alternate_key_types,
     )
     repo.save()
     return repo

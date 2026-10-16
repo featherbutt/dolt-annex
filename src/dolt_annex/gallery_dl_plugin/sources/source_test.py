@@ -294,7 +294,6 @@ file key: {actual_metadata_key}
 metadata: {str(actual_metadata_bytes, encoding='utf-8')}""")
                 assert actual_part == expected_row.part
 
-@pytest.mark.parametrize("alternate_key_formats",[[MD5HSe]])
 @pytest.mark.asyncio
 async def test_hash_in_metadata(setup: EnvironmentForTest):
     """
@@ -305,6 +304,7 @@ async def test_hash_in_metadata(setup: EnvironmentForTest):
     when downloading the first url. While downloading the second url, we construct
     the key before downloading the image, see that it already exists, and skip the download.
     """
+    setup.config.default_alternate_key_types = [MD5HSe]
     dataset_schema = make_default_schema("gallery-dl")
     # download https://inkbunny.net/s/3783696
     # download https://e621.net/posts/6086319 and confirm it gets skipped

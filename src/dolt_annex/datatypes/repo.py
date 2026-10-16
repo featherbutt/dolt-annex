@@ -30,7 +30,7 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     uuid: UUID
     filestore: Named[FileStoreModel]
     key_format: Annotated[FileKeyType, deprecated('Repo.key_format is deprecated and will be removed in a future version')] = Sha256E
-    alternate_key_formats: list[FileKeyType] = []
+    alternate_key_formats: Annotated[list[FileKeyType], deprecated('Repo.alternate_key_formats is deprecated and will be removed in a future version')] = []
     content_addressed: bool = True
 
     @staticmethod
@@ -49,7 +49,6 @@ class Repo:
     name: Optional[str]
     uuid: Id
     filestore: ContentAddressableStorage
-    alternate_key_formats: list[FileKeyType] = field(default_factory=list)
     content_addressed: bool = True
 
     @classmethod
@@ -65,11 +64,10 @@ class Repo:
         async with model.filestore.open(config) as filestore:
             if filestore.uuid is None:
                 filestore.uuid = model.uuid
-            cas = ContentAddressableStorage(config.filestore, filestore, model.alternate_key_formats, model.content_addressed)
+            cas = ContentAddressableStorage(config.filestore, filestore, config.default_alternate_key_types, model.content_addressed)
             yield cls(
                 name=model.name,
                 uuid=model.uuid,
                 filestore=cas,
-                alternate_key_formats=model.alternate_key_formats,
                 content_addressed=model.content_addressed,
             )

@@ -8,7 +8,7 @@ from .loader import Loadable
     
 class Collection(Loadable, extension="collection", config_dir=pathlib.Path("collections")):
     """
-    A description of a file respository. May be local or remote.
+    A set of submission records, such as a playlist or a favorite list.
     """
 
     type Id = UUID

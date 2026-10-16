@@ -64,8 +64,7 @@ class Init(cli.Application):
             name="__local__",
             uuid=filestore_model.uuid or uuid.uuid4(),
             filestore=filestore_model,
-            alternate_key_formats=[base_config.default_file_key_type] + base_config.default_alternate_key_types,
-            )
+        )
         repo.save()
         
         path = Path("config.json")
