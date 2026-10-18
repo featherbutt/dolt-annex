@@ -53,8 +53,8 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
                     )
             else:
                 if filestore_model is not None:
-                    if repo_model.uuid is None:
-                        repo_model.uuid = filestore_model.uuid
+                    if filestore_model.uuid is None:
+                        filestore_model.uuid = repo_model.uuid
                     elif filestore_model.uuid != repo_model.uuid:
                         raise ValueError(f"Filestore UUID {filestore_model.uuid} does not match repo UUID {repo_model.uuid}")
                     if repo_model.filestore != filestore_model:
