@@ -13,10 +13,10 @@ cd $temp_dir
 
 dolt-annex init
 
-dolt-annex create repo remote '{
+dolt-annex create filestore remote '{
             "uuid": "123e4567-e89b-12d3-a456-426614174000",
-            "filestore": {"type": "annexfs", "root": "."},
-            "key_format": "SHA256E"
+            "type": "annexfs",
+            "root": "."
         }'
 
 output=$(dolt-annex gallery-dl https://e621.net/posts/14)

@@ -24,7 +24,7 @@ class FileStoreSetupError(Exception):
 
 async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
     try:
-        if (repo := config.maybe_get_default_repo()) is not None:
+        if (repo := config.get_default_repo()) is not None:
             return repo
     except ConfigurationError:
         pass
