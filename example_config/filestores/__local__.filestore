@@ -1,0 +1,14 @@
+/* This is an example filestore definition, describing a local store on the same file system.
+/* All definition files are JSON5 (https://json5.org/), which means they support comments like this one.
+/*/
+{
+    // The name of the filestore, which must match the filename.
+    // Every repo has a default filestore, which is usually named "__local__".
+    "name": "__local__",
+    "uuid": "fedcba98-7654-3210-ca11-8675309abcde",
+    // How to access the filestore.
+    // The "annexfs" type is used for local filestores that store each file as a separate file in a directory.
+    // The "root" path is relative to the repo's directory.
+    "type": "annexfs",
+    "root": "./annex",
+}

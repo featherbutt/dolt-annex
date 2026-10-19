@@ -1,0 +1,17 @@
+/* This is an example filestore definition, describing a local store on the same file system.
+/* All definition files are JSON5 (https://json5.org/), which means they support comments like this one.
+/*/
+{
+    // The name of the filestore, which must match the filename.
+    "name": "sftp",
+    "type": "sftp",
+    "uuid": "12345678-9abc-def0-cafe-cba987654321",
+        
+    "connection": {
+        "user": "your_username",
+        "hostname": "sftp.example.com",
+        "port": 22,
+        "client_key": "~/.ssh/id_rsa",
+        "path": "."
+    }
+}
