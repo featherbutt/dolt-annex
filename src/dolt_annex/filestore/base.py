@@ -75,12 +75,25 @@ def wrap_errors(*, wrap: type[Exception], into: type[Exception]):
             return wrapper
     return decorator
 
-@dataclass(kw_only=True)
+@dataclass
+class FileStoreBaseParams:
+    """
+    Parameters supplied to all FileStoreModels and used by all FileStore implementations.
+    """
+
+    uuid: Optional[FileStore.Id] = None
+    content_addressed: bool = True
+
 class FileStore(abc.ABC):
 
     Id = UUID
 
     uuid: Optional[Id] = None
+    content_addressed: bool = True
+
+    def __init__(self, model: FileStoreBaseParams):
+        self.uuid = model.uuid
+        self.content_addressed = model.content_addressed
 
     class PutFileResult(typing.NamedTuple):
         file_key: FileKey
@@ -170,12 +183,10 @@ async def copy(*, src: ReadableStream, dst: WritableStream, buffer_size=1 << 20)
         await dst.write(buf)
         bytes_copied += len(buf)
 
-class FileStoreModel(Loadable, AbstractBaseModel, extension="filestore", config_dir=pathlib.Path("filestores")):
+class FileStoreModel(Loadable, AbstractBaseModel, FileStoreBaseParams, extension="filestore", config_dir=pathlib.Path("filestores")):
     """
     Subclasses must implement either open() or create().
     """
-
-    uuid: Optional[FileStore.Id] = None
     
     @asynccontextmanager
     async def open(self, config: Config) -> AsyncGenerator[FileStore]:

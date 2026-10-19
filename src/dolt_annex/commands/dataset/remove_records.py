@@ -59,10 +59,7 @@ class RemoveRecords(cli.Application):
             print("This command does not take positional arguments")
             return 1
         base_config: Config = self.parent.config
-        if self.repo:
-            repo = RepoModel.must_load(self.repo)
-        else:
-            repo = base_config.get_default_repo()
+        repo = RepoModel.open(base_config, self.repo)
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (

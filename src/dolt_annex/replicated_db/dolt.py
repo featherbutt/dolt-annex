@@ -13,6 +13,7 @@ from typing import Self, override
 from typing_extensions import Awaitable, Optional, Callable, Dict, List, Tuple, Iterable, Any
 
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStore
 from dolt_annex.replicated_db.interface import TableFilter
 from dolt_annex.datatypes import TableRow
 from dolt_annex.config.base import Config
@@ -46,7 +47,7 @@ class DatabaseConnection(interface.ReplicatedDatabase):
 
     @dataclass(frozen=True)
     class TableLookupKey:
-        uuid: Repo.Id
+        uuid: FileStore.Id
         dataset: str
         table_name: str
         
@@ -132,14 +133,14 @@ class Dataset(interface.ReplicatedDataset):
         self.name = schema.name
         self.schema = schema
 
-    def initialize_dataset_source(self, repo: Repo.Id):
+    def initialize_dataset_source(self, repo: FileStore.Id):
         """
         Ensures that the Dolt repo contains the necessary branches for this dataset.
         """
         self.conn.dolt.maybe_create_branch(f"{repo}-{self.schema.name}", self.schema.empty_table_ref)
 
     @asynccontextmanager
-    async def with_repo(self, repo: Repo.Id):
+    async def with_repo(self, repo: FileStore.Id):
         yield DatasetReplica(self, repo)
 
     @asynccontextmanager
@@ -147,7 +148,7 @@ class Dataset(interface.ReplicatedDataset):
         yield ReplicatedTable(self.schema.get_table(table_name), self)
 
     @asynccontextmanager
-    async def merge_context(self, in_repo: Repo.Id, not_in_repo: Repo.Id) -> AsyncGenerator[None]:
+    async def merge_context(self, in_repo: FileStore.Id, not_in_repo: FileStore.Id) -> AsyncGenerator[None]:
         union_branch_name = f"union-{min(in_repo, not_in_repo)}-{max(in_repo, not_in_repo)}-{self.name}"
         in_ref_branch = f"{in_repo}-{self.name}"
         not_in_ref_branch = f"{not_in_repo}-{self.name}"
@@ -171,7 +172,7 @@ class ReplicatedTable(interface.ReplicatedTable):
     schema: FileTableSchema
     dataset: Dataset
 
-    def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
+    def diff_keys(self, in_repo: FileStore.Id, not_in_repo: FileStore.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
         dolt = self.dataset.conn.dolt
         union_branch_name = f"union-{min(in_repo, not_in_repo)}-{max(in_repo, not_in_repo)}-{self.dataset.name}"
         not_in_ref_branch = f"{not_in_repo}-{self.dataset.name}"
@@ -191,7 +192,7 @@ class ReplicatedTable(interface.ReplicatedTable):
 
 
     @asynccontextmanager
-    async def with_repo(self, repo: Repo.Id):
+    async def with_repo(self, repo: FileStore.Id):
         yield TableReplica(repo, self.dataset, self.schema)
 
 class DatasetReplica(interface.DatasetReplica):
@@ -199,7 +200,7 @@ class DatasetReplica(interface.DatasetReplica):
     The dataset as it exists on a specific repo. Every row in this dataset corresponds to a file on that repo.
     """
     _dataset: Dataset
-    repo: Repo.Id
+    repo: FileStore.Id
     tables: Dict[str, TableReplica]
 
     @property
@@ -207,7 +208,7 @@ class DatasetReplica(interface.DatasetReplica):
     def dataset(self) -> Dataset:
         return self._dataset
 
-    def __init__(self, dataset: Dataset, repo: Repo.Id):
+    def __init__(self, dataset: Dataset, repo: FileStore.Id):
         self._dataset = dataset
         self.repo = repo
         self.tables = {table.name: TableReplica(repo, dataset, table) for table in dataset.schema.tables}
@@ -225,7 +226,7 @@ class DatasetReplica(interface.DatasetReplica):
 
 class TableReplica(interface.TableReplica):
     """A table that exists on mutliple remotes. Allows for batched operations against the Dolt database."""
-    repo_id: Repo.Id
+    repo_id: FileStore.Id
     dataset: Dataset
     table: interface.ReplicatedTable
     urls: Dict[str, List[str]]
@@ -243,7 +244,7 @@ class TableReplica(interface.TableReplica):
     schema: FileTableSchema
     branch_start_point: str
 
-    def __new__(cls, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+    def __new__(cls, repo_id: FileStore.Id, dataset: Dataset, schema: FileTableSchema):
         table_lookup_key = DatabaseConnection.TableLookupKey(repo_id, dataset.name, schema.name)
         if table_lookup_key in dataset.conn.tables:
             return dataset.conn.tables[table_lookup_key]
@@ -262,12 +263,12 @@ class TableReplica(interface.TableReplica):
         dataset.conn.tables[table_lookup_key] = self
         return self
 
-    def __init__(self, repo_id: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+    def __init__(self, repo_id: FileStore.Id, dataset: Dataset, schema: FileTableSchema):
         pass
 
     @classmethod
     @asynccontextmanager
-    async def new(cls, repo: Repo.Id, dataset: Dataset, schema: FileTableSchema):
+    async def new(cls, repo: FileStore.Id, dataset: Dataset, schema: FileTableSchema):
         yield cls(repo, dataset, schema)
     
     @property

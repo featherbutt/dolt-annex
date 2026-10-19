@@ -13,8 +13,9 @@ from uuid import UUID
 import pathlib
 
 from dolt_annex.datatypes.collection import Collection
+from dolt_annex.datatypes.errors import ConfigurationError
 from dolt_annex.file_keys.base import Sha256E
-from dolt_annex.filestore.base import FileStore, FileStoreModel
+from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.filestore.cas import ContentAddressableStorage
 
@@ -32,7 +33,6 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
     filestore: Named[FileStoreModel]
     key_format: Annotated[FileKeyType, deprecated('Repo.key_format is deprecated and will be removed in a future version')] = Sha256E
     alternate_key_formats: Annotated[list[FileKeyType], deprecated('Repo.alternate_key_formats is deprecated and will be removed in a future version')] = []
-    content_addressed: bool = True
 
     @staticmethod
     def open(config: Config, name: Optional[str]) -> RepoModel:
@@ -42,7 +42,7 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
             filestore_model = FileStoreModel.load(name)
             if repo_model is None:
                 if filestore_model is None:
-                    raise ValueError(f"Neither repo nor filestore could be loaded for name {name}")
+                    raise ConfigurationError(f"Filestore could be loaded for name {name}")
                 else:
                     if filestore_model.uuid is None:
                         raise ValueError(f"Filestore UUID is None for name {name}")
@@ -85,33 +85,43 @@ class RepoModel(Loadable, extension="repo", config_dir=pathlib.Path("repos")):
 
         return repo_model
 
-@dataclass
-class Repo:
+    @classmethod
+    def from_filestore_model(cls, filestore_model: FileStoreModel) -> Self:
+        if filestore_model.uuid is None:
+            raise ValueError("Cannot create a Repo from a FileStore without a UUID")
+        return cls(
+            uuid=filestore_model.uuid,
+            filestore=filestore_model,
+        )
+
+@dataclass(kw_only=True)
+class Repo(ContentAddressableStorage):
     """
     A file respository whose filestore is open. May be local or remote.
     """
     type Id = Collection.Id
-    
-    name: Optional[str]
+    name: str
     uuid: Id
-    filestore: ContentAddressableStorage
     content_addressed: bool = True
 
     @classmethod
     @asynccontextmanager
-    async def open(cls, config: Config, name: Optional[str] | RepoModel = None) -> AsyncGenerator[Self]:
+    async def open(cls, config: Config, name: Optional[str] | FileStoreModel | RepoModel = None) -> AsyncGenerator[Self]:
         match name:
             case RepoModel():
                 model = name
+            case FileStoreModel():
+                model = RepoModel.from_filestore_model(name)
             case _:
                 model = RepoModel.open(config, name)
         async with model.filestore.open(config) as filestore:
             if filestore.uuid is None:
                 filestore.uuid = model.uuid
-            cas = ContentAddressableStorage(config.filestore, filestore, config.default_alternate_key_types, model.content_addressed)
             yield cls(
-                name=model.name,
+                filestore_config=config.filestore,
+                file_store=filestore,
+                supported_key_formats=config.default_alternate_key_types,
+                content_addressed=filestore.content_addressed,
+                name=model.name if model.name is not None else "{default}",
                 uuid=model.uuid,
-                filestore=cas,
-                content_addressed=model.content_addressed,
             )

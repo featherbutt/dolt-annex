@@ -134,11 +134,11 @@ class Import(cli.Application):
             dataset.with_repo(repo.uuid) as repo_dataset,
         ):
             importer = get_importer(*self.importer.split())
-            await do_import(repo_dataset, repo, repo.filestore, import_config, importer, files_or_directories)
+            await do_import(repo_dataset, repo, import_config, importer, files_or_directories)
 
         return 0
 
-async def do_import(repo_dataset: DatasetReplica, repo: Repo, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(repo_dataset: DatasetReplica, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
     for table_name, table in repo_dataset.tables.items():
         key_paths[table_name] = {}

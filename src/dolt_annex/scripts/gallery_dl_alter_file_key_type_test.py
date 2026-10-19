@@ -12,7 +12,6 @@ from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.util.test_util import run, EnvironmentForTest
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("key_format", [Sha256E])
 async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
     """
     Test the basic functionality of the gallery-dl subcommand,
@@ -92,7 +91,7 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
         for row in metadata_table.get_rows():
             file_key = FileKey.must_parse(row["file_key"])
             assert type(file_key) is Sha256HSe
-            await setup.local_repo.filestore.verify_file(file_key)
+            await setup.local_repo.verify_file(file_key)
 
         assert len(list(submissions_table.get_rows())) == 2
         for row in submissions_table.get_rows():
@@ -100,6 +99,6 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
             metadata_file_key = FileKey.must_parse(row["metadata_file_key"])
             assert type(submission_file_key) is Sha256HSe
             assert type(metadata_file_key) is Sha256HSe
-            await setup.local_repo.filestore.verify_file(submission_file_key)
-            await setup.local_repo.filestore.verify_file(metadata_file_key)
+            await setup.local_repo.verify_file(submission_file_key)
+            await setup.local_repo.verify_file(metadata_file_key)
 

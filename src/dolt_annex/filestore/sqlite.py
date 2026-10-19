@@ -25,7 +25,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 import logging
 import pathlib
-from typing import Self
+from typing import Optional, Self
+from uuid import UUID
 from typing_extensions import override
 
 import sqlite3
@@ -75,7 +76,8 @@ class SQLite(FileStore):
     pending: dict[FileKey, bytes]
     pending_size: int
 
-    def __init__(self, db: sqlite3.Connection):
+    def __init__(self, *, model: SQLiteModel, db: sqlite3.Connection):
+        super().__init__(model)
         self.db = db
         self.pending = {}
         self.pending_size = 0
@@ -180,8 +182,9 @@ class SQLite(FileStore):
 
     @classmethod
     @asynccontextmanager
-    async def new(cls: type[Self], root: pathlib.Path) -> AsyncGenerator[Self, None]:
+    async def new(cls: type[Self], model: SQLiteModel, uuid: Optional[UUID] = None, content_addressed: bool = True) -> AsyncGenerator[Self, None]:
         """Open a SQLite Archive, creating and initializing it if it does not exist."""
+        root = model.root
         root.mkdir(parents=True, exist_ok=True)
         db_path = root / SQLAR_DB_FILENAME
         db = sqlite3.connect(db_path)
@@ -195,7 +198,7 @@ class SQLite(FileStore):
             else:
                 # Validate that the table has the expected sqlar columns.
                 db.execute("SELECT name, mode, mtime, sz, data FROM sqlar LIMIT 1")
-            sqliteFS = cls(db=db)
+            sqliteFS = cls(model=model, db=db)
             yield sqliteFS
             await sqliteFS.flush()
         finally:
@@ -209,5 +212,5 @@ class SQLiteModel(FileStoreModel):
     @override
     @asynccontextmanager
     async def open(self, config: Config) -> AsyncGenerator[SQLite]:
-        async with SQLite.new(self.root) as sqlite:
+        async with SQLite.new(self) as sqlite:
             yield sqlite

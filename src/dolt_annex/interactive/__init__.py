@@ -46,7 +46,7 @@ async def main():
     try:
         config = await ensure_config(config_file, repo_name)
         logging.basicConfig(level=config.log_level.upper())
-        repo_model =await ensure_repo(config, repo_name)
+        repo_model = await ensure_repo(config, repo_name)
 
         database_password: Optional[str]
         match config.dolt.connection.password:
@@ -65,7 +65,7 @@ async def main():
             Repo.open(config, repo_model) as repo,
             DatabaseConnection.open(config, database_password) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            http.serve_filestore(repo.filestore.file_store) as http_server,
+            http.serve_filestore(repo.file_store) as http_server,
         ):
             await loop(config, repo, dataset, http_server)
     except Exception as e:

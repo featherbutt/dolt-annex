@@ -15,7 +15,6 @@ from gallery_dl.util import json_default
 
 from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 from dolt_annex.datatypes.file_io import Pipe, SyncPipeWriter
-from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
 from dolt_annex.filestore.cas import ContentAddressableStorage
@@ -71,7 +70,7 @@ async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, dat
     table_row = TableRow({"source": source.source_name, "id": metadata["_id"]})
 
     async with dataset.with_table("metadata") as table:
-        file_key = await import_file(repo.filestore, table_row, bytes_file_source(metadata_bytes, Sha256E, extension="json"), table, collections)
+        file_key = await import_file(repo, table_row, bytes_file_source(metadata_bytes, Sha256E, extension="json"), table, collections)
     metadata["_metadata_file_key"] = file_key
     return file_key
 
@@ -110,7 +109,7 @@ def gallery_dl_prepare(metadata: FileMetadata):
                 async def task():
                     async with dataset.with_table("submissions") as submissions_table:
                         await import_file(
-                            repo.filestore,
+                            repo,
                             insert_row,
                             file_source(pipe.open(), key_type, extension=metadata["extension"]),
                             submissions_table,
@@ -162,7 +161,7 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
         for key_prefix in source.keys_from_metadata(metadata):
             has_keys_in_metadata = True
             try:
-                async for data_source in repo.filestore.file_store.get_files(bytes(key_prefix)):
+                async for data_source in repo.get_files(bytes(key_prefix)):
                     
                     row = TableRow({
                         "source": source.source_name,
@@ -172,7 +171,7 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
                     })
                     async with dataset.with_table("submissions") as writable_submissions_table:
                         await import_file(
-                            repo.filestore,
+                            repo,
                             row,
                             data_source,
                             writable_submissions_table,
@@ -190,7 +189,7 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
                 TableFilter("id", metadata["_id"])
             ]):
                 metadata_file_key = FileKey.must_parse(row["file_key"])
-                metadata_bytes = await repo.filestore.file_store.get_file_bytes(metadata_file_key)
+                metadata_bytes = await repo.file_store.get_file_bytes(metadata_file_key)
                 existing_metadata = json.loads(metadata_bytes)
                 if source.assume_same_file(metadata, existing_metadata, page_number):
                     submission_row = submissions_table.get_row(filters=[

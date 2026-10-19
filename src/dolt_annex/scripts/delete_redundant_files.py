@@ -97,16 +97,16 @@ class DeleteRedundantFiles(SubCommand):
                 file_key = FileKey.must_parse(file_key_string)
                 for repo_name, repo in repos.items():
                     # TODO: exists and verify require multiple round trip times. Make a combined function that only requires a single probe
-                    if not await repo.filestore.file_store.exists(file_key):
+                    if not await repo.file_store.exists(file_key):
                         logger.info(f"key {file_key} does not exist on repo {repo_name}")
                         can_remove = False
                         break
-                    await repo.filestore.verify_file(file_key)
+                    await repo.verify_file(file_key)
                 else:
                     can_remove = True
                 if can_remove:
                     if not self.dry_run:
-                        repo_to_delete_from.filestore.file_store.delete(file_key)
+                        repo_to_delete_from.file_store.delete(file_key)
                         await table_to_delete_from.remove(row_to_remove)
                     else:
                         logger.info(f"Would delete file: {file_key}")

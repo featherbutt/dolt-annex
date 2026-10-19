@@ -26,10 +26,7 @@ class Export(SubCommand):
         file_key = file_key or str(sys.stdin.readline().strip())
         
         queried_key = FileKey.must_parse(bytes(file_key, encoding='utf-8'))
-        if self.repo:
-            repo = RepoModel.must_load(self.repo)
-        else:
-            repo = self.config.get_default_repo()
+        repo = RepoModel.open(self.config, self.repo)
 
         async with repo.filestore.open(self.config) as filestore:
             async with filestore.with_file_object(queried_key) as f:

@@ -161,6 +161,7 @@ class ContentAddressableStorage:
         await self.file_store.create_alias(old_key=old_key, new_key=new_key)
     
     async def exists(self, file_key: FileKey) -> bool:
+        # If we're validating files, a corrupted file counts as non-existent so that it can be overwritten.
         if self.content_addressed and self.filestore_config.verify_existing_files_on_write:
             is_valid, _ = await self.contains_valid_file(file_key)
             return is_valid
@@ -168,7 +169,7 @@ class ContentAddressableStorage:
 
     async def get_files(self, prefix: bytes = b"") -> AsyncGenerator[KnownKeyFileStream]:
         async for known_key_stream in self.file_store.get_files(prefix):
-            yield known_key_source(known_key_stream, known_key_stream.known_key)
+            yield known_key_stream
 
     async def contains_valid_file(self, file_key: FileKey) -> Tuple[bool, Optional[FileKey]]:
         """

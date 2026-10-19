@@ -10,12 +10,12 @@ import logging
 from typing import Dict
 from typing_extensions import Iterable, Optional, Tuple, List
 
+from dolt_annex.filestore.cas import filestore_copy
 from dolt_annex.replicated_db.interface import ReplicatedDataset, TableFilter, TableReplica
 from dolt_annex.datatypes import TableRow
-from dolt_annex.datatypes.repo import Repo
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
-from dolt_annex.filestore.cas import filestore_copy
+from dolt_annex.datatypes.repo import Repo
 
 logger = logging.getLogger(__name__)
 
@@ -107,13 +107,13 @@ class SyncOperation:
     async def move_submission_and_key(self, key: FileKey, table_row: TableRow):
         logger.info("moving %s: %s", table_row, key)
 
-        if await self.to_repo.filestore.exists(key):
+        if await self.to_repo.exists(key):
             logger.debug("file %s already exists in destination filestore", key)
             # The file may have come from a different dataset, so we don't need to copy it.
             # We still record that we have a copy of it for this dataset.
             await self.to_table.insert(table_row)
             return
-        if self.ignore_missing and not await self.from_repo.filestore.file_store.exists(key):
+        if self.ignore_missing and not await self.from_repo.exists(key):
             logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
             return
         if key in self.in_flight_keys:
@@ -121,7 +121,7 @@ class SyncOperation:
             await task
             await self.to_table.insert(table_row)
         else:
-            task = asyncio.create_task(filestore_copy(src=self.from_repo.filestore, dst=self.to_repo.filestore, key=key))
+            task = asyncio.create_task(filestore_copy(src=self.from_repo, dst=self.to_repo, key=key))
             self.in_flight_keys[key] = task
             await task
             await self.to_table.insert(table_row)

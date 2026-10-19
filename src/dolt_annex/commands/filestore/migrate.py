@@ -74,10 +74,10 @@ class Migrate(SubCommand):
             Repo.open(self.config, self.from_repo) as from_repo,
             Repo.open(self.config, self.to_repo) as to_repo,
         ):
-            assert isinstance(from_repo.filestore.file_store, AnnexFS)
-            assert isinstance(to_repo.filestore.file_store, ArchiveFS)
+            assert isinstance(from_repo.file_store, AnnexFS)
+            assert isinstance(to_repo.file_store, ArchiveFS)
 
-            for walker in from_repo.filestore.file_store.file_system.walk(search="depth"):
+            for walker in from_repo.file_store.file_system.walk(search="depth"):
                 root = cast(str, walker.path)
                 files = cast(Iterable[fs.info.Info], walker.files)
                 dirs = cast(Iterable[fs.info.Info], walker.dirs)
@@ -92,22 +92,22 @@ class Migrate(SubCommand):
                 for file in files:
                     file_key = FileKey.must_parse(file.name.encode("utf-8"))
                     file_path = file.make_path(root)
-                    if not await from_repo.filestore.contains_valid_file(file_key):
+                    if not await from_repo.contains_valid_file(file_key):
                         if self.remove_corrupt_files:
                             logger.info("%s is corrupt in the source store, removing", file_key)
-                            from_repo.filestore.file_store.file_system.remove(file_path)
+                            from_repo.file_store.file_system.remove(file_path)
                         else:
                             logger.info("%s is corrupt in the source store, skipping", file_key)
                             can_remove_dir = False
                         continue
-                    if await to_repo.filestore.file_store.exists(file_key):
-                        await to_repo.filestore.verify_file(file_key)
+                    if await to_repo.file_store.exists(file_key):
+                        await to_repo.verify_file(file_key)
                         if self.create_aliases_if_exists:
-                            await to_repo.filestore.create_aliases(file_key)
+                            await to_repo.create_aliases(file_key)
 
                         if self.remove_if_exists:
                             logger.info("%s exists in destination store, removing", file_key)
-                            from_repo.filestore.file_store.file_system.remove(file_path)
+                            from_repo.file_store.file_system.remove(file_path)
                         else:
                             logger.info("%s exists in destination store, skipping", file_key)
                             can_remove_dir = False
@@ -115,13 +115,13 @@ class Migrate(SubCommand):
                     else:
                         logger.info("%s does not exist in destination store, copying", file_key)
                         await filestore_copy(
-                            src=from_repo.filestore,
-                            dst=to_repo.filestore,
+                            src=from_repo,
+                            dst=to_repo,
                             key=file_key
                         )
                         
                         can_remove_dir = False
                 if not has_dirs and can_remove_dir:
-                    from_repo.filestore.file_store.file_system.removedir(root)
+                    from_repo.file_store.file_system.removedir(root)
 
         return 0

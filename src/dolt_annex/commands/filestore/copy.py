@@ -41,21 +41,21 @@ class Copy(SubCommand):
         
     async def main(self, *args) -> int:
         async with (
-            Repo.open(self.config, self.from_repo) as from_repo,
-            Repo.open(self.config, self.to_repo) as to_repo,
+            Repo.open(self.config, self.from_repo) as from_filestore,
+            Repo.open(self.config, self.to_repo) as to_filestore,
         ):
             if self.all:
-                async for data_source in from_repo.filestore.file_store.get_files():
-                    await to_repo.filestore.put_file(data_source)
-                    logger.info("Copied key %s from repo %s to repo %s", data_source.known_key, from_repo.name, to_repo.name)
+                async for data_source in from_filestore.get_files():
+                    await to_filestore.put_file(data_source)
+                    logger.info("Copied key %s from repo %s to repo %s", data_source.known_key, from_filestore.name, to_filestore.name)
             else:
                 for key_str in args or sys.stdin.readlines():
                     file_key = FileKey.must_parse(bytes(key_str.strip(), encoding='utf-8'))
                     await filestore_copy(
-                        src=from_repo.filestore,
-                        dst=to_repo.filestore,
+                        src=from_filestore,
+                        dst=to_filestore,
                         key=file_key,
                     )
-                    logger.info("Copied key %s from repo %s to repo %s", file_key, from_repo.name, to_repo.name)
+                    logger.info("Copied key %s from repo %s to repo %s", file_key, from_filestore.name, to_filestore.name)
 
         return 0

@@ -90,10 +90,10 @@ class InsertRecord(cli.Application):
         file_key_type = get_file_key_type(self.file_key_type)
         
         async with (
-            Repo.open(base_config, self.repo) as repo,
+            Repo.open(base_config, self.repo) as filestore,
             DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as repo_dataset,
+            dataset.with_repo(filestore.uuid) as repo_dataset,
         ):
             file_bytes = self.file_bytes.encode('utf-8')
             if self.extension == "":
@@ -102,7 +102,7 @@ class InsertRecord(cli.Application):
                 extension = self.extension
             
             table = repo_dataset.get_table(self.table_name)
-            key, _ = await repo.filestore.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
+            key, _ = await filestore.put_file(bytes_file_source(file_bytes, file_key_type, extension=extension))
             self.value[table.schema.file_column] = key
             value = TableRow(self.value)
             await table.insert(value)

@@ -34,7 +34,6 @@ async def ensure_repo(config: Config, repo_name: str) -> RepoModel:
         uuid=filestore.uuid or uuid.uuid4(),
         filestore=filestore,
     )
-    repo.save()
     return repo
 
 async def ensure_filestore(config: Config, filestore_name: str) -> FileStoreModel:

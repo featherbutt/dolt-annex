@@ -8,7 +8,6 @@ import uuid
 import fs.memoryfs
 import pytest
 
-from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys import Sha256E
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.annexfs import AnnexFSModel
@@ -18,20 +17,21 @@ from dolt_annex.util.test_util import run, EnvironmentForTest, test_dataset_sche
 async def test_delete_redundant_files(tmp_path, setup: EnvironmentForTest):
 
     dataset_name = test_dataset_schema.name
+    assert dataset_name is not None
     table_name = test_dataset_schema.tables[0].name
     table_key_column = test_dataset_schema.tables[0].key_columns[0]
     file_column = test_dataset_schema.tables[0].file_column
 
-    remote1 = RepoModel(
+    remote1 = AnnexFSModel(
         name="test_remote_1",
         uuid=uuid.uuid4(),
-        filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
+        root=fs.memoryfs.MemoryFS(),
     )
 
-    remote2 = RepoModel(
+    remote2 = AnnexFSModel(
         name="test_remote_2",
         uuid=uuid.uuid4(),
-        filestore=AnnexFSModel(root=fs.memoryfs.MemoryFS()),
+        root=fs.memoryfs.MemoryFS(),
     )
 
     remote_name_1 = "test_remote_1"

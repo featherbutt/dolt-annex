@@ -35,10 +35,10 @@ class MakeAlias(SubCommand):
                 key_types = self.config.default_alternate_key_types
             for file_key in args or sys.stdin.readlines():
                 queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
-                if not await repo.filestore.exists(queried_key):
+                if not await repo.exists(queried_key):
                     print(f"File with key {queried_key} not found in annex, skipping.", file=sys.stderr)
                     continue
                 
-                await repo.filestore.create_aliases(queried_key, key_types)
+                await repo.create_aliases(queried_key, key_types)
         
         return 0

@@ -72,8 +72,8 @@ class Diff(SubCommand):
             DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
         ):
-            local_repo_model = RepoModel.must_load(self.from_repo)
-            remote_repo_model = RepoModel.must_load(self.to_repo)
+            local_repo_model = RepoModel.open(base_config, self.from_repo)
+            remote_repo_model = RepoModel.open(base_config, self.to_repo)
             async with (
                  dataset.merge_context(local_repo_model.uuid, remote_repo_model.uuid),
                  dataset.with_table(self.table_name) as replicated_table,   

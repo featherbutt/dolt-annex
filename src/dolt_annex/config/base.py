@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator, List, Literal
+from typing import List, Literal
 from typing_extensions import Annotated, Optional, deprecated
 
 from pydantic import AliasChoices, Field
@@ -13,7 +12,7 @@ from dolt_annex.config.connection import MySQLConnection
 from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.loader import Named
 from dolt_annex.datatypes.pydantic import StrictBaseModel
-from dolt_annex.datatypes.repo import Repo, RepoModel
+from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys import FileKeyType
 from dolt_annex.file_keys.base import MD5HSe, Sha1HSe, Sha256E, Sha256HSe
 
@@ -71,15 +70,5 @@ class Config(StrictBaseModel):
 
     def get_default_repo(self) -> RepoModel:
         if isinstance(self.local_repo, str):
-            return RepoModel.must_load(self.local_repo)
+            return RepoModel.open(self, self.local_repo)
         return self.local_repo
-
-    def maybe_get_default_repo(self) -> Optional[RepoModel]:
-        if isinstance(self.local_repo, str):
-            return RepoModel.load(self.local_repo)
-        return self.local_repo
-
-    @asynccontextmanager
-    async def open_default_repo(self) -> AsyncGenerator[Repo]:
-        async with Repo.open(self, None) as repo:
-            yield repo

@@ -85,7 +85,7 @@ class AlterFileKeyType(SubCommand):
             if not self.skip_metadata:
                 for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                     old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
-                    new_metadata_file_keys = await repo.filestore.create_aliases(old_metadata_file_key, new_key_types=[TargetFileKeyType])
+                    new_metadata_file_keys = await repo.create_aliases(old_metadata_file_key, new_key_types=[TargetFileKeyType])
                     assert len(new_metadata_file_keys) == 1, f"Expected exactly one new metadata file key, got {len(new_metadata_file_keys)}"
                     if new_metadata_file_keys[0] == old_metadata_file_key:
                         print(f"File key for metadata row {old_metadata_row} is already of type {self.file_key_type}, skipping.")
@@ -103,7 +103,7 @@ class AlterFileKeyType(SubCommand):
                         TableFilter("metadata_file_key", str(old_metadata_file_key))
                     ]):
                         old_submission_file_key = FileKey.must_parse(old_submission_row["submission_file_key"])
-                        new_submission_file_keys = await repo.filestore.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
+                        new_submission_file_keys = await repo.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
                         assert len(new_submission_file_keys) == 1, f"Expected exactly one new submission file key, got {len(new_submission_file_keys)}"
                         new_submission_file_key = new_submission_file_keys[0]
                     
@@ -121,7 +121,7 @@ class AlterFileKeyType(SubCommand):
             if not self.skip_submissions:
                 for old_submission_row in submissions_table.get_rows(filters=self.filters):
                     old_submission_file_key = FileKey.must_parse(old_submission_row["submission_file_key"])
-                    new_submission_file_keys = await repo.filestore.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
+                    new_submission_file_keys = await repo.create_aliases(old_submission_file_key, new_key_types=[TargetFileKeyType])
                     assert len(new_submission_file_keys) == 1, f"Expected exactly one new submission file key, got {len(new_submission_file_keys)}"
                     if new_submission_file_keys[0] == old_submission_file_key:
                         print(f"File key for submission row {old_submission_row} is already of type {self.file_key_type}, skipping.")

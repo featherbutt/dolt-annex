@@ -27,6 +27,7 @@ from dolt_annex.config.base import Config
 from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStore
 
 @dataclass
 class TableFilter:
@@ -54,7 +55,7 @@ class ReplicatedDatabase(ABC):
         
 class ReplicatedDataset(ABC):
     @abstractmethod
-    def with_repo(self, repo: Repo.Id) -> AsyncContextManager[DatasetReplica]:
+    def with_repo(self, repo: FileStore.Id) -> AsyncContextManager[DatasetReplica]:
         """
         Return the replica of this dataset from a specific repo.
         """
@@ -66,7 +67,7 @@ class ReplicatedDataset(ABC):
         """
 
     @abstractmethod
-    def merge_context(self, in_repo: Repo.Id, not_in_repo: Repo.Id) -> AsyncContextManager[None]:
+    def merge_context(self, in_repo: FileStore.Id, not_in_repo: FileStore.Id) -> AsyncContextManager[None]:
         """
         A context that performs preparation and cleanup for a diff or merge.
         """
@@ -75,13 +76,13 @@ class ReplicatedTable(ABC):
     schema: FileTableSchema
 
     @abstractmethod
-    def diff_keys(self, in_repo: Repo.Id, not_in_repo: Repo.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
+    def diff_keys(self, in_repo: FileStore.Id, not_in_repo: FileStore.Id, filters: List[TableFilter], limit: Optional[int] = None) -> Iterable[Tuple[str, FileKey, TableRow, TableRow]]:
         """
         Return an iterable containing all the rows in this table that appear in one repo but not the other.
         """
 
     @abstractmethod
-    def with_repo(self, repo: Repo.Id) -> AsyncContextManager[TableReplica]:
+    def with_repo(self, repo: FileStore.Id) -> AsyncContextManager[TableReplica]:
         """
         Return the replica of this table from a specific repo.
         """

@@ -8,12 +8,12 @@ import pathlib
 import uuid
 
 from dolt_annex.filestore.annexfs import AnnexFSModel
+from dolt_annex.filestore.base import FileStoreModel
 from dolt_annex.filestore.sftp import SftpFileStoreModel
 import pyjson5
 
 from dolt_annex.config.base import Config, UserConfig, DoltConfig, SshSettings
 from dolt_annex.config.connection import MySQLConnection, SSHConnection
-from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
 from dolt_annex.file_keys import Sha256E
 
@@ -44,28 +44,24 @@ def test_example_config():
         default_file_key_type=Sha256E,
     )
 
-    example_local_repo = RepoModel(
+    example_local_repo = AnnexFSModel(
         name = "__local__",
         uuid = uuid.UUID("fedcba98-7654-3210-ca11-8675309abcde"),
-        filestore = AnnexFSModel(
-            root=pathlib.Path("./annex"),
-        ),
-        key_format = Sha256E,
+
+        root=pathlib.Path("./annex"),
     )
 
-    example_remote_repo = RepoModel(
+    example_remote_repo = SftpFileStoreModel(
         name = "sftp",
         uuid = uuid.UUID("12345678-9abc-def0-cafe-cba987654321"),
-        filestore = SftpFileStoreModel(
-            connection=SSHConnection(
-                user="your_username",
-                hostname="sftp.example.com",
-                port=22,
-                client_key=pathlib.Path("~/.ssh/id_rsa"),
-                path=pathlib.Path("."),
-            )
-        ),
-        key_format = Sha256E,
+
+        connection=SSHConnection(
+            user="your_username",
+            hostname="sftp.example.com",
+            port=22,
+            client_key=pathlib.Path("~/.ssh/id_rsa"),
+            path=pathlib.Path("."),
+        )
     )
 
     example_dataset_schema = DatasetSchema(
@@ -86,12 +82,12 @@ def test_example_config():
             loaded_config = Config.model_validate(pyjson5.decode(f.read()))
             assert loaded_config == example_config
         
-        with open("repos/__local__.repo", encoding="utf-8") as f:
-            loaded_local_repo = RepoModel.model_validate(pyjson5.decode(f.read()))
+        with open("filestores/__local__.filestore", encoding="utf-8") as f:
+            loaded_local_repo = FileStoreModel.model_validate(pyjson5.decode(f.read()))
             assert loaded_local_repo == example_local_repo
 
-        with open("repos/sftp.repo", encoding="utf-8") as f:
-            loaded_remote_repo = RepoModel.model_validate(pyjson5.decode(f.read()))
+        with open("filestores/sftp.filestore", encoding="utf-8") as f:
+            loaded_remote_repo = FileStoreModel.model_validate(pyjson5.decode(f.read()))
             assert loaded_remote_repo == example_remote_repo
 
         with open("file_archive.dataset", encoding="utf-8") as f:

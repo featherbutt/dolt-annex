@@ -33,6 +33,6 @@ class Remove(SubCommand):
         async with Repo.open(self.config, self.repo) as repo:
             for file_key in args or sys.stdin.readlines():
                 queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
-                repo.filestore.file_store.delete(queried_key)
+                repo.file_store.delete(queried_key)
             
         return 0

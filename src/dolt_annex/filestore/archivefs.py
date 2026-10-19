@@ -61,7 +61,7 @@ class ArchiveFS(FileStore):
 
     def __init__(
             self, *,
-            uuid: Optional[FileStore.Id],
+            model: ArchiveFSModel,
             file_system: FileSystem,
             secondary: FileStore,
             exit_stack: AsyncExitStack,
@@ -69,7 +69,7 @@ class ArchiveFS(FileStore):
             append: bool,
             readonly: bool,
     ):
-        self.uuid = uuid
+        super().__init__(model)
         self.file_system = file_system
         self.secondary = secondary
         self.max_archive_size = max_archive_size
@@ -236,7 +236,7 @@ class ArchiveFSModel(FileStoreModel):
                 file_system = self.root
             
             archive = ArchiveFS(
-                uuid=self.uuid,
+                model=self,
                 file_system=file_system,
                 secondary=secondary_filestore,
                 exit_stack=exit_stack,

@@ -5,8 +5,8 @@ import sys
 from plumbum import cli
 from dolt_annex.commands import CommandGroup, SubCommand
 
-from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.file_keys.base import FileKey
+from dolt_annex.filestore.base import FileStoreModel
 
 class WhereIs(SubCommand):
     """List the repos that contain a file key."""
@@ -21,19 +21,20 @@ class WhereIs(SubCommand):
         
     async def main(self, *args) -> int:
         if self.repo:
-            repo_models = [RepoModel.must_load(self.repo)]
+            filestore_models = [FileStoreModel.must_load(self.repo)]
         else:
-            repo_models = RepoModel.all()
+            filestore_models = FileStoreModel.all()
 
         async with AsyncExitStack() as stack:
-            filestores = [await stack.enter_async_context(repo.filestore.open(self.config)) for repo in repo_models]
+            filestores = [await stack.enter_async_context(filestore.open(self.config)) for filestore in filestore_models]
             for file_key in args or sys.stdin.readlines():
                 locations = []
                 queried_key = FileKey(bytes(file_key.strip(), encoding='utf-8'))
-                for filestore, repo in zip(filestores, repo_models):
+                for filestore, repo in zip(filestores, filestore_models):
                     if await filestore.exists(queried_key):
                         locations.append({"name": repo.name, "uuid": str(repo.uuid)})
 
+                locations.sort(key=lambda x: x["name"])
                 print(json.dumps(locations))
         
         return 0

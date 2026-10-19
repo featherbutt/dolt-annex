@@ -1,12 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
 import pathlib
-import uuid
 
 from plumbum import cli
 
 from dolt_annex.commands.application import Application
-from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.config.base import Config, DoltConfig
 from dolt_annex.interactive.ensure_dolt_binary import ensure_dolt_binary
 from dolt_annex.interactive.ensure_database import create_dolt_directory
@@ -59,13 +57,6 @@ class Init(cli.Application):
 
         filestore_model = await make_new_local_filestore(base_config, "__local__")
         filestore_model.save()
-
-        repo = RepoModel(
-            name="__local__",
-            uuid=filestore_model.uuid or uuid.uuid4(),
-            filestore=filestore_model,
-        )
-        repo.save()
         
         path = Path("config.json")
         if not path.exists():

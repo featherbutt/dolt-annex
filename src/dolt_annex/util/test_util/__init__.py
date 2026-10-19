@@ -15,8 +15,8 @@ import pytest
 from dolt_annex.commands.application import Application
 from dolt_annex.datatypes.async_types import maybe_await
 from dolt_annex.config.base import Config
-from dolt_annex.datatypes.repo import Repo
 from dolt_annex.datatypes.table import DatasetSchema, FileTableSchema
+from dolt_annex.datatypes.repo import Repo
 from dolt_annex.util.test_util.io_utils import BufferStringIO, TextTee, redirect_stdin
 
 @dataclass
@@ -24,7 +24,9 @@ class EnvironmentForTest:
     """
     The output of dolt_annex.conftest.setup
     """
+    local_repo_name: str
     local_repo: Repo
+    remote_repo_name: str
     remote_repo: Repo
     config: Config
 

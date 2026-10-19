@@ -136,7 +136,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
         expected_output_contains="Inserted row"
     )
 
-    remote_memory_store = cast(MemoryFS, setup.remote_repo.filestore.file_store)
+    remote_memory_store = cast(MemoryFS, setup.remote_repo.file_store)
     del remote_memory_store.files[b"SHA256E-s14--92d7f552b54125f4a8076811c310c671a21b1538842f36afbda91ba7534f21d2.txt"]
 
     await run(
@@ -145,7 +145,7 @@ async def test_pull_missing_file(tmp_path, setup: EnvironmentForTest):
     )
 
     # Assert that the first file was still pulled
-    local_memory_store = cast(MemoryFS, setup.local_repo.filestore.file_store)
+    local_memory_store = cast(MemoryFS, setup.local_repo.file_store)
     assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884.txt"] == b"file_content_1"
 
     # Assert that the record was added to the local database
@@ -175,7 +175,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
         expected_output_contains="Inserted row"
     )
 
-    remote_memory_store = cast(MemoryFS, setup.remote_repo.filestore.file_store)
+    remote_memory_store = cast(MemoryFS, setup.remote_repo.file_store)
     remote_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] = b"modified_content"
 
     # Assert that the local db does not contain any records.
@@ -195,7 +195,7 @@ async def test_file_already_in_local_filestore(tmp_path, setup: EnvironmentForTe
     )
 
     # Assert that the file in the local filestore was not modified
-    local_memory_store = cast(MemoryFS, setup.local_repo.filestore.file_store)
+    local_memory_store = cast(MemoryFS, setup.local_repo.file_store)
     assert local_memory_store.files[b"SHA256E-s14--f17ac4b5e53ad9ea8b33b4c7914abb234e57c281c13ba580098dbb5d10ae0884"] == b"file_content_1"
 
 @pytest.mark.asyncio
@@ -225,7 +225,7 @@ async def test_pull_overwrites_corrupt_local_file(tmp_path, setup: EnvironmentFo
         expected_output_contains="Inserted row"
     )
 
-    await setup.local_repo.filestore.file_store.put_file_bytes(b"corrupted_content", file_key=record1_key)
+    await setup.local_repo.file_store.put_file_bytes(b"corrupted_content", file_key=record1_key)
 
     await run(
         args=[
@@ -236,4 +236,4 @@ async def test_pull_overwrites_corrupt_local_file(tmp_path, setup: EnvironmentFo
         expected_output_contains=f"Pulled 1 files from remote {remote_name}"
     )
 
-    assert await setup.local_repo.filestore.file_store.get_file_bytes(record1_key) == record1.file_bytes
+    assert await setup.local_repo.file_store.get_file_bytes(record1_key) == record1.file_bytes

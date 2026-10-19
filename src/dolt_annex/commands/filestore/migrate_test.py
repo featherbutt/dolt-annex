@@ -15,8 +15,8 @@ from dolt_annex.util.test_util import EnvironmentForTest, run
 @pytest.mark.parametrize("remote_filestore_model", [ArchiveFSModel(root=pathlib.Path('./archive'), secondary=MemoryFSModel())])
 async def test_migrate(tmp_path, setup: EnvironmentForTest):
     """Run and validate pushing content files to a remote"""
-    local_file_store = setup.local_repo.filestore.file_store
-    remote_file_store = setup.remote_repo.filestore.file_store
+    local_file_store = setup.local_repo.file_store
+    remote_file_store = setup.remote_repo.file_store
 
     key = Sha256E.from_bytes(b"new file content", "txt")
     await run(
@@ -28,13 +28,13 @@ async def test_migrate(tmp_path, setup: EnvironmentForTest):
     assert not await remote_file_store.exists(key)
 
     await run(
-        args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo.name, "--to", setup.remote_repo.name],
+        args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo_name, "--to", setup.remote_repo_name],
     )
 
     assert await remote_file_store.exists(key)
 
     await run(
-        args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo.name, "--to", setup.remote_repo.name, "--remove-if-exists"],
+        args=["dolt-annex", "filestore", "migrate", "--from", setup.local_repo_name, "--to", setup.remote_repo_name, "--remove-if-exists"],
     )
 
     assert not await local_file_store.exists(key)

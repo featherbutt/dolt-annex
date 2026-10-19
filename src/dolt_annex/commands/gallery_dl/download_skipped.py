@@ -43,7 +43,7 @@ class DownloadSkipped(SubCommand[GalleryDL]):
             submissions_table = repo_dataset.get_table("submissions")
             for metadata_row in metadata_table.get_rows():
                 metadata_file_key = metadata_row["file_key"]
-                async with repo.filestore.file_store.with_file_object(metadata_file_key) as metadata_fd:
+                async with repo.file_store.with_file_object(metadata_file_key) as metadata_fd:
                     metadata_json = cast(FileMetadata, json.load(metadata_fd))
                     
                 source = category_to_source[metadata_json["category"]]

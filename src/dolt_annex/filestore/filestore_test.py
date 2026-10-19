@@ -65,7 +65,7 @@ class SimpleSftpFilestoreModel(FileStoreModel):
                           authorized_client_keys=str(test_util.public_key_path),
                           sftp_factory=True)
         try:
-            async with SimpleSftpFilestore.open(self.uuid, connection, config) as filestore:
+            async with SimpleSftpFilestore.open(self, connection, config) as filestore:
                 yield filestore
         finally:
             server.close()
@@ -101,7 +101,7 @@ class SftpWrappedFilestoreModel(FileStoreModel):
                     str(test_util.public_key_path),
                     str(test_util.private_key_path)
                 ),
-                SftpWrappedFileStore.open(self.remote_file_store_model.uuid, connection, config) as filestore
+                SftpWrappedFileStore.open(self, connection, config) as filestore
             ):
                 filestore.remote_file_store = remote_file_store
                 yield filestore

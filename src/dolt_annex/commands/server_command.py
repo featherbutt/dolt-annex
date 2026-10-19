@@ -78,7 +78,7 @@ class Server(SubCommand):
         async with Repo.open(config, self.repo) as repo:
             async with (
                 server_context(
-                    cas=repo.filestore,
+                    cas=repo,
                     host=self.host,
                     port=self.port,
                     authorized_keys=self.authorized_keys,

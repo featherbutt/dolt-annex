@@ -3,7 +3,6 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
-from typing import Optional
 from typing_extensions import override, Any
 
 from dolt_annex.datatypes.async_utils import await_or_enter
@@ -12,7 +11,7 @@ from dolt_annex.datatypes.loader import Named
 from dolt_annex.file_keys import FileKey
 from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream, fork_readable_stream
 
-from .base import FileInfo, FileStore, FileStoreError, FileStoreModel
+from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, FileStoreBaseParams
 
 class UnionFS(FileStore):
     """
@@ -22,11 +21,10 @@ class UnionFS(FileStore):
     """
 
     children: list[FileStore]
-
     write_to_all_children: bool = False
 
-    def __init__(self, *, uuid: Optional[FileStore.Id], children: list[FileStore], write_to_all_children: bool = False):
-        self.uuid = uuid
+    def __init__(self, *, model: FileStoreBaseParams, children: list[FileStore], write_to_all_children: bool = False):
+        super().__init__(model)
         self.children = children
         self.write_to_all_children = write_to_all_children
 
@@ -124,7 +122,7 @@ class UnionFSModel(FileStoreModel):
                 child_instance = await stack.enter_async_context(child_model.open(config))
                 children_filestores.append(child_instance)
             yield UnionFS(
-                uuid=self.uuid,
+                model=self,
                 children=children_filestores,
                 write_to_all_children=self.write_to_all_children
             )

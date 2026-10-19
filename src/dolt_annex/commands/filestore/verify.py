@@ -38,11 +38,11 @@ class Verify(SubCommand):
     async def main(self, *args) -> int:
         async with Repo.open(self.config, self.repo) as repo:
             if self.all:
-                await repo.filestore.verify_all_files()
+                await repo.verify_all_files()
             else:
                 for file_key in args or sys.stdin.readlines():
                     queried_key = FileKey.must_parse(bytes(file_key.strip(), encoding='utf-8'))
-                    await repo.filestore.verify_file(queried_key)
+                    await repo.verify_file(queried_key)
             logger.info("All files verified successfully.")
             
         return 0

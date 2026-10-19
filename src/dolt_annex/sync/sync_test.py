@@ -122,10 +122,10 @@ async def test_async_move(
             to_repo,
             FILTERS,
         )
-        await to_repo.filestore.file_store.flush()
+        await to_repo.file_store.flush()
         # Check that files have been moved
         for file_key in added_file_keys:
-            await to_repo.filestore.verify_file(file_key)
+            await to_repo.verify_file(file_key)
         # Check that db entries have been updated
         to_table = from_repo_dataset.get_table("test_table")
         for row in to_table.get_rows():
@@ -133,10 +133,10 @@ async def test_async_move(
             file_key = row["file_key"]
             assert bytes(added_file_keys[int(path)]) == bytes(file_key, encoding='utf-8')
         # If the destination filestore is ArchiveFS, ensure that files are in multiple archives
-        if isinstance(to_repo.filestore, ArchiveFS):
+        if isinstance(to_repo.file_store, ArchiveFS):
             archive_ids = set()
             for file_key in added_file_keys:
-                file_location = await to_repo.filestore.secondary.get_file_bytes(file_key)
+                file_location = await to_repo.file_store.secondary.get_file_bytes(file_key)
                 print(file_location)
                 name, offset, size = file_location.split(b":")
                 archive_ids.add(name)
@@ -160,7 +160,7 @@ async def test_diff_types(
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
-        file_key, _ = await setup.local_repo.filestore.put_file(bytes_file_source(file_bytes, Sha256E))
+        file_key, _ = await setup.local_repo.put_file(bytes_file_source(file_bytes, Sha256E))
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
         from_table = from_repo_dataset.get_table("test_table")
@@ -174,7 +174,7 @@ async def test_diff_types(
             FILTERS,
         )
         # Check that files have been moved
-        await to_repo.filestore.verify_file(file_key)
+        await to_repo.verify_file(file_key)
         # Check that db entries have been updated
         to_table = to_repo_dataset.get_table("test_table")
         rows = list(to_table.get_rows())
@@ -185,7 +185,7 @@ async def test_diff_types(
         # Modify the table row
         await from_table.remove(table_row)
         new_file_bytes = random.randbytes(1024**2) # 1 MB
-        new_file_key, _ = await setup.local_repo.filestore.put_file(bytes_file_source(new_file_bytes, Sha256E))
+        new_file_key, _ = await setup.local_repo.put_file(bytes_file_source(new_file_bytes, Sha256E))
         new_table_row = TableRow({"path": "test_path", "file_key": new_file_key})
         await from_table.insert(new_table_row)
 
@@ -198,7 +198,7 @@ async def test_diff_types(
         )
 
         # Check that files have been moved
-        await to_repo.filestore.verify_file(new_file_key)
+        await to_repo.verify_file(new_file_key)
         # Check that db entries have been updated
         rows = list(to_table.get_rows())
         assert len(rows) == 1

@@ -35,7 +35,8 @@ class LevelDB(FileStore):
 
     db: plyvel.DB
 
-    def __init__(self, *, db: plyvel.DB):
+    def __init__(self, *, model: LevelDBModel, db: plyvel.DB):
+        super().__init__(model)
         self.db = db
 
     @override
@@ -103,4 +104,7 @@ class LevelDBModel(FileStoreModel):
         
         self.root.mkdir(parents=True, exist_ok=True)
         with plyvel.DB(self.root.as_posix(), create_if_missing=True) as db:
-            yield LevelDB(db=db)
+            yield LevelDB(
+                model=self,
+                db=db,
+            )

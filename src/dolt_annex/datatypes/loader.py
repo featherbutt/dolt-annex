@@ -61,6 +61,9 @@ class Loadable(StrictBaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
+        self.save_to_cache()
+
+    def save_to_cache(self):
         cache = self.cache.get()
         if self.name is not None:
             cache[self.name] = self

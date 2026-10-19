@@ -8,16 +8,15 @@ from dolt_annex.filestore.memory import MemoryFS, MemoryFSModel
 from dolt_annex.util.test_util import EnvironmentForTest, run
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("local_filestore_model", [MemoryFSModel()])
 async def test_remove_file_from_args(setup: EnvironmentForTest):
-    local_file_store = setup.local_repo.filestore.file_store
+    local_file_store = setup.local_repo.file_store
     key = Sha256E.from_bytes(b"file to remove", "txt")
 
     await run(
         args=["dolt-annex", "filestore", "insert-file", "--file-bytes", "file to remove"],
         expected_output_contains="Inserted file with key"
     )
-    assert await local_file_store.exists(key)
+    assert await setup.local_repo.exists(key)
 
     await run(
         args=["dolt-annex", "filestore", "remove-file", "--repo", "__local__", str(key)],
@@ -28,8 +27,8 @@ async def test_remove_file_from_args(setup: EnvironmentForTest):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("local_filestore_model", [MemoryFSModel()])
 async def test_remove_file_from_stdin(setup: EnvironmentForTest):
-    local_file_store = setup.local_repo.filestore.file_store
-    assert isinstance(local_file_store, MemoryFS)
+    local_file_store = setup.local_repo
+    assert isinstance(local_file_store.file_store, MemoryFS)
     key = Sha256E.from_bytes(b"file removed via stdin", "txt")
 
     await run(
@@ -49,8 +48,8 @@ async def test_remove_file_from_stdin(setup: EnvironmentForTest):
 @pytest.mark.parametrize("local_filestore_model", [MemoryFSModel()])
 async def test_remove_only_affects_named_repo(setup: EnvironmentForTest):
     """Removing a file from one repo must not remove it from another repo."""
-    local_file_store = setup.local_repo.filestore.file_store
-    remote_file_store = setup.remote_repo.filestore.file_store
+    local_file_store = setup.local_repo.file_store
+    remote_file_store = setup.remote_repo.file_store
     key = Sha256E.from_bytes(b"in both repos", "txt")
 
     await run(

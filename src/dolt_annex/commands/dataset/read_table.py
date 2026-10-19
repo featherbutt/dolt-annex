@@ -76,10 +76,8 @@ class ReadTable(cli.Application):
         base_config: Config = self.parent.config
         if self.collection:
             repo_id = Collection.must_load(self.collection).uuid
-        elif self.repo:
-            repo_id = RepoModel.must_load(self.repo).uuid
         else:
-            repo_id = base_config.get_default_repo().uuid
+            repo_id = RepoModel.open(base_config, self.repo).uuid
         dataset_schema = DatasetSchema.must_load(self.dataset)
 
         async with (

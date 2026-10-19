@@ -35,10 +35,13 @@ from .base import FileInfo, FileStore, FileStoreError, FileStoreModel, copy, wra
 
 logger = logging.getLogger(__name__)
 
-@dataclass(kw_only=True)
 class SftpFileStore(FileStore):
 
     sftp: asyncssh.SFTPClient
+
+    def __init__(self, *, model: FileStoreModel, sftp: asyncssh.SFTPClient):
+        super().__init__(model)
+        self.sftp = sftp
 
     @override
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
@@ -151,7 +154,7 @@ class SftpFileStore(FileStore):
     @classmethod
     @asynccontextmanager
     @wrap_errors(wrap=SFTPError, into=FileStoreError)
-    async def open(cls, filestore_id: Optional[FileStore.Id], connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
+    async def open(cls, model: FileStoreModel, connection: SSHConnection, config: Config) -> AsyncGenerator[Self]:
         """Connect to an SFTP filestore."""
         extra_opts = {}
         match connection.password:
@@ -184,7 +187,7 @@ class SftpFileStore(FileStore):
         ) as conn:
             async with conn.start_sftp_client() as sftp:
                 await sftp.chdir(connection.path.as_posix())
-                filestore = cls(uuid=filestore_id, sftp=sftp)
+                filestore = cls(model=model, sftp=sftp)
                 if filestore.uuid is not None:
                     remote_uuid = await filestore.get_remote_uuid()
                     if remote_uuid and remote_uuid != filestore.uuid:
@@ -198,4 +201,4 @@ class SftpFileStoreModel(FileStoreModel):
     @override
     def open(self, config: Config) -> _AsyncGeneratorContextManager[SftpFileStore]:
         """Connect to an SFTP filestore."""
-        return SftpFileStore.open(self.uuid, self.connection, config)
+        return SftpFileStore.open(self.uuid, self.connection, config, content_addressed=self.content_addressed)

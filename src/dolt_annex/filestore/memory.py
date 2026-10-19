@@ -7,7 +7,6 @@ across restarts.
 """
 
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
 from typing_extensions import override
 
 from dolt_annex.datatypes.async_types import ReadableFileObject, ReadableStream
@@ -20,10 +19,23 @@ from dolt_annex.datatypes.file_stream import KeyedFileStream, KnownKeyFileStream
 
 from .base import FileInfo, FileStore, FileStoreModel
 
-@dataclass(kw_only=True)
+class MemoryFSModel(FileStoreModel):
+
+    # Whether the filestore should persist files after being closed.
+    persistent: bool = True
+    files: dict[bytes, bytes] = {}
+
+    @override
+    def create(self, config: Config) -> MemoryFS:
+        return MemoryFS(model=self)
+
 class MemoryFS(FileStore):
 
-    files: dict[bytes, bytes] = field(default_factory=dict)
+    files: dict[bytes, bytes]
+
+    def __init__(self, *, model: MemoryFSModel = MemoryFSModel()):
+        super().__init__(model)
+        self.files = model.files if model.persistent else model.files.copy()
 
     @override
     async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
@@ -80,11 +92,3 @@ class MemoryFS(FileStore):
     def delete(self, key: FileKey) -> None:
         del self.files[bytes(key)]
 
-class MemoryFSModel(FileStoreModel):
-
-    # Whether the filestore should persist files after being closed.
-    persistent: bool = True
-    files: dict[bytes, bytes] = {}
-
-    def create(self, config: Config) -> MemoryFS:
-        return MemoryFS(uuid=self.uuid, files=self.files if self.persistent else self.files.copy())

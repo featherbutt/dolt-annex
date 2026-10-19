@@ -12,7 +12,6 @@ has an md5 hash beginning with `091de9...`, and is thus found at `./091/de9/`
 relative to the filestore root.
 """
 
-from dataclasses import dataclass
 import hashlib
 import pathlib
 import random
@@ -34,10 +33,13 @@ from dolt_annex.datatypes.file_stream import KeyedFileStream
 
 from .base import FileInfo, FileStore, FileStoreModel
 
-@dataclass
 class AnnexFS(FileStore):
 
     file_system: FileSystem
+
+    def __init__(self, model: AnnexFSModel, file_system: FileSystem):
+        super().__init__(model)
+        self.file_system = file_system
 
     @override
     async def put_file_object(self, data_source: KeyedFileStream, overwrite_existing: bool = False) -> FileStore.PutFileResult:
@@ -126,4 +128,4 @@ class AnnexFSModel(FileStoreModel):
             file_system = fs.osfs.OSFS(str(self.root))
         else:
             file_system = self.root
-        return AnnexFS(uuid=self.uuid, file_system=file_system)
+        return AnnexFS(model=self, file_system=file_system)
