@@ -7,7 +7,6 @@ import pytest
 
 from dolt_annex.datatypes.collection import Collection
 from dolt_annex.datatypes.loader import Loadable
-from dolt_annex.datatypes.repo import RepoModel
 from dolt_annex.datatypes.table import DatasetSchema
 from dolt_annex.filestore.archivefs import ArchiveFSModel
 from dolt_annex.filestore.base import FileStoreModel
@@ -24,16 +23,6 @@ from dolt_annex.util.test_util import run
         {
             "type": "annexfs",
             "root": ".",
-        }
-    ),
-    (
-        "repo",
-        RepoModel,
-        "foo_remote",
-        {
-            "uuid": "123e4567-e89b-12d3-a456-426614174000",
-            "filestore": {"type": "annexfs", "root": "."},
-            "key_format": "SHA256E"
         }
     ),
     (
@@ -104,5 +93,5 @@ async def test_create_invalid_type(tmp_path, setup):
     await run(
         args=["dolt-annex", "create", "invalid", "name", "{}"],
         expected_error_code=1,
-        expected_output_contains="Unknown command: create invalid. Accepted values are: repo, dataset",
+        expected_output_contains="Unknown command: create invalid. Accepted values are: dataset, filestore, collection",
     )
