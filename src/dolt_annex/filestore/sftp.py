@@ -201,4 +201,4 @@ class SftpFileStoreModel(FileStoreModel):
     @override
     def open(self, config: Config) -> _AsyncGeneratorContextManager[SftpFileStore]:
         """Connect to an SFTP filestore."""
-        return SftpFileStore.open(self.uuid, self.connection, config, content_addressed=self.content_addressed)
+        return SftpFileStore.open(self, self.connection, config)

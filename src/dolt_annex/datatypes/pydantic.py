@@ -24,7 +24,8 @@ class AbstractBaseModel(StrictBaseModel, ABC):
         if cls is cls.__base_model:
             if "type" not in kwargs:
                 raise ValueError(f"Missing 'type' field for {cls.__name__} instantiation.")
-            return cls.model_validate(kwargs)
+            impl_cls = cls.get_class(kwargs.pop("type"))
+            return impl_cls.__new__(impl_cls, **kwargs)
         return super().__new__(cls)
 
     def __init_subclass__(cls: type[Self], **kwargs):
@@ -39,18 +40,8 @@ class AbstractBaseModel(StrictBaseModel, ABC):
             cls.__base_model.__type_map.setdefault(module_name, dict())[cls.__name__] = cls
         return super().__init_subclass__(**kwargs)
 
-    @model_validator(mode='wrap')
     @classmethod
-    def validator(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
-
-        if isinstance(v, cls):
-            return handler(v)
-
-        type_name = v.pop("type", None)
-        if type_name is None:
-             # Concrete implementations use the normal handler
-            return handler(v)
-
+    def get_class(cls, type_name: str) -> type[Self]:
         class_name: Optional[str] = None
         match type_name.split('.'):
             case [module_name]:
@@ -68,12 +59,28 @@ class AbstractBaseModel(StrictBaseModel, ABC):
             raise ImportError(f"module '{repr(imported_module)}' does not contain any classes that implement '{cls.__name__}'")
 
         if len(cls.__type_map[module_name]) == 1:
-            impl_cls = next(iter(cls.__type_map[module_name].values()))
+            return next(iter(cls.__type_map[module_name].values()))
         elif class_name is None:
             raise ValueError(f"Multiple implementations of '{cls.__name__}' in '{module_name}'. Please specify the class name.")
         else:
-            impl_cls = cls.__type_map[module_name][class_name]    
+            return cls.__type_map[module_name][class_name]    
+
+    @model_validator(mode='wrap')
+    @classmethod
+    def validator(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+        if isinstance(v, cls):
+            return handler(v)
         
+        type_name = v.pop("type", None)
+        if cls is not cls.__base_model:
+            # Concrete implementations use the normal handler
+            return handler(v)
+
+        if type_name is None:
+             # Concrete implementations use the normal handler
+            return handler(v)
+
+        impl_cls = cls.get_class(type_name)
         return impl_cls(**v)
     
     @model_serializer(mode='wrap')
