@@ -19,14 +19,6 @@ class AbstractBaseModel(StrictBaseModel, ABC):
     __type_map: ClassVar[dict[str, dict[str, type[Self]]]]
     __base_model: ClassVar[type[Self] | None] = None
 
-    def __new__(cls, **kwargs):
-        # Instantiating the base model returns the appropriate subclass based on the "type" field.
-        if cls is cls.__base_model:
-            if "type" not in kwargs:
-                raise ValueError(f"Missing 'type' field for {cls.__name__} instantiation.")
-            impl_cls = cls.get_class(kwargs.pop("type"))
-            return impl_cls.__new__(impl_cls, **kwargs)
-        return super().__new__(cls)
 
     def __init_subclass__(cls: type[Self], **kwargs):
         # Direct subclasses of AbstractBaseModel are an abstract type and receive a type_map.
@@ -39,6 +31,22 @@ class AbstractBaseModel(StrictBaseModel, ABC):
             module_name = cls.__module__.rsplit('.', 1)[-1]
             cls.__base_model.__type_map.setdefault(module_name, dict())[cls.__name__] = cls
         return super().__init_subclass__(**kwargs)
+
+    def __new__(cls, **kwargs):
+        # Instantiating the base model returns the appropriate subclass based on the "type" field.
+        if cls is cls.__base_model:
+            impl_cls = cls.get_class(kwargs.pop("type"))
+            return impl_cls.__new__(impl_cls, **kwargs)
+        
+        if "type" in kwargs:
+            raise ValueError(f"Unexpected 'type' field for {cls.__name__} instantiation.")
+        return super().__new__(cls)
+
+    def __init__(cls, **kwargs):
+        # The type field is only needed when instantiating the base model.
+        # It is only accessed from __new__ and can be removed here.
+        kwargs.pop("type", None) 
+        super().__init__(**kwargs)
 
     @classmethod
     def get_class(cls, type_name: str) -> type[Self]:
@@ -64,24 +72,6 @@ class AbstractBaseModel(StrictBaseModel, ABC):
             raise ValueError(f"Multiple implementations of '{cls.__name__}' in '{module_name}'. Please specify the class name.")
         else:
             return cls.__type_map[module_name][class_name]    
-
-    @model_validator(mode='wrap')
-    @classmethod
-    def validator(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
-        if isinstance(v, cls):
-            return handler(v)
-        
-        type_name = v.pop("type", None)
-        if cls is not cls.__base_model:
-            # Concrete implementations use the normal handler
-            return handler(v)
-
-        if type_name is None:
-             # Concrete implementations use the normal handler
-            return handler(v)
-
-        impl_cls = cls.get_class(type_name)
-        return impl_cls(**v)
     
     @model_serializer(mode='wrap')
     def serialize_model(
