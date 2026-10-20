@@ -23,6 +23,7 @@ run_authentication_test() (
     dolt-annex <<EOF
 Clone Database
 ${clone_url}
+n
 Local Only
 Firefox
 Exit

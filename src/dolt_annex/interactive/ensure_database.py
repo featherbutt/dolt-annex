@@ -2,7 +2,7 @@
 from pathlib import Path
 import shutil
 
-from plumbum import local
+from plumbum import local, FG # pyright: ignore[reportAttributeAccessIssue]
 
 from dolt_annex.constants import PROGNAME
 from dolt_annex.util.prompts import Choice, choices, text, confirm, filepath # pyright: ignore[reportPrivateImportUsage]
@@ -61,12 +61,12 @@ async def clone_existing_database() -> DoltConfig:
         if url.count("/") == 1 and not url.startswith("http"):
             url = f"https://www.dolthub.com/repositories/{url}"
         try:
-            # Validate the URL by attempting to parse it.
-            # But we don't actually need to store the result.
-            _ = HTTPSConnection.parse_url(url)
+            https_connection = HTTPSConnection.parse_url(url)
             break
         except ValueError as e:
             print(f"Error: {e}")
+
+    await ensure_dolt_login(dolt_binary_path, https_connection)
 
     dolt_dir = Path.cwd() / "dolt"
     if dolt_dir.exists():
@@ -80,6 +80,20 @@ async def clone_existing_database() -> DoltConfig:
         dolt_binary=dolt_binary_path,
         dolt_dir=dolt_dir,
     )
+
+async def ensure_dolt_login(dolt_binary_path: Path, https_connection: HTTPSConnection):
+    do_login = await confirm(
+        message=f"Do you want to log in to {https_connection.hostname}? This will be necessary to push database updates.",
+        default=True
+    )
+    args = ["login"]
+    if "dolthub" not in https_connection.hostname:
+        args.append("--insecure")
+        args.extend(["--auth-endpoint", f"{https_connection.hostname}:{https_connection.port}"])
+        args.extend(["--login-url", f"https://{https_connection.hostname}/settings/credentials"])
+    if do_login:
+        local[dolt_binary_path.as_posix()][args] & FG
+
 
 async def make_new_local_database() -> DoltConfig:
     dolt_path_str = await filepath("Enter the path to where the new local Dolt database should be created: (leave empty for the current directory)")
