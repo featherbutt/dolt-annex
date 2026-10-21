@@ -23,6 +23,7 @@ from dolt_annex.gallery_dl_plugin.postprocessors import insert_metadata, seriali
 from dolt_annex.gallery_dl_plugin.sources import remove_metadata, category_to_source
 from dolt_annex.replicated_db.dolt import DatabaseConnection
 from dolt_annex.replicated_db.interface import TableFilter
+from dolt_annex.writer import ReplicaWriter
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +73,10 @@ class UpdateMetadata(SubCommand):
             Repo.open(self.config, self.repo) as repo,
             DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as dataset_repo,
+            dataset.with_repo(repo.uuid) as dataset_replica,
         ):
-            metadata_table = dataset_repo.get_table("metadata")
-            submissions_table = dataset_repo.get_table("submissions")
+            metadata_table = dataset_replica.get_table("metadata")
+            submissions_table = dataset_replica.get_table("submissions")
             for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                 old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
                 metadata_bytes = await repo.file_store.get_file_bytes(old_metadata_file_key)
@@ -83,10 +84,10 @@ class UpdateMetadata(SubCommand):
                 new_metadata = remove_metadata(metadata)
                 category = new_metadata["category"]
                 source = category_to_source[category]
-                new_metadata_file_key, _ = serialize_metadata(new_metadata, source, repo)
+                new_metadata_file_key, _ = serialize_metadata(new_metadata, source)
                 if new_metadata_file_key != old_metadata_file_key:
                     # TODO: Update collections too
-                    await insert_metadata(new_metadata, source, dataset_repo, repo)
+                    await insert_metadata(new_metadata, source, ReplicaWriter(metadata_table, repo))
                     for old_submission_row in submissions_table.get_rows(filters=[
                         TableFilter("source", old_metadata_row["source"]),
                         TableFilter("id", old_metadata_row["id"]),

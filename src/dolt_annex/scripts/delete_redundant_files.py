@@ -67,17 +67,17 @@ class DeleteRedundantFiles(SubCommand):
             repo_to_delete_from = await stack.enter_async_context(Repo.open(self.config, self.delete_from))
             conn = await stack.enter_async_context(DatabaseConnection.open(self.config))
             dataset = stack.enter_context(conn.open_dataset(dataset_schema))
-            dataset_repo_to_delete_from = await stack.enter_async_context(dataset.with_repo(repo_to_delete_from.uuid))
-            table_to_delete_from = dataset_repo_to_delete_from.get_table(self.table_name)
+            dataset_replica_to_delete_from = await stack.enter_async_context(dataset.with_repo(repo_to_delete_from.uuid))
+            table_replica_to_delete_from = dataset_replica_to_delete_from.get_table(self.table_name)
             
             row_iter: Iterable[TableRow]
             if len(args) == 0:
-                row_iter = table_to_delete_from.get_rows()
+                row_iter = table_replica_to_delete_from.get_rows()
             else:
                 def row_generator():
                     for row_to_remove in args:
                         row_filters = json.loads(row_to_remove)
-                        table_row_to_remove = table_to_delete_from.get_row(filters=row_filters)
+                        table_row_to_remove = table_replica_to_delete_from.get_row(filters=row_filters)
                         if table_row_to_remove is None:
                             logger.warning(f"Row not found: {row_to_remove}")
                             continue
@@ -90,7 +90,7 @@ class DeleteRedundantFiles(SubCommand):
                 repos[repo_name] = filestore
 
             for row_to_remove in row_iter:
-                file_key_string = row_to_remove.get(table_to_delete_from.schema.file_column)
+                file_key_string = row_to_remove.get(table_replica_to_delete_from.schema.file_column)
                 if file_key_string is None:
                     logger.fatal("Missing file key column")
                     return 1
@@ -107,7 +107,7 @@ class DeleteRedundantFiles(SubCommand):
                 if can_remove:
                     if not self.dry_run:
                         repo_to_delete_from.file_store.delete(file_key)
-                        await table_to_delete_from.remove(row_to_remove)
+                        await table_replica_to_delete_from.remove(row_to_remove)
                     else:
                         logger.info(f"Would delete file: {file_key}")
 

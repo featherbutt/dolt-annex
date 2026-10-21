@@ -82,10 +82,10 @@ async def test_alter_file_key_type(tmp_path, setup: EnvironmentForTest):
     async with (
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(dataset_schema)) as dataset,
-        dataset.with_repo(setup.local_repo.uuid) as dataset_repo,
+        dataset.with_repo(setup.local_repo.uuid) as dataset_replica,
     ):
-        metadata_table = dataset_repo.get_table("metadata")
-        submissions_table = dataset_repo.get_table("submissions")
+        metadata_table = dataset_replica.get_table("metadata")
+        submissions_table = dataset_replica.get_table("submissions")
 
         assert len(list(metadata_table.get_rows())) == 2
         for row in metadata_table.get_rows():

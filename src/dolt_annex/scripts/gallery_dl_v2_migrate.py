@@ -56,13 +56,13 @@ class GalleryDLMigrate(SubCommand):
             DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(old_dataset_schema)) as old_dataset,
             as_acm(conn.open_dataset(new_dataset_schema)) as new_dataset,
-            old_dataset.with_repo(repo_id) as old_dataset_repo,
-            new_dataset.with_repo(repo_id) as new_dataset_repo,
+            old_dataset.with_repo(repo_id) as old_dataset_replica,
+            new_dataset.with_repo(repo_id) as new_dataset_replica,
         ):
-            old_metadata_table = old_dataset_repo.get_table("metadata")
-            new_metadata_table = new_dataset_repo.get_table("metadata")
-            old_submissions_table = old_dataset_repo.get_table("submissions")
-            new_submissions_table = new_dataset_repo.get_table("submissions")
+            old_metadata_table = old_dataset_replica.get_table("metadata")
+            new_metadata_table = new_dataset_replica.get_table("metadata")
+            old_submissions_table = old_dataset_replica.get_table("submissions")
+            new_submissions_table = new_dataset_replica.get_table("submissions")
             for old_row in old_metadata_table.get_rows():
                 source = old_row["source"]
                 sid = old_row["id"]

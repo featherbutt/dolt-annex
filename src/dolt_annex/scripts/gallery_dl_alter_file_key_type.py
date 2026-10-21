@@ -77,11 +77,11 @@ class AlterFileKeyType(SubCommand):
             Repo.open(self.config, self.repo) as repo,
             DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as dataset_repo,
+            dataset.with_repo(repo.uuid) as dataset_replica,
         ):
             TargetFileKeyType = get_file_key_type(self.file_key_type)
-            metadata_table = dataset_repo.get_table("metadata")
-            submissions_table = dataset_repo.get_table("submissions")
+            metadata_table = dataset_replica.get_table("metadata")
+            submissions_table = dataset_replica.get_table("submissions")
             if not self.skip_metadata:
                 for old_metadata_row in metadata_table.get_rows(filters=self.filters):
                     old_metadata_file_key = FileKey.must_parse(old_metadata_row["file_key"])
