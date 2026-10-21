@@ -17,16 +17,14 @@ from dolt_annex.datatypes.errors import DoltAnnexApplicationError
 from dolt_annex.datatypes.file_io import Pipe, SyncPipeWriter
 from dolt_annex.file_keys.base import FileKey, Sha256E
 from dolt_annex.filestore.base import FileStore
-from dolt_annex.filestore.cas import ContentAddressableStorage
-from dolt_annex.datatypes.file_stream import KeyedFileStream, bytes_file_source, file_source
-from dolt_annex.gallery_dl_plugin.context import GalleryDLContext
+from dolt_annex.datatypes.file_stream import bytes_file_source, file_source
 from dolt_annex.gallery_dl_plugin.sources.base import FileMetadata, PostMetadata
-from dolt_annex.replicated_db.interface import ReplicatedDataset, ReplicatedTable, TableFilter
-
+from dolt_annex.replicated_db.interface import TableFilter
 
 from dolt_annex.datatypes import TableRow
 
 from dolt_annex.gallery_dl_plugin import _gallery_dl_context
+from dolt_annex.writer import ReplicaWriter
 
 from .sources import GalleryDLSource, get_source
 
@@ -43,16 +41,14 @@ def gallery_dl_post(metadata: PostMetadata):
 
         source.format_post_metadata(metadata)
 
-        dataset: ReplicatedDataset = context.dataset
-
-        context.run(insert_metadata(metadata, source, dataset, context.repo, context.collections_metadata_tables))
+        context.run(insert_metadata(metadata, source, context.metadata_writer))
         context.post_metadata_files_processed += 1
     except DoltAnnexApplicationError as e:
         context.exception.set_exception(e)
         raise gallery_dl.exception.TerminateExtraction()
 
 
-def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: Repo):
+def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource):
     source.format_post_metadata(metadata)
     public_metadata = { k: v for k, v in metadata.items() if not source.exclude_field(k) }
 
@@ -64,13 +60,12 @@ def serialize_metadata(metadata: Dict[str, Any], source: GalleryDLSource, repo: 
         default=json_default).encode('utf-8') + b'\n'
 
 
-async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, dataset: ReplicatedDataset, repo: Repo, collections: GalleryDLContext.CollectionTables = GalleryDLContext.CollectionTables([])):
-    metadata_bytes = serialize_metadata(metadata, source, repo)
+async def insert_metadata(metadata: Dict[str, Any], source: GalleryDLSource, writer: ReplicaWriter):
+    metadata_bytes = serialize_metadata(metadata, source)
     
     table_row = TableRow({"source": source.source_name, "id": metadata["_id"]})
 
-    async with dataset.with_table("metadata") as table:
-        file_key = await import_file(repo, table_row, bytes_file_source(metadata_bytes, Sha256E, extension="json"), table, collections)
+    file_key = await writer.put_file(table_row, bytes_file_source(metadata_bytes, Sha256E, extension="json"))
     metadata["_metadata_file_key"] = file_key
     return file_key
 
@@ -82,9 +77,6 @@ def gallery_dl_prepare(metadata: FileMetadata):
         subcategory = metadata["subcategory"]
         source = get_source(category, subcategory)
         context.stdout.write(f"Downloading post {metadata['_id']}...")
-
-        repo = context.repo
-        dataset = context.dataset
 
         source.format_file_metadata(metadata)
         if check_skip(source, metadata):
@@ -106,16 +98,12 @@ def gallery_dl_prepare(metadata: FileMetadata):
             def custom_open(self, mode):
                 pipe = Pipe(context.event_loop)
                 writer = SyncPipeWriter(pipe)
-                async def task():
-                    async with dataset.with_table("submissions") as submissions_table:
-                        await import_file(
-                            repo,
-                            insert_row,
-                            file_source(pipe.open(), key_type, extension=metadata["extension"]),
-                            submissions_table,
-                            context.collections_submission_tables
-                        )
-                context.enqueue_task(task())
+                context.enqueue_task(
+                    context.submission_writer.put_file(
+                        insert_row,
+                        file_source(pipe.open(), key_type, extension=metadata["extension"])
+                    )
+                )
                 return writer
             from gallery_dl.path import PathFormat
             PathFormat.open = custom_open
@@ -128,17 +116,14 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     # First, check whether we already have the file in the annex.
 
     context = _gallery_dl_context.get()
+    repo = context.repo
+    submissions = context.submission_writer
+    metadata_ = context.metadata_writer
 
     # First, if the --skip-download flag is set, we skip all downloads.
-    if _gallery_dl_context.get().config.skip_download:
+    if context.config.skip_download:
         return True
 
-    repo_dataset = context.repo_dataset
-    repo = context.repo
-    dataset = context.dataset
-
-    submissions_table = repo_dataset.get_table("submissions")
-    metadata_table = repo_dataset.get_table("metadata")
     page_number = source.page_number(metadata)
     metadata["_page_number"] = page_number
     filters = [
@@ -147,9 +132,9 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
         TableFilter("metadata_file_key", metadata["_metadata_file_key"]),
         TableFilter("part", page_number),
     ]
-    if (row := submissions_table.get_row(filters=filters)):
-        # We already have this file, skip it.
-        context.run(context.collections_submission_tables.insert(row))
+    if (row := submissions.table.get_row(filters=filters)):
+        # We already have this file, skip it. (But add it to collections)
+        context.run(submissions.collections.insert(row))
         return True
 
     # Alternatively, if the source provides a hash in the metadata, we can check to see
@@ -157,59 +142,52 @@ def check_skip(source: GalleryDLSource, metadata: FileMetadata) -> bool:
     # make a task to insert a record into the table, and then skip.
 
     async def get_files_coro() -> bool:
-        has_keys_in_metadata = False
-        for key_prefix in source.keys_from_metadata(metadata):
-            has_keys_in_metadata = True
-            try:
-                async for data_source in repo.get_files(bytes(key_prefix)):
-                    
-                    row = TableRow({
-                        "source": source.source_name,
-                        "id": metadata["_id"],
-                        "metadata_file_key": metadata["_metadata_file_key"],
-                        "part": page_number,
-                    })
-                    async with dataset.with_table("submissions") as writable_submissions_table:
-                        await import_file(
-                            repo,
-                            row,
-                            data_source,
-                            writable_submissions_table,
-                            context.collections_submission_tables
-                        )
-                    return True
-            except FileStore.GetFilesNotImplementedError:
-                pass
-        
-        if not has_keys_in_metadata:
-            # If the source doesn't contain file hashes, it might contain other information
-            # That can tell us if the submission is unchanged from a previous version.
-            for row in metadata_table.get_rows(filters=[
-                TableFilter("source", source.source_name),
-                TableFilter("id", metadata["_id"])
-            ]):
-                metadata_file_key = FileKey.must_parse(row["file_key"])
-                metadata_bytes = await repo.file_store.get_file_bytes(metadata_file_key)
-                existing_metadata = json.loads(metadata_bytes)
-                if source.assume_same_file(metadata, existing_metadata, page_number):
-                    submission_row = submissions_table.get_row(filters=[
-                        TableFilter("source", source.source_name),
-                        TableFilter("id", metadata["_id"]),
-                        TableFilter("metadata_file_key", metadata_file_key),
-                        TableFilter("part", page_number),
-                    ])
-                    if submission_row is not None:
+            has_keys_in_metadata = False
+            for key_prefix in source.keys_from_metadata(metadata):
+                has_keys_in_metadata = True
+                try:
+                    async for data_source in repo.get_files(bytes(key_prefix)):
+                        
                         row = TableRow({
                             "source": source.source_name,
                             "id": metadata["_id"],
                             "metadata_file_key": metadata["_metadata_file_key"],
                             "part": page_number,
-                            "submission_file_key": submission_row["submission_file_key"],
                         })
-                        await submissions_table.insert(row)
-                        await context.collections_submission_tables.insert(row)
+                        
+                        await submissions.put_file(row, data_source)
                         return True
-        return False
+                except FileStore.GetFilesNotImplementedError:
+                    pass
+            
+            if not has_keys_in_metadata:
+                # If the source doesn't contain file hashes, it might contain other information
+                # That can tell us if the submission is unchanged from a previous version.
+                for row in metadata_.table.get_rows(filters=[
+                    TableFilter("source", source.source_name),
+                    TableFilter("id", metadata["_id"])
+                ]):
+                    metadata_file_key = FileKey.must_parse(row["file_key"])
+                    metadata_bytes = await repo.file_store.get_file_bytes(metadata_file_key)
+                    existing_metadata = json.loads(metadata_bytes)
+                    if source.assume_same_file(metadata, existing_metadata, page_number):
+                        submission_row = submissions.table.get_row(filters=[
+                            TableFilter("source", source.source_name),
+                            TableFilter("id", metadata["_id"]),
+                            TableFilter("metadata_file_key", metadata_file_key),
+                            TableFilter("part", page_number),
+                        ])
+                        if submission_row is not None:
+                            row = TableRow({
+                                "source": source.source_name,
+                                "id": metadata["_id"],
+                                "metadata_file_key": metadata["_metadata_file_key"],
+                                "part": page_number,
+                                "submission_file_key": submission_row["submission_file_key"],
+                            })
+                            await submissions.insert(row)
+                            return True
+            return False
 
     return context.run(get_files_coro())
 
@@ -230,26 +208,10 @@ def gallery_dl_import(source: GalleryDLSource, metadata: dict):
     """Import the submission file and its metadata into the dolt-annex dataset."""
 
     context = _gallery_dl_context.get()
-    repo_dataset = context.repo_dataset
 
     context.submission_files_processed += 1
     for metadata_table_key in source.file_metadata(metadata):
         # TODO: This doesn't currently work properly for sources that have metadata for each file.
         # But Itaku is the only such source and it's currently broken anyway.
         raise NotImplementedError("metadata on files is not currently supported")
-        context.run(insert_metadata(metadata, source, repo_dataset, context.repo, context.collections_metadata_tables))
-
-async def import_file(
-    cas: ContentAddressableStorage,
-    table_row: TableRow,
-    data_source: KeyedFileStream,
-    replicated_table: ReplicatedTable,
-    collections: GalleryDLContext.CollectionTables,
-) -> FileKey:
-    file_key, filestore_ids = await cas.put_file(data_source)
-    table_row[replicated_table.schema.file_column] = file_key
-    for filestore_id in filestore_ids:
-        async with replicated_table.with_repo(filestore_id) as table_replica:
-            await table_replica.insert(table_row)
-    await collections.insert(table_row)
-    return file_key
+        context.run(insert_metadata(metadata, source, context.metadata_writer))

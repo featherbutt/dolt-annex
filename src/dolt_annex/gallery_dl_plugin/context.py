@@ -5,12 +5,12 @@ import asyncio
 import contextlib
 import sys
 from dataclasses import dataclass
-from typing import List, TextIO
+from typing import TextIO
 
-from dolt_annex.datatypes.common import TableRow
 from dolt_annex.config.gallerydl_config import GalleryDLConfig
 from dolt_annex.datatypes.repo import Repo
-from dolt_annex.replicated_db.interface import DatasetReplica, ReplicatedDataset, TableReplica
+from dolt_annex.replicated_db.interface import DatasetReplica, ReplicatedDataset
+from dolt_annex.writer import CollectionTables, ReplicaWriter
 
 @dataclass
 class GalleryDLContext:
@@ -22,8 +22,8 @@ class GalleryDLContext:
     dataset: ReplicatedDataset
     repo_dataset: DatasetReplica
     event_loop: asyncio.AbstractEventLoop
-    collections_submission_tables: CollectionTables
-    collections_metadata_tables: CollectionTables
+    metadata_writer: ReplicaWriter
+    submission_writer: ReplicaWriter
     task_group: asyncio.TaskGroup
     exception: asyncio.Future[None]
     stdout: TextIO = sys.stdout
@@ -37,15 +37,6 @@ class GalleryDLContext:
     # in-flight files.
     semaphore: asyncio.Semaphore = asyncio.Semaphore(4)
     abort_flag: bool = False
-
-    @dataclass
-    class CollectionTables:
-        tables: List[TableReplica]
-
-        async def insert(self, row: TableRow):
-            for table in self.tables:
-                await table.insert(row)
-
 
     def run(self, coro):
         """Run a coroutine in the gallery-dl event loop."""
@@ -74,10 +65,17 @@ class GalleryDLContext:
             asyncio.TaskGroup() as task_group,
         ):
             repo_dataset = await exit_stack.enter_async_context(dataset.with_repo(repo.uuid))
+            replicated_submissions_table = await exit_stack.enter_async_context(dataset.with_table("submissions"))
+            replicated_metadata_table = await exit_stack.enter_async_context(dataset.with_table("metadata"))
             for collection in config.collections:
                 collection_dataset = await exit_stack.enter_async_context(dataset.with_repo(collection.uuid))
+                
                 collections_submission_tables.append(collection_dataset.get_table("submissions"))
                 collections_metadata_tables.append(collection_dataset.get_table("metadata"))
+            collections_submission_tables=CollectionTables(collections_submission_tables)
+            collections_metadata_tables=CollectionTables(collections_metadata_tables)
+            metadata_table_replica = await exit_stack.enter_async_context(replicated_metadata_table.with_repo(repo.uuid))
+            submission_table_replica = await exit_stack.enter_async_context(replicated_submissions_table.with_repo(repo.uuid))
             yield cls(
                 config=config,
                 repo=repo,
@@ -86,6 +84,6 @@ class GalleryDLContext:
                 task_group=task_group,
                 dataset=dataset,
                 exception=asyncio.Future(),
-                collections_submission_tables=GalleryDLContext.CollectionTables(collections_submission_tables),
-                collections_metadata_tables=GalleryDLContext.CollectionTables(collections_metadata_tables),
+                metadata_writer=ReplicaWriter(metadata_table_replica, repo, collections_metadata_tables),
+                submission_writer=ReplicaWriter(submission_table_replica, repo, collections_submission_tables),
             )

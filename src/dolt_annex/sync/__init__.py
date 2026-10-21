@@ -16,13 +16,13 @@ from dolt_annex.datatypes import TableRow
 from dolt_annex.file_keys.base import FileKey
 from dolt_annex.filestore.base import FileStoreError
 from dolt_annex.datatypes.repo import Repo
+from dolt_annex.writer import ReplicaWriter
 
 logger = logging.getLogger(__name__)
 
 class SyncOperation:
-    to_table: TableReplica
+    destination_writer: ReplicaWriter
     from_repo: Repo
-    to_repo: Repo
     ignore_missing: bool = False
 
     work_queue: asyncio.Queue[Optional[Tuple[FileKey, TableRow]]]
@@ -35,15 +35,13 @@ class SyncOperation:
     def __init__(
             self,
             *,
-            to_table: TableReplica,
             from_repo: Repo,
-            to_repo: Repo,
+            destination_writer: ReplicaWriter,
             ignore_missing: bool = False,
             queue_size: Optional[int] = 1000,
     ) -> None:
-        self.to_table = to_table
+        self.destination_writer = destination_writer
         self.from_repo = from_repo
-        self.to_repo = to_repo
         self.ignore_missing = ignore_missing
         self.work_queue = asyncio.Queue(maxsize=queue_size or 0)
         self.files_moved = 0
@@ -60,9 +58,11 @@ class SyncOperation:
                 break
             key, table_row = item
             try:
-                await self.move_submission_and_key(
-                    key,
+                await self.destination_writer.copy_row(
+                    self.from_repo,
                     table_row,
+                    key,
+                    self.ignore_missing,
                 )
                 self.files_moved += 1
             except (FileNotFoundError, FileStoreError) as e:
@@ -73,13 +73,13 @@ class SyncOperation:
     async def move(self, where: List[TableFilter], batch_size: Optional[int] = None) -> None:
 
         while True:
-            keys_and_submissions = self.to_table.table.diff_keys(self.from_repo.uuid, self.to_repo.uuid, where, batch_size)
+            keys_and_submissions = self.destination_writer.table.table.diff_keys(self.from_repo.uuid, self.destination_writer.uuid, where, batch_size)
             num_results = await self.move_submissions_and_keys(keys_and_submissions)
             # Await here so that the next diff sees the updated state
             await self.work_queue.join()
             if self.pending_exceptions:
                 raise ExceptionGroup("exceptions during sync", self.pending_exceptions)
-            await self.to_table.flush()
+            await self.destination_writer.table.flush()
             # No more results if we received fewer results than the batch size
             if batch_size is None or num_results < batch_size:
                 break
@@ -93,39 +93,18 @@ class SyncOperation:
                 case "added": 
                     await self.work_queue.put((key, to_table_row))
                 case "removed":
-                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
-                    await self.to_table.remove(from_table_key)
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.destination_writer.schema.key_columns })
+                    await self.destination_writer.table.remove(from_table_key)
                 case "modified":
                     await self.work_queue.put((key, to_table_row))
-                    from_table_key = TableRow({ column: from_table_row[column] for column in self.to_table.schema.key_columns })
-                    await self.to_table.remove(from_table_key)
+                    from_table_key = TableRow({ column: from_table_row[column] for column in self.destination_writer.schema.key_columns })
+                    await self.destination_writer.table.remove(from_table_key)
                 case _:
                     raise ValueError(f"Unknown diff type {diff_type}")
                     
         return count
     
-    async def move_submission_and_key(self, key: FileKey, table_row: TableRow):
-        logger.info("moving %s: %s", table_row, key)
 
-        if await self.to_repo.exists(key):
-            logger.debug("file %s already exists in destination filestore", key)
-            # The file may have come from a different dataset, so we don't need to copy it.
-            # We still record that we have a copy of it for this dataset.
-            await self.to_table.insert(table_row)
-            return
-        if self.ignore_missing and not await self.from_repo.exists(key):
-            logger.debug("Missing file %s in source filestore, skipping due to --ignore-missing", key)
-            return
-        if key in self.in_flight_keys:
-            task = self.in_flight_keys[key]
-            await task
-            await self.to_table.insert(table_row)
-        else:
-            task = asyncio.create_task(filestore_copy(src=self.from_repo, dst=self.to_repo, key=key))
-            self.in_flight_keys[key] = task
-            await task
-            await self.to_table.insert(table_row)
-            del self.in_flight_keys[key]
 
 
     @classmethod
@@ -144,11 +123,10 @@ class SyncOperation:
             asyncio.TaskGroup() as workers
         ):
             sync_op = cls(
-                to_table = to_table,
                 from_repo=from_repo,
-                to_repo=to_repo,
                 ignore_missing=ignore_missing,
                 queue_size=queue_size,
+                destination_writer=ReplicaWriter(to_table, to_repo),
             )
             for _ in range(num_workers):
                 workers.create_task(sync_op.worker_loop())
