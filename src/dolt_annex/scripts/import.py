@@ -131,16 +131,16 @@ class Import(cli.Application):
             Repo.open(base_config, self.repo) as repo,
             DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as repo_dataset,
+            dataset.with_repo(repo.uuid) as dataset_replica,
         ):
             importer = get_importer(*self.importer.split())
-            await do_import(repo_dataset, repo, import_config, importer, files_or_directories)
+            await do_import(dataset_replica, repo, import_config, importer, files_or_directories)
 
         return 0
 
-async def do_import(repo_dataset: DatasetReplica, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
+async def do_import(dataset_replica: DatasetReplica, file_store: ContentAddressableStorage, import_config: ImportConfig, importer: importers.Importer, files_or_directories: Iterable[str]):
     key_paths: Dict[str, Dict[Path, FileKey]] = {}
-    for table_name, table in repo_dataset.tables.items():
+    for table_name, table in dataset_replica.tables.items():
         key_paths[table_name] = {}
         table.add_flush_hook(move_files, file_store, import_config,key_paths[table_name])
 
@@ -188,7 +188,7 @@ async def do_import(repo_dataset: DatasetReplica, file_store: ContentAddressable
             if key_columns:
                 key_columns["submission_file_key"] = bytes(key)
                 table_name = importer.table_name(path)
-                table = repo_dataset.get_table(table_name)
+                table = dataset_replica.get_table(table_name)
                 await table.insert(key_columns)
                 key_paths[table_name][path] = key
             if not key_columns:

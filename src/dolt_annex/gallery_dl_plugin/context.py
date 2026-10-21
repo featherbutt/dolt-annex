@@ -20,7 +20,7 @@ class GalleryDLContext:
     config: GalleryDLConfig
     repo: Repo
     dataset: ReplicatedDataset
-    repo_dataset: DatasetReplica
+    dataset_replica: DatasetReplica
     event_loop: asyncio.AbstractEventLoop
     metadata_writer: ReplicaWriter
     submission_writer: ReplicaWriter
@@ -64,7 +64,7 @@ class GalleryDLContext:
             contextlib.AsyncExitStack() as exit_stack,
             asyncio.TaskGroup() as task_group,
         ):
-            repo_dataset = await exit_stack.enter_async_context(dataset.with_repo(repo.uuid))
+            dataset_replica = await exit_stack.enter_async_context(dataset.with_repo(repo.uuid))
             replicated_submissions_table = await exit_stack.enter_async_context(dataset.with_table("submissions"))
             replicated_metadata_table = await exit_stack.enter_async_context(dataset.with_table("metadata"))
             for collection in config.collections:
@@ -79,7 +79,7 @@ class GalleryDLContext:
             yield cls(
                 config=config,
                 repo=repo,
-                repo_dataset=repo_dataset,
+                dataset_replica=dataset_replica,
                 event_loop=event_loop,
                 task_group=task_group,
                 dataset=dataset,

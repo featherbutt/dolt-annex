@@ -28,9 +28,9 @@ async def test_insert_record(tmp_path, setup: EnvironmentForTest):
     async with (
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
+        dataset.with_repo(setup.local_repo.uuid) as dataset_replica,
     ):
-        result_row = repo_dataset.get_table("test_table").get_row(filters=[TableFilter("path", "test_key")])
+        result_row = dataset_replica.get_table("test_table").get_row(filters=[TableFilter("path", "test_key")])
         assert result_row is not None
         assert result_row["file_key"] == bytes(key).decode('utf-8')
 

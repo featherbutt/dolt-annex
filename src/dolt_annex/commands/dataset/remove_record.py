@@ -65,9 +65,9 @@ class RemoveRecord(cli.Application):
         async with (
             DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as repo_dataset,
+            dataset.with_repo(repo.uuid) as dataset_replica,
         ):
-            table = repo_dataset.get_table(self.table_name)
+            table = dataset_replica.get_table(self.table_name)
             rows = iter(table.get_rows(filters=self.filters))
             row = next(rows, None)
             if next(rows, None):

@@ -143,9 +143,9 @@ async def move_dataset(dataset: ReplicatedDataset, from_repo: Repo, to_repo: Rep
     files_moved = 0
     async with (
         dataset.merge_context(from_repo.uuid, to_repo.uuid),
-        dataset.with_repo(to_repo.uuid) as dest_repo_dataset,
+        dataset.with_repo(to_repo.uuid) as dest_dataset_replica,
     ):
-        for to_table in dest_repo_dataset.get_tables():
+        for to_table in dest_dataset_replica.get_tables():
             async with SyncOperation.context_manager(
                 to_table = to_table,
                 from_repo=from_repo,

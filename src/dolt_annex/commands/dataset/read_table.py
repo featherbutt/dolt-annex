@@ -83,9 +83,9 @@ class ReadTable(cli.Application):
         async with (
             DatabaseConnection.open(base_config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo_id) as repo_dataset,
+            dataset.with_repo(repo_id) as dataset_replica,
         ):
-            table = repo_dataset.get_table(self.table_name)
+            table = dataset_replica.get_table(self.table_name)
             for row in table.get_rows(columns=self.columns, filters=self.filters):
                 json.dump(row, sys.stdout)
                 sys.stdout.write('\n')

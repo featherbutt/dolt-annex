@@ -73,11 +73,11 @@ async def test_detect_corruption(
     async with (
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(from_repo.uuid) as from_repo_dataset,
+        dataset.with_repo(from_repo.uuid) as from_dataset_replica,
         dataset.with_repo(to_repo.uuid),
     ):
         # Add entries to from_repo database
-        from_table = from_repo_dataset.get_table("test_table")
+        from_table = from_dataset_replica.get_table("test_table")
         await from_table.insert(
             TableRow({"path": "0", "file_key": file_key}),
         )
@@ -105,11 +105,11 @@ async def test_async_move(
     async with (
         DatabaseConnection.open(test_config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(from_repo.uuid) as from_repo_dataset,
+        dataset.with_repo(from_repo.uuid) as from_dataset_replica,
         dataset.with_repo(to_repo.uuid),
     ):
         # Add entries to from_repo database
-        from_table = from_repo_dataset.get_table("test_table")
+        from_table = from_dataset_replica.get_table("test_table")
         for i, file_key in enumerate(added_file_keys):
             path = f"{i}"
             await from_table.insert(TableRow({"path": path,"file_key": file_key}))
@@ -127,7 +127,7 @@ async def test_async_move(
         for file_key in added_file_keys:
             await to_repo.verify_file(file_key)
         # Check that db entries have been updated
-        to_table = from_repo_dataset.get_table("test_table")
+        to_table = from_dataset_replica.get_table("test_table")
         for row in to_table.get_rows():
             path = row["path"]
             file_key = row["file_key"]
@@ -155,15 +155,15 @@ async def test_diff_types(
     async with (
         DatabaseConnection.open(test_config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(from_repo.uuid) as from_repo_dataset,
-        dataset.with_repo(to_repo.uuid) as to_repo_dataset,
+        dataset.with_repo(from_repo.uuid) as from_dataset_replica,
+        dataset.with_repo(to_repo.uuid) as to_dataset_replica,
     ):
         
         file_bytes = random.randbytes(1024**2) # 1 MB
         file_key, _ = await setup.local_repo.put_file(bytes_file_source(file_bytes, Sha256E))
         table_row = TableRow({"path": "test_path","file_key": file_key})
         # Add entries to from_repo database
-        from_table = from_repo_dataset.get_table("test_table")
+        from_table = from_dataset_replica.get_table("test_table")
         await from_table.insert(table_row)
 
         await from_table.flush()
@@ -176,7 +176,7 @@ async def test_diff_types(
         # Check that files have been moved
         await to_repo.verify_file(file_key)
         # Check that db entries have been updated
-        to_table = to_repo_dataset.get_table("test_table")
+        to_table = to_dataset_replica.get_table("test_table")
         rows = list(to_table.get_rows())
         assert len(rows) == 1
         assert rows[0]["path"] == "test_path"

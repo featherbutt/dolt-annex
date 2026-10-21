@@ -23,9 +23,9 @@ async def test_remove_record(tmp_path, setup: EnvironmentForTest):
     async with (
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
+        dataset.with_repo(setup.local_repo.uuid) as dataset_replica,
     ):
-        result_rows = list(repo_dataset.get_table("test_table").get_rows())
+        result_rows = list(dataset_replica.get_table("test_table").get_rows())
         assert len(result_rows) == 2
 
     # Check that only the specified record was removed
@@ -37,8 +37,8 @@ async def test_remove_record(tmp_path, setup: EnvironmentForTest):
     async with (
         DatabaseConnection.open(setup.config) as conn,
         as_acm(conn.open_dataset(test_dataset_schema)) as dataset,
-        dataset.with_repo(setup.local_repo.uuid) as repo_dataset,
+        dataset.with_repo(setup.local_repo.uuid) as dataset_replica,
     ):
-        result_rows = list(repo_dataset.get_table("test_table").get_rows())
+        result_rows = list(dataset_replica.get_table("test_table").get_rows())
         assert len(result_rows) == 1
         assert result_rows[0]["path"] == "test_key2"

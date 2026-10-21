@@ -37,10 +37,10 @@ class DownloadSkipped(SubCommand[GalleryDL]):
             Repo.open(self.config, self.parent.repo) as repo,
             DatabaseConnection.open(self.config) as conn,
             as_acm(conn.open_dataset(dataset_schema)) as dataset,
-            dataset.with_repo(repo.uuid) as repo_dataset,
+            dataset.with_repo(repo.uuid) as dataset_replica,
         ):
-            metadata_table = repo_dataset.get_table("metadata")
-            submissions_table = repo_dataset.get_table("submissions")
+            metadata_table = dataset_replica.get_table("metadata")
+            submissions_table = dataset_replica.get_table("submissions")
             for metadata_row in metadata_table.get_rows():
                 metadata_file_key = metadata_row["file_key"]
                 async with repo.file_store.with_file_object(metadata_file_key) as metadata_fd:
