@@ -125,6 +125,7 @@ async def make_new_local_and_remote_filestore(config: Config, filestore_name: st
     remote_filestore = await make_new_remote_filestore(config, filestore_name+"_remote")
     union_filestore = UnionFSModel(
         name=filestore_name,
+        uuid=uuid.uuid4(),
         children=[local_filestore, remote_filestore],
         write_to_all_children=True,
     )
@@ -135,6 +136,7 @@ async def make_new_local_or_remote_filestore(config: Config, filestore_name: str
     remote_filestore = await make_new_remote_filestore(config, filestore_name+"_remote")
     union_filestore = UnionFSModel(
         name=filestore_name,
+        uuid=uuid.uuid4(),
         children=[local_filestore, remote_filestore],
         write_to_all_children=False,
     )
