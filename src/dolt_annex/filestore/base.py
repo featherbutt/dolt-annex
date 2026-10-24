@@ -83,6 +83,7 @@ class FileStoreBaseParams:
 
     uuid: Optional[FileStore.Id] = None
     content_addressed: bool = True
+    dolt_remote: Optional[str] = None
 
 class FileStore(abc.ABC):
 
