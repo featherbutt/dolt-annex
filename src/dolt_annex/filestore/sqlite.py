@@ -42,6 +42,10 @@ from .base import FileInfo, FileStore, FileStoreModel
 
 logger = logging.getLogger(__name__)
 
+PRAGMAS = """
+PRAGMA case_sensitive_like = ON;
+"""
+
 SQLAR_SCHEMA = """
 PRAGMA journal_mode=WAL;
 CREATE TABLE sqlar(
@@ -189,6 +193,7 @@ class SQLite(FileStore):
         db_path = root / SQLAR_DB_FILENAME
         db = sqlite3.connect(db_path)
         try:
+            db.executescript(PRAGMAS)
             existing = db.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='sqlar'"
             ).fetchone()
